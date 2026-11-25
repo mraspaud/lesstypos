@@ -110,12 +110,14 @@
   // Rollover ratio (Dhakal et al. 2018): share of keydowns made while another
   // (non-modifier) key is still held. keys: [{k:'d'|'u', c: code, t}].
   var MODS = /^(Shift|Control|Alt|Meta|CapsLock|OS)/;
-  function rollover(keys) {
-    var held = {}, nHeld = 0, total = 0, rolled = 0;
+  // opts.exclude: key codes left out (keys sent late as synthetic taps).
+  function rollover(keys, opts) {
+    var held = {}, nHeld = 0, total = 0, rolled = 0, skip = {};
+    ((opts && opts.exclude) || []).forEach(function (c) { skip[c] = true; });
     var ev = (keys || []).slice().sort(function (a, b) { return a.t - b.t || (a.k === 'u' ? -1 : 1); });
     for (var i = 0; i < ev.length; i++) {
       var e = ev[i];
-      if (MODS.test(e.c)) continue;
+      if (MODS.test(e.c) || skip[e.c]) continue;
       if (e.k === 'd') {
         total++;
         if (nHeld > 0) rolled++;
@@ -160,10 +162,10 @@
       }
     });
     var info = all.length && median(all) >= HOLD_INFO_MS;
-    var late = !info ? [] : Object.keys(holds).filter(function (ch) {
-      return holds[ch].n >= LATE_MIN_N && holds[ch].instant / holds[ch].n >= LATE_SHARE;
-    });
-    return { chars: late, codes: late.map(function (ch) { return codeOf[ch]; }), holds: holds };
+    // judged: keys with enough presses (and hold information) for a verdict
+    var judged = !info ? [] : Object.keys(holds).filter(function (ch) { return holds[ch].n >= LATE_MIN_N; });
+    var late = judged.filter(function (ch) { return holds[ch].instant / holds[ch].n >= LATE_SHARE; });
+    return { chars: late, judged: judged, codes: late.map(function (ch) { return codeOf[ch]; }), holds: holds };
   }
 
   // Share of clean keystrokes slower than twice the ratio expected for them

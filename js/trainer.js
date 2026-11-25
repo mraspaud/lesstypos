@@ -142,6 +142,7 @@
       }
       var rnd = words.filter(function (w) { return w.meta && w.meta.source === 'random'; });
       return {
+        late: FT.timing.lateKeys(raw.keys, words, raw.macros),
         words: words, tm: tm, analyses: analyses, pairs: FT.timing.commonPairStats(tm.records),
         metrics: FT.metrics.summarize(scored, { durationMs: activeMs }),
         random: FT.metrics.summarize(rnd.map(function (w) { return w.analysis; }), { durationMs: 0 }),
@@ -170,7 +171,8 @@
         random: { words: m.random.words, firstAttemptAccuracy: m.random.firstAttemptAccuracy },
         hesitationRate: FT.timing.hesitationRate(m.tm.records, expectedRatio(model.evaluate({ day: raw.day }))),
         rhythmCv: FT.timing.rhythmCv(m.tm.records),
-        rollover: FT.timing.rollover(raw.keys),
+        rollover: FT.timing.rollover(raw.keys, { exclude: m.late.codes }),
+        lateKeys: m.late.chars,
         timeline: FT.progress.timeline(m.words),
         keyStats: FT.progress.keyStats(m.words, raw.macros),
         baseline: m.tm.baseline,
@@ -180,7 +182,7 @@
 
     function learn(raw, session, m, summary) {
       if (MODEL_TYPES[raw.type]) {
-        model.ingest(m.tm.records, { session: session, day: raw.day });
+        model.ingest(m.tm.records, { session: session, day: raw.day, late: m.late });
         summary.stageChanges = model.endSession({ session: session, day: raw.day });
       }
       if (raw.type !== 'benchmark') subs.ingest(m.analyses, { exercise: raw.type, session: session, t: raw.startedAt });

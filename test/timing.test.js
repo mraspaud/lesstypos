@@ -202,3 +202,12 @@ test('the session baseline ignores simultaneous pairs', () => {
   const r = run([['bead', 'bead ', [100, 100, 2, 200, 200]]]);
   assert.equal(r.baseline.within, 200); // e (100) and a (2) are left out
 });
+
+test('rollover can leave out keys whose key-up times carry no information', () => {
+  const keys = [
+    { k: 'd', c: 'KeyA', t: 0 }, { k: 'd', c: 'KeyE', t: 50 }, { k: 'u', c: 'KeyE', t: 50.5 }, { k: 'u', c: 'KeyA', t: 90 },
+    { k: 'd', c: 'KeyB', t: 200 }, { k: 'u', c: 'KeyB', t: 260 },
+  ];
+  assert.equal(FT.timing.rollover(keys), 1 / 3);
+  assert.equal(FT.timing.rollover(keys, { exclude: ['KeyE'] }), 0);
+});

@@ -22,6 +22,11 @@
 // the deficit also shows in at least `minSessions` separate sessions (each with
 // >= minSessionN observations, compared with the parent in the same session).
 // Credible but unreplicated deficits are reported as 'emerging'.
+// Late keys (design choice): a key the keyboard sends late (timing.lateKeys)
+// has shifted timestamps. Its longer contexts are judged against a parent
+// ending on the same key, so the shift cancels; the single key is judged
+// against all keys, so its latency is not judged (lateKey). Errors are. The
+// verdict per key comes from the latest session with enough presses of it.
 // Redundancy (design choice): a child whose parent has (almost) no data
 // besides the child's own is not judged separately; it carries no information
 // beyond its parent and must not explain the parent away.
@@ -53,6 +58,12 @@
     function ingest(records, meta) {
       var session = meta.session, day = meta.day;
       var acc = {};
+      if (meta.late) {
+        var lateNow = {};
+        meta.late.chars.forEach(function (ch) { lateNow[ch] = true; });
+        st.late = st.late || {};
+        meta.late.judged.forEach(function (ch) { if (lateNow[ch]) st.late[ch] = true; else delete st.late[ch]; });
+      }
       for (var i = 0; i < records.length; i++) {
         var r = records[i];
         if (r.t === null) continue;
@@ -227,7 +238,8 @@
       confirmAcrossSessions(j.out);
       explainAway(j.out, agg, j.hypers, day);
       labelStates(j.out);
-      return { get: function (k) { return j.out[k]; }, all: j.out, hyper: j.hypers, global: prior };
+      return { get: function (k) { return j.out[k]; }, all: j.out, hyper: j.hypers, global: prior,
+        late: Object.keys(st.late || {}).sort() };
     }
 
     function aggregateAll(day) {
@@ -259,6 +271,7 @@
           r.n = x.g.n; r.errors = x.g.e; r.latN = x.g.ln;
           r.rawMu = x.g.ln ? x.g.ls / x.g.ln : null; // measured mean log ratio (no shrinkage)
           if (x.redundant) { r.redundant = true; r.weak = false; r.hesitant = false; }
+          if (order === 1 && st.late && st.late[x.k]) { r.lateKey = true; r.hesitant = false; }
           out[x.k] = r;
         });
       }
@@ -337,7 +350,7 @@
         key: key, parent: c.parent, order: c.order, state: c.state, stage: ctx.stage,
         n: c.n, errors: c.errors, errorRate: c.errorRate, parentErrorRate: c.parentErrorRate, pWorse: c.pWorse,
         latency: { n: c.latN, ratio: Math.exp(c.mu), parentRatio: Math.exp(c.parentMu), relative: c.latRel, pSlower: c.pSlower },
-        explainedBy: c.explainedBy || null, redundant: !!c.redundant,
+        explainedBy: c.explainedBy || null, redundant: !!c.redundant, lateKey: !!c.lateKey,
         sessionsWithDeficit: Math.max(c.errSessions || 0, c.latSessions || 0),
         errorSessions: c.errSessions, latencySessions: c.latSessions, minSessions: cfg.minSessions,
         examples: ctx.ex.slice().reverse(),

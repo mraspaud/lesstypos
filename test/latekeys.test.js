@@ -45,6 +45,7 @@ test('keys held about 0 ms while others are held normally are late', () => {
   assert.deepEqual(plain(r.chars).sort(), [' ', 'e']);
   assert.deepEqual(plain(r.codes).sort(), ['KeyE', 'Space']);
   assert.equal(r.holds.e.n, 12);
+  assert.deepEqual(plain(r.judged).sort(), [' ', 'a', 'e', 'l', 'o']);
   assert.equal(r.holds.a.instant, 0);
 });
 

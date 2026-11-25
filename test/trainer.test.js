@@ -26,7 +26,8 @@ function simulate(trainer, nWords, t0, opts = {}) {
         s.input({ kind: 'back', t }); t += 150;
       }
       s.input({ kind: 'text', data: ch, t });
-      keys.push({ k: 'd', c: 'Key' + ch, t }, { k: 'u', c: 'Key' + ch, t: t + 150 });
+      const hold = opts.instant && opts.instant.includes(ch) ? 0.5 : 150;
+      keys.push({ k: 'd', c: 'Key' + ch, t }, { k: 'u', c: 'Key' + ch, t: t + hold });
       prev = ch;
     }
   }
@@ -253,4 +254,17 @@ test('an exercise counts a wrong th press as one error (multi-letter keys of the
   const m = summary.metrics;
   assert.ok(Math.abs(m.chars * (1 - m.firstAttemptAccuracy) - 1) < 1e-9, String(m.firstAttemptAccuracy));
   assert.ok(FT.MODEL_VERSION >= 5);
+});
+
+// Functionality: keys the keyboard sends late reach the model (their
+// single-key speed is not judged) and are left out of the rollover measure.
+test('late keys found in the key log reach the model and leave the rollover measure', () => {
+  const tr = FT.trainer.create({ seed: 3 });
+  const { raw, summary } = simulate(tr, 80, Date.UTC(2026, 0, 1), { instant: ['e'] });
+  assert.deepEqual(plain(summary.lateKeys), ['e']);
+  assert.deepEqual(plain(tr.evaluate().late), ['e']);
+  const without = FT.timing.rollover(raw.keys.filter((k) => k.c !== 'Keye'));
+  assert.equal(summary.rollover, without);
+  const re = FT.trainer.rebuild([raw]);
+  assert.deepEqual(plain(re.evaluate().late), ['e']);
 });

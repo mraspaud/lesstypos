@@ -165,3 +165,43 @@ test('a deficit in one session that is absent in the next is never confirmed', (
   m.ingest(makeRecords(words, 300, (ctx, ch) => (ch === 'n' && ctx.endsWith('r') ? { p: 0 } : null), 311), { session: 2, day: 1 });
   assert.equal(m.evaluate({ day: 1 }).get('rn').weak, false);
 });
+
+// Functionality: a key the keyboard sends late (timing.lateKeys) has shifted
+// timestamps. Its sequences are compared with a parent that ends on the same
+// key, so the shift cancels; the single key is compared with all keys, so it
+// does not: its speed is not judged. Its errors are.
+const slowE = (ctx, ch) => (ch === 'e' ? { log: Math.log(1.6) } : null);
+const errE = (ctx, ch) => (ch === 'e' ? { p: 0.12 } : null);
+const late = { chars: ['e'], judged: ['e', 'a'] };
+
+test('a late key is not judged slow as a single key', () => {
+  const plainM = FT.model.create(), lateM = FT.model.create();
+  for (let s = 0; s < 4; s++) {
+    const recs = makeRecords(FILLER, 400, slowE, 40 + s);
+    plainM.ingest(recs, { session: s + 1, day: s });
+    lateM.ingest(recs, { session: s + 1, day: s, late });
+  }
+  assert.equal(plainM.evaluate({ day: 4 }).get('e').hesitant, true);
+  const ev = lateM.evaluate({ day: 4 });
+  assert.equal(ev.get('e').hesitant, false);
+  assert.equal(ev.get('e').lateKey, true);
+  assert.deepEqual(plain(ev.late), ['e']);
+  assert.equal(lateM.explain('e', { day: 4 }).lateKey, true);
+});
+
+test('a late key is still judged on its errors', () => {
+  const m = FT.model.create();
+  for (let s = 0; s < 4; s++) m.ingest(makeRecords(FILLER, 400, errE, 50 + s), { session: s + 1, day: s, late });
+  assert.equal(m.evaluate({ day: 4 }).get('e').weak, true);
+});
+
+test('a key judged on time again in a later session is no longer late', () => {
+  const m = FT.model.create();
+  m.ingest(makeRecords(FILLER, 100, () => null, 60), { session: 1, day: 0, late });
+  m.ingest(makeRecords(FILLER, 100, () => null, 61), { session: 2, day: 1, late: { chars: [], judged: ['e'] } });
+  assert.deepEqual(plain(m.evaluate({ day: 1 }).late), []);
+  // a session without enough presses of the key leaves the verdict as it was
+  m.ingest(makeRecords(FILLER, 100, () => null, 62), { session: 3, day: 2, late });
+  m.ingest(makeRecords(FILLER, 100, () => null, 63), { session: 4, day: 3, late: { chars: [], judged: [] } });
+  assert.deepEqual(plain(m.evaluate({ day: 3 }).late), ['e']);
+});
