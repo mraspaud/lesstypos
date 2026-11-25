@@ -36,7 +36,7 @@
   var MAX_ORDER = 4;
   var DEFAULTS = {
     stabilityDays: 30, halfLifeObs: 60, minN: 8, minSessions: 2, minSessionN: 3, pFlag: 0.95, minErrAbs: 0.005, minErrRel: 1.25,
-    minLatRel: 1.10, maxExamples: 12, exactSessions: 24, block: 8,
+    minLatRel: 1.10, maxExamples: 12, exactSessions: 24, block: 8, bigAfter: 120, bigBlock: 64,
   };
 
   // Stored form (design choice): buckets as arrays, their log sums to 9
@@ -142,12 +142,21 @@
     // Buckets older than the newest `exactSessions` sessions are merged into
     // fixed session blocks shared by all contexts, so parent and child buckets
     // stay aligned. A merged bucket takes the n-weighted mean session and day.
+    // Blocks of `block` sessions; once a whole `bigBlock`-session block is
+    // older than `bigAfter` sessions, it is merged into one (blk 'C<n>'), so
+    // storage stays bounded over years (design choice; such old evidence
+    // carries little weight after exposure decay).
+    function groupOf(x, session) {
+      if (x.s > session - cfg.exactSessions) return null;
+      var big = Math.floor((x.s - 1) / cfg.bigBlock);
+      if ((big + 1) * cfg.bigBlock <= session - cfg.bigAfter) return 'C' + big;
+      return Math.floor((x.s - 1) / cfg.block);
+    }
     function compact(c, session) {
-      var cutoff = session - cfg.exactSessions, out = [], cur = null, curBlock = null;
+      var out = [], cur = null, curBlock = null;
       for (var i = 0; i < c.b.length; i++) {
-        var x = c.b[i];
-        if (x.s > cutoff) { if (cur) { out.push(cur); cur = null; } out.push(x); continue; }
-        var blk = Math.floor((x.s - 1) / cfg.block);
+        var x = c.b[i], blk = groupOf(x, session);
+        if (blk === null) { if (cur) { out.push(cur); cur = null; } out.push(x); continue; }
         if (cur && curBlock === blk) {
           var n = cur.n + x.n || 1;
           cur.s = (cur.s * cur.n + x.s * x.n) / n; cur.d = (cur.d * cur.n + x.d * x.n) / n;
@@ -240,7 +249,12 @@
       return { kappa: kappa, sigma2: sigma2, tau2: tau2 };
     }
 
-    function bkey(b) { return b.blk != null ? 'B' + b.blk : 'S' + b.s; }
+    function bkey(b) { return typeof b.blk === 'string' ? b.blk : b.blk != null ? 'B' + b.blk : 'S' + b.s; }
+    // The parent's bucket for a child's bucket: same key, else the parent's
+    // coarser block containing it (a parent is never less compacted).
+    function parentBucket(pmap, b) {
+      return pmap[bkey(b)] || pmap['B' + Math.floor((b.s - 1) / cfg.block)] || pmap['C' + Math.floor((b.s - 1) / cfg.bigBlock)];
+    }
     // Sessions in which the context did worse than its parent in that same
     // session (parent without the context's own data).
     function replication(k, pk, globalBy) {
@@ -249,7 +263,7 @@
       var err = 0, lat = 0;
       c.b.forEach(function (b) {
         if (b.n < cfg.minSessionN) return;
-        var p = pk ? (pmap[bkey(b)] || pmap['B' + Math.floor((b.s - 1) / cfg.block)]) : globalBy[bkey(b)];
+        var p = pk ? parentBucket(pmap, b) : globalBy[bkey(b)];
         if (!p) return;
         var pn = p.n - b.n, pe = p.e - b.e, pln = p.ln - b.ln, pls = p.ls - b.ls;
         if (pn > 0 && b.e / b.n > Math.max(pe, 0) / pn) err++;

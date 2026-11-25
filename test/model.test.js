@@ -251,3 +251,23 @@ test('a model state stored before compaction still loads', () => {
   const again = FT.model.create(old.cfg, old.state);
   assert.deepEqual(plain(again.state().contexts.th), plain(m.state().contexts.th));
 });
+
+// Functionality: model storage stays bounded over years. Sessions older than
+// cfg.bigAfter merge into 64-session blocks, aligned across all contexts
+// (design choice; old evidence carries little weight after exposure decay).
+test('after 400 sessions a context keeps a bounded number of buckets and judgements still work', () => {
+  const m = FT.model.create();
+  for (let s = 1; s <= 400; s++) m.ingest(makeRecords([...FILLER, ...TR, ...STR], 40, slowStr, 1000 + s), { session: s, day: s });
+  const b = m.state().contexts.th.b;
+  assert.ok(b.length <= 45, String(b.length));
+  assert.ok(b.some((x) => typeof x.blk === 'string')); // 64-session blocks exist
+  const ev = m.evaluate({ day: 400 });
+  assert.equal(ev.get('str').state, 'hesitant');
+  assert.ok(ev.get('str').latSessions >= 2);
+  assert.notEqual(ev.get('tr').state, 'hesitant');
+  // parent and child buckets stay aligned: same block keys
+  const keys = (k) => m.state().contexts[k].b.filter((x) => typeof x.blk === 'string').map((x) => x.blk);
+  assert.deepEqual(plain(keys('str')), plain(keys('tr')).filter((k) => keys('str').includes(k)));
+  const saved = plain(m.toJSON());
+  assert.deepEqual(plain(FT.model.create(saved.cfg, saved.state).state().contexts.th.b.map((x) => x.blk ?? null)), plain(b.map((x) => x.blk ?? null)));
+});
