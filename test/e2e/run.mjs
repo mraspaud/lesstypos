@@ -90,6 +90,23 @@ await step('backspace corrects the previous word when it has an error', async ()
     return done.length > 0 && !done[done.length - 1].querySelector('.bad');
   }, w[0]);
   assert.ok(ok);
+});
+
+await step('backspace reaches back through two wrong words', async () => {
+  const w = await page.$$eval('.w', (els) => els.filter((e) => !e.querySelector('.ok,.bad')).slice(0, 3).map((e) => e.textContent));
+  const bad = (x) => (x[0] === 'z' ? 'y' : 'z') + x.slice(1);
+  await page.keyboard.type(bad(w[0]) + ' ' + bad(w[1]) + ' ', { delay: 10 });
+  for (let i = 0; i < w[0].length + w[1].length + 2; i++) await page.keyboard.press('Backspace');
+  await page.keyboard.type(w[0] + ' ' + w[1] + ' ', { delay: 10 });
+  const bads = await page.evaluate((t) => [...document.querySelectorAll('.w')].filter((e) => t.includes(e.textContent) && e.querySelector('.ok')).slice(-2).map((e) => e.querySelectorAll('.bad').length), [w[0], w[1]]);
+  assert.deepEqual(bads, [0, 0]);
+});
+
+await step('backspace after a correct word explains why nothing happens', async () => {
+  const w = await page.$$eval('.w', (els) => els.filter((e) => !e.querySelector('.ok,.bad')).slice(0, 1).map((e) => e.textContent));
+  await page.keyboard.type(w[0] + ' ', { delay: 10 });
+  await page.keyboard.press('Backspace');
+  await page.getByText('Correctly typed words stay as they are').waitFor({ timeout: 2000 });
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
 });

@@ -38,14 +38,14 @@
         if (w.typed.length === 0) {
           // Return into the previous word only if it was committed with an error.
           var prev = words[wordIndex - 1];
-          if (!prev || prev.typed === prev.target + ' ') return;
+          if (!prev || prev.typed === prev.target + ' ') return false;
           wordIndex--;
           prev.committed = false;
           w = prev;
         }
         w.typed = w.typed.slice(0, -1);
         w.stream.push({ k: 'b', t: ev.t });
-        return;
+        return true;
       }
       if (ev.kind !== 'text') return;
       var chars = Array.from(ev.data);

@@ -267,6 +267,7 @@
     if (!ty || ty.stopped) return;
     if (app.settings.errorMode === 'stop' && !correctSoFar()) return;
     beginIfNeeded(t);
+    if (ty.hinted) { hint(''); ty.hinted = false; }
     var before = ty.session.state().wordIndex;
     ty.session.input({ kind: 'text', data: data, t: t });
     var st = ty.session.state();
@@ -283,11 +284,20 @@
   function onBack(t) {
     if (!ty || ty.stopped || ty.first == null) return;
     var before = ty.session.state().wordIndex;
-    ty.session.input({ kind: 'back', t: t });
+    if (ty.session.input({ kind: 'back', t: t }) === false) { blocked(); return; }
     var now = ty.session.state().wordIndex;
     paintWord(now);
     if (now !== before) paintWord(before);
     placeCaret();
+  }
+  // Backspace at the start of a word after a correctly typed word does nothing;
+  // say why, briefly, and nudge the caret.
+  function blocked() {
+    hint('Correctly typed words stay as they are.');
+    ty.hinted = true;
+    ty.caret.classList.remove('nudge');
+    void ty.caret.offsetWidth;
+    ty.caret.classList.add('nudge');
   }
   function onBackWord(t) {
     if (!ty || ty.stopped || ty.first == null) return;
@@ -416,7 +426,7 @@
     keys.forEach(function (k) { if (all[k].state === 'insufficient') counts.insufficient++; });
     var rows = keys.filter(function (k) {
       var c = all[k], st = ctxs[k].stage && ctxs[k].stage.name;
-      if (seqTab === 'focus') return st === 'weak' || st === 'improving' || c.weak || c.hesitant;
+      if (seqTab === 'focus') return st === 'weak' || st === 'improving' || c.weak || c.hesitant || c.state === 'emerging';
       if (seqTab === 'kept') return st === 'consolidating' || st === 'mastered';
       return c.state !== 'insufficient' && c.state !== 'redundant';
     });
@@ -471,6 +481,12 @@
     lines.push(['Timing', 'Typed in ×' + fix(x.latency.relative, 2) + ' the time of ' + parent + ' elsewhere (' + fix(x.latency.n) + ' timed keystrokes). ' +
       'Probability that it is genuinely slower: ' + pct(x.latency.pSlower, 0) + '.']);
     lines.push(['Evidence', fix(x.n) + ' recency-weighted observations across ' + x.sessions + ' session record' + (x.sessions === 1 ? '' : 's') + '.']);
+    if (x.state === 'emerging') {
+      lines.push(['Confirmation', 'Seen in ' + x.sessionsWithDeficit + ' session so far; it needs ' + x.minSessions +
+        ' separate sessions before it is trained, so one unusual session cannot fill the training list.']);
+    } else if (x.state === 'weak' || x.state === 'hesitant') {
+      lines.push(['Confirmation', 'Worse than ' + parent + ' in ' + x.sessionsWithDeficit + ' separate sessions.']);
+    }
     lines.push(['Judgement', esc(x.state) + (x.redundant ? ': every occurrence also belongs to ' + parent + ', so it is judged there.' : '') +
       (x.explainedBy ? ': the difficulty is explained by ' + x.explainedBy.map(seq).join(', ') + '.' : '')]);
     if (x.stage) lines.push(['Training', pill(x.stage.name) + (x.stage.due ? ' next check from session ' + x.stage.due : '') + (x.stage.regressed ? ', returned after a failed check' : '')]);

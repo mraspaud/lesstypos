@@ -88,7 +88,8 @@ p { margin: 0; max-width: 65ch; }
 .seq { font-family: var(--font-text); white-space: pre; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .pill { display: inline-block; font-size: 0.78rem; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
 .pill.weak, .pill.hesitant { color: var(--err); border-color: var(--err); }
-.pill.improving { color: var(--warn); border-color: var(--warn); }
+.pill.improving, .pill.emerging { color: var(--warn); border-color: var(--warn); }
+.pill.emerging { border-style: dashed; }
 .pill.consolidating, .pill.mastered { color: var(--accent); border-color: var(--accent); }
 .notice { padding: 10px 14px; border-radius: 8px; background: var(--err-soft); color: var(--ink); }
 .notice.info { background: var(--accent-soft); }
@@ -124,6 +125,8 @@ p { margin: 0; max-width: 65ch; }
   height: calc(var(--type-size) * 1.25); transition: left 0.08s linear, top 0.08s linear;
 }
 .blurred .caret { opacity: 0.3; }
+.caret.nudge { animation: nudge 0.25s ease-in-out; }
+@keyframes nudge { 0%, 100% { translate: 0 0; } 30% { translate: -4px 0; } 70% { translate: 3px 0; } }
 .focus-hint { color: var(--muted); text-align: center; min-height: 1.5em; }
 .capture { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; left: -100px; }
 .stopbar { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; padding: 10px 14px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); }
@@ -171,4 +174,5 @@ textarea.mono { font-family: var(--font-text); font-size: 0.9rem; min-height: 8r
 
 @media (prefers-reduced-motion: reduce) {
   .inner, .caret { transition: none; }
+  .caret.nudge { animation: none; }
 }

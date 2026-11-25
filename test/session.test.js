@@ -106,3 +106,14 @@ test('words can carry generator metadata', () => {
   assert.deepEqual(plain(w[0].meta), { source: 'target', target: 'str' });
   assert.equal(w[1].meta, null);
 });
+
+test('a backspace reports whether it changed anything', () => {
+  const FT = load();
+  const s = FT.session.create(['cat', 'dog', 'sun']);
+  typeString(s, 'cot dog ');
+  assert.equal(s.input({ kind: 'back', t: 1 }), false); // blocked by the correct "dog"
+  const s2 = FT.session.create(['cat', 'dog']);
+  typeString(s2, 'cot ');
+  assert.equal(s2.input({ kind: 'back', t: 1 }), true); // into the wrong "cot"
+  assert.equal(s2.input({ kind: 'back', t: 2 }), true);
+});
