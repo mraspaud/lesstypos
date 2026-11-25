@@ -39,9 +39,40 @@
     minLatRel: 1.10, maxExamples: 12, exactSessions: 24, block: 8,
   };
 
+  // Stored form (design choice): buckets as arrays, their log sums to 9
+  // significant digits, far below any decision threshold.
+  var FIELDS = ['s', 'd', 'n', 'e', 'ln', 'ls', 'lss', 'wd', 'blk'];
+  function sig9(x) { return x === 0 ? 0 : +x.toPrecision(9); }
+  function pack(st) {
+    var contexts = {};
+    Object.keys(st.contexts).forEach(function (k) {
+      var c = st.contexts[k];
+      contexts[k] = { b: c.b.map(function (b) {
+        var a = [b.s, b.d, b.n, b.e, b.ln, sig9(b.ls), sig9(b.lss), b.wd];
+        if (b.blk != null) a.push(b.blk);
+        return a;
+      }), ex: c.ex, stage: c.stage };
+    });
+    return Object.assign({}, st, { contexts: contexts, packed: 1 });
+  }
+  function unpack(st) {
+    if (!st || !st.packed) return st;
+    var out = Object.assign({}, st, { contexts: {} });
+    delete out.packed;
+    Object.keys(st.contexts).forEach(function (k) {
+      var c = st.contexts[k];
+      out.contexts[k] = { b: c.b.map(function (a) {
+        var b = {};
+        FIELDS.forEach(function (f, i) { if (i < a.length) b[f] = a[i]; });
+        return b;
+      }), ex: c.ex, stage: c.stage };
+    });
+    return out;
+  }
+
   function create(opts, state) {
     var cfg = Object.assign({}, DEFAULTS, opts || {});
-    var st = state || { contexts: {}, sessions: 0, lastDay: 0 };
+    var st = unpack(state) || { contexts: {}, sessions: 0, lastDay: 0 };
 
     function ctxOf(key) {
       return st.contexts[key] || (st.contexts[key] = { b: [], ex: [], stage: null });
@@ -404,7 +435,7 @@
       ingest: ingest, evaluate: evaluate, explain: explain, config: cfg,
       endSession: endSession, trainingTargets: trainingTargets,
       state: function () { return st; },
-      toJSON: function () { return { cfg: cfg, state: st }; },
+      toJSON: function () { return { cfg: cfg, state: pack(st) }; },
     };
   }
 

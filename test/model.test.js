@@ -110,7 +110,13 @@ test('the model state survives serialisation', () => {
   const m = FT.model.create();
   m.ingest(makeRecords([...FILLER, ...RN, ...N_WORDS], 800, errRn, 9), { session: 1, day: 0 });
   const m2 = FT.model.fromJSON(JSON.parse(JSON.stringify(m.toJSON())));
-  assert.deepEqual(plain(m2.explain('rn', { day: 0 })), plain(m.explain('rn', { day: 0 })));
+  // equal up to the stored precision (9 significant digits on log sums)
+  const close = (a, b) => {
+    if (typeof a === 'number' && typeof b === 'number') return Math.abs(a - b) <= 1e-7 * Math.max(1, Math.abs(a));
+    if (a && b && typeof a === 'object') return Object.keys(a).every((k) => close(a[k], b[k])) && Object.keys(b).every((k) => k in a);
+    return a === b;
+  };
+  assert.ok(close(plain(m2.explain('rn', { day: 0 })), plain(m.explain('rn', { day: 0 }))));
 });
 
 test('a longer context carrying no data beyond its parent is marked redundant', () => {
@@ -215,4 +221,33 @@ test('a longer sequence ending on a late key is judged against the same delay', 
   assert.equal(ev.get('e').hesitant, false);
   assert.equal(ev.get('ke').hesitant, true);   // slower than e elsewhere: flagged
   assert.equal(ev.get('he').hesitant, false);  // only the keyboard's delay: not flagged
+});
+
+// Functionality: the model state is stored compactly (buckets as arrays, sums
+// to 9 significant digits; design choice) and judges the same after a reload.
+test('a model stored compactly and loaded again judges the same, at about half the size', () => {
+  const m = FT.model.create();
+  for (let s = 0; s < 5; s++) m.ingest(makeRecords([...FILLER, ...TR, ...STR, ...RN], 400, (c, ch) => slowStr(c, ch) || errRn(c, ch), 80 + s), { session: s + 1, day: s });
+  const saved = plain(m.toJSON());
+  const verbose = JSON.stringify(m.state()).length;
+  assert.ok(JSON.stringify(saved.state).length * 1.6 < verbose);
+  const again = FT.model.create(saved.cfg, saved.state);
+  const a = m.evaluate({ day: 5 }).all, b = again.evaluate({ day: 5 }).all;
+  assert.deepEqual(Object.keys(b).sort(), Object.keys(a).sort());
+  for (const k of Object.keys(a)) {
+    assert.equal(b[k].state, a[k].state, k);
+    assert.ok(Math.abs((b[k].latRel ?? 0) - (a[k].latRel ?? 0)) < 1e-6, k);
+  }
+  assert.equal(again.evaluate({ day: 5 }).get('str').state, 'hesitant');
+  // and the reloaded model keeps learning
+  again.ingest(makeRecords(FILLER, 50, () => null, 99), { session: 6, day: 6 });
+  assert.ok(again.state().contexts.th.b.length >= 6);
+});
+
+test('a model state stored before compaction still loads', () => {
+  const m = FT.model.create();
+  m.ingest(makeRecords(FILLER, 100, () => null, 3), { session: 1, day: 0 });
+  const old = plain({ cfg: m.toJSON().cfg, state: m.state() });
+  const again = FT.model.create(old.cfg, old.state);
+  assert.deepEqual(plain(again.state().contexts.th), plain(m.state().contexts.th));
 });
