@@ -9,6 +9,8 @@
 (function (FT) {
   'use strict';
   var MAX_ALIGNMENTS = 32;
+  // Characters compare up to typographic equivalence (FT.text.same).
+  function eq(a, b) { return FT.text.same(a, b); }
 
   function flagStream(stream) {
     var flags = new Array(stream.length);
@@ -31,7 +33,7 @@
     for (i = 1; i <= P.length; i++) {
       for (j = 1; j <= T.length; j++) {
         D[i][j] = Math.min(D[i - 1][j] + 1, D[i][j - 1] + 1,
-          D[i - 1][j - 1] + (P[i - 1] === T[j - 1] ? 0 : 1));
+          D[i - 1][j - 1] + (eq(P[i - 1], T[j - 1]) ? 0 : 1));
       }
     }
     return D;
@@ -43,7 +45,7 @@
     function rec(i, j, acc) {
       if (out.length >= MAX_ALIGNMENTS) return;
       if (i === 0 && j === 0) { out.push(acc.slice().reverse()); return; }
-      if (i > 0 && j > 0 && D[i - 1][j - 1] + (P[i - 1] === T[j - 1] ? 0 : 1) === D[i][j]) {
+      if (i > 0 && j > 0 && D[i - 1][j - 1] + (eq(P[i - 1], T[j - 1]) ? 0 : 1) === D[i][j]) {
         acc.push([i - 1, j - 1]); rec(i - 1, j - 1, acc); acc.pop();
       }
       if (i > 0 && D[i - 1][j] + 1 === D[i][j]) {
@@ -102,7 +104,7 @@
           setFirst(info.pos, 1, 'ins', e.ch, e.t, i);
           v = info.pos;
         } else {
-          var ok = P[info.p] === e.ch;
+          var ok = eq(P[info.p], e.ch);
           events.push(ok
             ? { type: 'none', corrected: false, pos: info.p, expected: P[info.p], actual: e.ch, t: e.t, idx: i }
             : { type: 'sub', corrected: false, pos: info.p, expected: P[info.p], actual: e.ch, t: e.t, idx: i });
@@ -121,10 +123,10 @@
         if (pos >= P.length) {
           events.push({ type: 'ins', corrected: true, pos: P.length - 1, actual: e.ch, t: e.t, idx: i });
           pos = P.length;
-        } else if (e.ch === P[pos]) {
+        } else if (eq(e.ch, P[pos])) {
           events.push({ type: 'none', corrected: true, pos: pos, expected: P[pos], actual: e.ch, t: e.t, idx: i });
           setFirst(pos, 0, 'none', e.ch, e.t, i);
-        } else if (pos + 1 < P.length && e.ch === P[pos + 1]) {
+        } else if (pos + 1 < P.length && eq(e.ch, P[pos + 1])) {
           events.push({ type: 'omit', corrected: true, pos: pos, expected: P[pos], t: e.t, idx: i });
           setFirst(pos, 1, 'omit', null, e.t, i);
           pos = pos + 1;
@@ -147,15 +149,17 @@
   }
 
   function tagPatterns(P, events) {
+    var C = P.map(FT.text.canon);
     var subs = events.filter(function (e) { return e.type === 'sub'; });
     for (var i = 0; i < subs.length; i++) {
-      var s = subs[i];
-      s.premature = P.indexOf(s.actual, s.pos + 1) > s.pos;
+      var s = subs[i], a = FT.text.canon(s.actual);
+      s.premature = C.indexOf(a, s.pos + 1) > s.pos;
+      s.case = a !== C[s.pos] && a.toLowerCase() === C[s.pos].toLowerCase();
     }
     for (i = 0; i + 1 < subs.length; i++) {
       var x = subs[i], y = subs[i + 1];
       if (x.corrected === y.corrected && y.pos === x.pos + 1 &&
-          x.actual === P[y.pos] && y.actual === P[x.pos]) {
+          eq(x.actual, P[y.pos]) && eq(y.actual, P[x.pos])) {
         x.type = 'transpose'; y.type = 'transpose';
         x.premature = y.premature = false;
         i++;
@@ -175,7 +179,7 @@
     var w = 1 / als.length;
     var merged = {};
     var order = [];
-    var targets = Parr.map(function (ch, pos) { return { ch: ch, pos: pos, err: 0, types: {}, t: null, g: null, idx: null, actual: {} }; });
+    var targets = Parr.map(function (ch, pos) { return { ch: FT.text.canon(ch), pos: pos, err: 0, types: {}, t: null, g: null, idx: null, actual: {} }; });
     for (var a = 0; a < als.length; a++) {
       var r = analyzeOne(Parr, stream, flags, flaggedIdx, als[a]);
       for (var k = 0; k < r.events.length; k++) {

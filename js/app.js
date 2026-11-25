@@ -205,7 +205,7 @@
     for (var j = 0; j < n; j++) {
       var cls = 'l', ch = T[j];
       if (j >= T.length) { cls += ' extra'; ch = typed[j]; }
-      else if (j < typed.length) cls += typed[j] === T[j] ? ' ok' : ' bad';
+      else if (j < typed.length) cls += FT.text.same(typed[j], T[j]) ? ' ok' : ' bad';
       html += '<span class="' + cls + '">' + esc(ch) + '</span>';
     }
     el.innerHTML = html;
@@ -261,7 +261,7 @@
   }
   function correctSoFar() {
     var w = ty.session.current();
-    return (w.target + ' ').indexOf(w.typed) === 0;
+    return FT.text.isPrefix(w.typed, w.target + ' ');
   }
   function onText(data, t) {
     if (!ty || ty.stopped) return;

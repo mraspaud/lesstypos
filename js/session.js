@@ -10,7 +10,7 @@
     var words = [];
     function errorWithin(from) {
       for (var i = from; i >= 0 && i > from - reach; i--) {
-        if (words[i].typed !== words[i].target + ' ') return true;
+        if (!FT.text.sameStr(words[i].typed, words[i].target + ' ')) return true;
       }
       return false;
     }

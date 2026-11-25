@@ -13,7 +13,7 @@
       meta = meta || {};
       for (var i = 0; i < words.length; i++) {
         var an = words[i];
-        var P = Array.from(an.P);
+        var P = Array.from(an.P).map(FT.text.canon);
         for (var p = 0; p < P.length; p++) {
           st.opp[P[p]] = (st.opp[P[p]] || 0) + 1;
           st.totalOpp++;
@@ -21,14 +21,15 @@
         for (var j = 0; j < an.events.length; j++) {
           var e = an.events[j];
           if (e.type !== 'sub') continue;
-          var key = e.expected + '\u0000' + e.actual;
-          var r = st.pairs[key] || (st.pairs[key] = { expected: e.expected, actual: e.actual, count: 0, examples: [] });
+          var ex = FT.text.canon(e.expected), ac = FT.text.canon(e.actual);
+          var key = ex + '\u0000' + ac;
+          var r = st.pairs[key] || (st.pairs[key] = { expected: ex, actual: ac, count: 0, examples: [] });
           r.count += e.w;
           st.totalSubs += e.w;
           r.examples.push({
             word: an.P.trim(),
             context: P.slice(Math.max(0, e.pos - 3), e.pos).join('') + '[' + P[e.pos] + ']' + P.slice(e.pos + 1, e.pos + 4).join(''),
-            corrected: !!e.corrected, premature: !!e.premature, t: meta.t != null ? meta.t : e.t,
+            corrected: !!e.corrected, premature: !!e.premature, case: !!e.case, t: meta.t != null ? meta.t : e.t,
             session: meta.session != null ? meta.session : null, exercise: meta.exercise || null,
           });
           if (r.examples.length > MAX_EX) r.examples.shift();
