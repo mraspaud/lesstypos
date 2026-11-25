@@ -5,7 +5,11 @@
 //   classification of flagged (uncorrected) and unflagged (corrected) keystrokes.
 // Ambiguous alignments are weighted 1/N (MacKenzie & Soukoreff 2002).
 // Keystroke classes C/INF/IF/F as in Soukoreff & MacKenzie (2003).
-// Transposition (Salthouse 1986) and "premature" are post-hoc tags.
+// Transposition (Salthouse 1986): two adjacent letters typed in swapped order,
+// right after a correctly typed prefix, are one error shared by both positions.
+// Swaps are found from the text on screen when each letter was typed (so an
+// erased swap is found too); among equally optimal alignments, those agreeing
+// with a surviving swap are kept (design choice). "premature" is a post-hoc tag.
 // Presses (design choice, user decision): one key action is one mistake. With
 // declared multi-letter keys (opts.macros), letters of one wrong press, on the
 // typed side (FT.text.pressIds) or the target side (FT.text.targetPresses),
@@ -107,6 +111,12 @@
         setFirst(pos, 1, 'omit', null, t, i);
       },
       firstCorrect: function (pos, e, i) { setFirst(pos, 0, 'none', e.ch, e.t, i); },
+      transpose: function (pos, corrected, a, i, b, j) {
+        events.push({ type: 'transpose', swapStart: true, corrected: corrected, pos: pos, expected: P[pos], actual: a.ch, t: a.t, idx: i });
+        events.push({ type: 'transpose', corrected: corrected, pos: pos + 1, expected: P[pos + 1], actual: b.ch, t: b.t, idx: j });
+        setFirst(pos, 1, 'transpose', a.ch, a.t, i);
+        setFirst(pos + 1, 1, 'transpose', b.ch, b.t, j);
+      },
     };
   }
 
@@ -139,7 +149,7 @@
     return pos + 1;
   }
 
-  function analyzeOne(P, stream, flags, flaggedIdx, al, presses) {
+  function analyzeOne(P, stream, flags, flaggedIdx, al, presses, swaps) {
     var map = mapAlignment(al, flaggedIdx.length), rec = recorder(P);
     // presses that already produced a wrong keystroke in this alignment
     var wrong = {};
@@ -156,16 +166,67 @@
       } else if (e.k === 'b') {
         if (live.length) v = live.pop() - 1; // back to the erased letter's position
         v = Math.max(0, v);
+      } else if (swaps.done[i]) {
+        // second letter of an erased swap, recorded with the first
+      } else if (swaps.at[i] && swaps.at[i].pos === v && !flags[i + 1]) {
+        rec.transpose(v, true, e, i, stream[i + 1], i + 1);
+        swaps.done[i + 1] = true;
+        live.push(v + 1, v + 2);
+        v += 2;
       } else {
         v = corrected(rec, P, e, i, v, pressErr);
         live.push(v);
       }
     });
+    swaps.done = {};
     var lastT = stream.length ? stream[stream.length - 1].t : 0;
     map.omissionsBefore[flaggedIdx.length].forEach(function (p) { rec.omit(p, false, lastT, stream.length); });
     tagPatterns(P, rec.events);
-    sharePressErrors(rec.first, presses);
+    sharePressErrors(rec.first, presses, swapLinks(rec));
     return { events: rec.events, first: rec.first };
+  }
+
+  // Positions whose first attempt was one transposition: [pos, pos + 1].
+  function swapLinks(rec) {
+    var links = [];
+    rec.events.forEach(function (e) {
+      if (!e.swapStart) return;
+      var a = rec.first[e.pos], b = rec.first[e.pos + 1];
+      if (a && b && a.idx === e.idx && b.idx === e.idx + 1) { a.type = b.type = 'transpose'; links.push([e.pos, e.pos + 1]); }
+    });
+    return links;
+  }
+
+  // Swaps in the stream: keystroke i typed P[k+1] and keystroke i+1 typed P[k]
+  // (P[k] != P[k+1]) right after the text on screen read P[0..k).
+  function findSwaps(P, stream) {
+    var at = {}, text = [];
+    var prefixOk = function (k) { for (var q = 0; q < k; q++) if (!eq(text[q], P[q])) return false; return true; };
+    for (var i = 0; i < stream.length; i++) {
+      var e = stream[i], n = stream[i + 1];
+      if (e.k === 'b') { text.pop(); continue; }
+      var k = text.length;
+      if (n && n.k === 'c' && k + 1 < P.length && !eq(P[k], P[k + 1]) && eq(e.ch, P[k + 1]) && eq(n.ch, P[k]) && prefixOk(k)) {
+        at[i] = { pos: k, next: i + 1 };
+      }
+      text.push(e.ch);
+    }
+    return { at: at, done: {} };
+  }
+
+  // Keep the alignments that place each surviving swap as two substitutions
+  // at its positions, when there are such alignments.
+  function preferSwaps(als, swaps, flags, flaggedIdx) {
+    var tOf = {};
+    flaggedIdx.forEach(function (si, tj) { tOf[si] = tj; });
+    var wanted = Object.keys(swaps.at).map(Number).filter(function (i) { return flags[i] && flags[i + 1]; })
+      .map(function (i) { return { p: swaps.at[i].pos, tj: tOf[i] }; });
+    if (!wanted.length) return als;
+    var has = function (al, p, tj) { return al.some(function (x) { return x[0] === p && x[1] === tj; }); };
+    var kept = als.filter(function (al) {
+      return wanted.every(function (w) { return has(al, w.p, w.tj) && has(al, w.p + 1, w.tj + 1); });
+    });
+    return kept.length ? kept : als;
   }
 
   // Wrong first attempts typed by the same press are one mistake; so are an
@@ -173,9 +234,10 @@
   // pressed where a multi-letter key was meant). Separate wrong presses stay
   // separate. Each group totals one error. Omissions are not linked through
   // the keystroke that followed them. (Design choice, user decision.)
-  function sharePressErrors(first, presses) {
+  function sharePressErrors(first, presses, links) {
     var parent = first.map(function (_, i) { return i; });
     var find = function (i) { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+    (links || []).forEach(function (l) { parent[find(l[1])] = find(l[0]); }); // a transposition is one error
     var byT = {}, byTyped = {};
     first.forEach(function (f, pos) {
       if (!f || !f.err) return;
@@ -205,7 +267,7 @@
       var x = subs[i], y = subs[i + 1];
       if (x.corrected === y.corrected && y.pos === x.pos + 1 &&
           eq(x.actual, P[y.pos]) && eq(y.actual, P[x.pos])) {
-        x.type = 'transpose'; y.type = 'transpose';
+        x.type = 'transpose'; y.type = 'transpose'; x.swapStart = true;
         x.premature = y.premature = false;
         i++;
       }
@@ -222,13 +284,14 @@
     var Parr = Array.from(P), Tarr = Array.from(T);
     var D = msdMatrix(Parr, Tarr);
     var msd = D[Parr.length][Tarr.length];
-    var als = alignments(Parr, Tarr, D);
+    var swaps = findSwaps(Parr, stream);
+    var als = preferSwaps(alignments(Parr, Tarr, D), swaps, flags, flaggedIdx);
     var w = 1 / als.length;
     var merged = {};
     var order = [];
     var targets = Parr.map(function (ch, pos) { return { ch: FT.text.canon(ch), pos: pos, err: 0, types: {}, t: null, g: null, idx: null, actual: {} }; });
     for (var a = 0; a < als.length; a++) {
-      var r = analyzeOne(Parr, stream, flags, flaggedIdx, als[a], presses);
+      var r = analyzeOne(Parr, stream, flags, flaggedIdx, als[a], presses, swaps);
       for (var k = 0; k < r.events.length; k++) {
         var e = r.events[k];
         var key = [e.type, e.corrected, e.pos, e.idx].join('|');

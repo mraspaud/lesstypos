@@ -220,7 +220,7 @@ test('correcting a wrong th press does not blame the next letter', () => {
 });
 
 test('target-press grouping does not depend on the alignment: separate wrong presses stay separate', () => {
-  assert.equal(total(AP('the ', 'hte ')), 2);       // two separate keys, both out of place
+  assert.equal(total(AP('the ', 'hte ')), 1);       // two separate keys swapped: one transposition
   assert.equal(total(AP('the ', 'xye ')), 2);       // two separate wrong presses for the th key
   assert.equal(total(AP('the ', 'xe ')), 1);        // one key where the th key was meant
 });
@@ -237,4 +237,33 @@ test('display: a press whose extra letter was erased is not marked as a multi-le
   const d = DW('yo', '[th]<o', true);
   assert.equal(d.positions[0].status, 'bad');
   assert.equal(d.positions[0].press, false);
+});
+
+// Functionality: two adjacent letters typed in swapped order are one mistake,
+// a transposition (Salthouse 1986 counts it as a single error), whether it was
+// corrected or not, and it is never reported as substitutions.
+test('swapped letters left in the text are one error', () => {
+  const r = A('people ', 'poeple ');
+  assert.equal(total(r), 1);
+  assert.equal(r.events.filter((e) => e.type === 'transpose').length, 2);
+});
+
+test('swapped letters erased and retyped are one transposition, not a substitution further on', () => {
+  const r = A('people ', 'poe<<eople ');
+  assert.equal(total(r), 1);
+  assert.deepEqual(plain(r.events.filter((e) => e.type === 'transpose').map((e) => [e.pos, e.expected, e.actual, e.corrected])),
+    [[1, 'e', 'o', true], [2, 'o', 'e', true]]);
+  assert.equal(r.events.filter((e) => e.type === 'sub').length, 0);
+});
+
+test('the user\'s "people": a wrong first key, then a swap, are two mistakes and no p→e', () => {
+  const r = A('people ', 'wo<<poe<<eople ');
+  assert.equal(total(r), 2);
+  assert.ok(!r.events.some((e) => e.type === 'sub' && e.expected === 'p' && e.actual === 'e'));
+  assert.ok(r.events.some((e) => e.type === 'sub' && e.expected === 'p' && e.actual === 'w'));
+});
+
+test('a doubled letter is not a swap', () => {
+  const r = A('book ', 'bok<ok ');
+  assert.equal(r.events.filter((e) => e.type === 'transpose').length, 0);
 });
