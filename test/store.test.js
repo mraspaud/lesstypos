@@ -101,3 +101,23 @@ test('prose texts are stored, updated, listed, exported and imported', async () 
   await b.reset('profile');
   assert.equal((await b.listTexts()).length, 1);
 });
+
+test('merging an import keeps local settings and the furthest reading position', async () => {
+  const s = mk();
+  await s.saveSettings({ layoutText: 'mine', currentText: 't1' });
+  await s.saveText({ id: 't1', title: 'Book', words: ['a', 'b', 'c', 'd'], pos: 3, addedAt: 1 });
+  const other = { format: 'lesstypos-export', schema: FT.SCHEMA, settings: { layoutText: '' }, profile: null,
+    sessions: [{ id: 's9', startedAt: 9, words: [] }],
+    texts: [{ id: 't1', title: 'Book', words: ['a', 'b', 'c', 'd'], pos: 1, addedAt: 1 }, { id: 't2', title: 'New', words: ['x'], pos: 0, addedAt: 2 }] };
+  await s.importAll(other, { mode: 'merge' });
+  const d = await s.load();
+  assert.equal(d.settings.layoutText, 'mine');
+  assert.equal((await s.getText('t1')).pos, 3);
+  assert.ok(await s.getText('t2'));
+  assert.equal((await s.listSessions()).length, 1);
+});
+
+test('imported texts without words are rejected', async () => {
+  const s = mk();
+  await assert.rejects(s.importAll({ format: 'lesstypos-export', schema: FT.SCHEMA, sessions: [], texts: [{ id: 'bad', title: 'x' }] }), /text/i);
+});

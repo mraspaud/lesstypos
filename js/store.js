@@ -109,15 +109,25 @@
           throw new Error('This file is not a LessTypos export');
         }
         if (data.schema > FT.SCHEMA) throw new Error('This export comes from a newer version (schema ' + data.schema + ')');
+        (data.texts || []).forEach(function (t) {
+          if (!t || !t.id || !Array.isArray(t.words)) throw new Error('This export contains a text without words');
+        });
         var d = migrate(clone(data));
-        var p = mode === 'replace' ? reset('all') : Promise.resolve();
-        return p.then(function () {
-          var writes = d.sessions.map(saveSession).concat((d.texts || []).map(saveText));
-          if (mode === 'replace' || d.settings) writes.push(saveSettings(d.settings || {}));
-          if (mode === 'replace') writes.push(d.profile ? saveProfile(d.profile) : db.del('profile'));
-          return Promise.all(writes);
-        }).then(function () { return d; });
-      });
+        if (mode === 'replace') {
+          return reset('all').then(function () {
+            return Promise.all(d.sessions.map(saveSession).concat((d.texts || []).map(saveText),
+              [saveSettings(d.settings || {}), d.profile ? saveProfile(d.profile) : db.del('profile')]));
+          });
+        }
+        // Merge: add sessions and texts; keep local settings and the furthest
+        // reading position of texts present on both sides.
+        return Promise.all(d.sessions.map(saveSession).concat((d.texts || []).map(function (t) {
+          return getText(t.id).then(function (mine) {
+            if (mine) t.pos = Math.max(mine.pos || 0, t.pos || 0);
+            return saveText(t);
+          });
+        })));
+      }).then(function () { return data; });
     }
     function reset(what) {
       return db.keys().then(function (keys) {
