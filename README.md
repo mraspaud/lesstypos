@@ -32,7 +32,7 @@ npm run e2e       # end-to-end in Chromium via Playwright, against file://index.
 node tools/bundle.mjs dist/lesstypos.html   # optional single-file build
 ```
 
-The browser code is plain classic scripts (`js/*.js`) that share a `window.FT` namespace. ES modules and `fetch()` are avoided, so `index.html` also works when opened from local disk. The tests load the same scripts, in `index.html` order, into a `vm` context.
+The browser code is plain classic scripts that share a `window.FT` namespace: the domain logic in `js/*.js` (testable in Node), and the views in `js/ui/*.js`, which register on `FT.ui`. ES modules and `fetch()` are avoided, so `index.html` also works when opened from local disk. The tests load the same scripts, in `index.html` order, into a `vm` context.
 
 ## Licences
 

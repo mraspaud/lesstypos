@@ -1,0 +1,165 @@
+// Insight pages: sequences (with the "why" panel), substitutions, history.
+(function (FT) {
+  'use strict';
+  if (typeof document === 'undefined') return;
+  var U = FT.ui, app = U.app, EXERCISES = U.EXERCISES, EFFORT = U.EFFORT, DEFAULT_SETTINGS = U.DEFAULT_SETTINGS;
+  var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, fix = FT.fmt.fix, pill = FT.fmt.pill;
+  // defined in other ui files
+  function setView() { return U.setView.apply(null, arguments); }
+  function startExercise() { return U.startExercise.apply(null, arguments); }
+
+  // ---------- sequences ----------
+  var seqTab = 'focus', seqSel = null;
+  function viewSequences() {
+    var t = app.trainer, ev = t.evaluate(), all = ev.all, ctxs = t.model.state().contexts;
+    var pr = {};
+    t.targets().forEach(function (x) { pr[x.key] = x.priority; });
+    var keys = Object.keys(all);
+    var counts = { insufficient: 0 };
+    keys.forEach(function (k) { if (all[k].state === 'insufficient') counts.insufficient++; });
+    var rows = keys.filter(function (k) {
+      var c = all[k], st = ctxs[k].stage && ctxs[k].stage.name;
+      if (seqTab === 'focus') return st === 'weak' || st === 'improving' || c.weak || c.hesitant || c.state === 'emerging';
+      if (seqTab === 'kept') return st === 'consolidating' || st === 'mastered';
+      return c.state !== 'insufficient' && c.state !== 'redundant';
+    });
+    rows.sort(function (a, b) {
+      if (seqTab === 'focus') return (pr[b] || 0) - (pr[a] || 0) || all[b].latRel - all[a].latRel;
+      return all[b].n - all[a].n;
+    });
+    var shown = rows.slice(0, 200);
+    var html = '<section class="stack"><h1>Sequences</h1>' +
+      '<p class="muted">Each sequence is the last one to four characters you typed, spaces included. It is flagged only when it is credibly worse than its shorter version in other words (for example ' + seq('str') + ' against ' + seq('tr') + '), so a single slip never flags anything.</p>' +
+      '<div class="tabs" role="group">' +
+      [['focus', 'In training'], ['kept', 'Consolidating and mastered'], ['all', 'All with enough evidence']].map(function (x) {
+        return '<button type="button" data-tab="' + x[0] + '" aria-pressed="' + (seqTab === x[0]) + '">' + esc(x[1]) + '</button>';
+      }).join('') + '</div>' +
+      '<p class="muted num">' + keys.length + ' sequences observed; ' + counts.insufficient + ' do not have enough observations yet.</p></section>';
+    if (!shown.length) {
+      html += '<p class="panel">' + (seqTab === 'focus' ? 'Nothing needs extra practice yet. Sequences appear here once the evidence shows they cost errors or time.' : 'No sequences in this group yet.') + '</p>';
+    } else {
+      html += '<div class="tablewrap"><table><thead><tr><th>Sequence</th><th>Status</th><th>Seen</th><th>Errors</th><th>Time vs shorter</th>' +
+        (app.layout ? '<th>Movement</th>' : '') + '<th>Examples</th></tr></thead><tbody>' +
+        shown.map(function (k) {
+          var c = all[k], st = ctxs[k].stage;
+          return '<tr class="clickable' + (seqSel === k ? ' selected' : '') + '" data-key="' + esc(k) + '"><td>' + seq(k) + '</td>' +
+            '<td>' + pill(st ? st.name : c.state) + (st && st.regressed ? ' <span class="muted">returned</span>' : '') + '</td>' +
+            '<td class="num">' + fix(c.n) + '</td>' +
+            '<td class="num">' + pct(c.errorRate) + ' <span class="muted">vs ' + pct(c.parentErrorRate) + '</span></td>' +
+            '<td class="num">×' + fix(c.latRel, 2) + '</td>' +
+            (app.layout ? '<td>' + esc(movement(k)) + '</td>' : '') +
+            '<td class="ex">' + esc(ctxs[k].ex.slice(-3).reverse().join(', ')) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+    html += '<section id="why"></section>';
+    setView(html);
+    app.$view.querySelectorAll('[data-tab]').forEach(function (b) { b.onclick = function () { seqTab = b.dataset.tab; viewSequences(); }; });
+    app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.onclick = function () { seqSel = r.dataset.key; showWhy(seqSel); markSel(); }; });
+    if (seqSel && all[seqSel]) showWhy(seqSel);
+  }
+  function markSel() { app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.classList.toggle('selected', r.dataset.key === seqSel); }); }
+  // Movement type of the last two or three key presses of a sequence, on the
+  // declared layout. Across spaces only when the layout declares a space key.
+  function movement(k) {
+    var L = app.layout;
+    if (!L) return '';
+    var s = L.keys[' '] ? k : k.replace(/^.*\s/, '');
+    var toks = FT.layout.presses(L, s);
+    if (!toks || toks.length < 2 && !(toks.length === 1 && Array.from(toks[0]).length > 1)) return '';
+    var c = FT.layout.classify(L, toks.slice(-3).join('')) || FT.layout.classify(L, toks.slice(-2).join(''));
+    return c ? c.type + (c.tags.length ? ' (' + c.tags.join(', ') + ')' : '') : '';
+  }
+  function showWhy(k) {
+    var x = app.trainer.explain(k), el = document.getElementById('why');
+    if (!x || !el) return;
+    var lines = [];
+    var parent = x.parent ? seq(x.parent) : 'all your typing';
+    lines.push(['Errors', pct(x.errorRate) + ' of first attempts, against ' + pct(x.parentErrorRate) + ' for ' + parent + ' elsewhere. ' +
+      'Probability that it is genuinely worse: ' + pct(x.pWorse, 0) + '.']);
+    lines.push(['Timing', 'Typed in ×' + fix(x.latency.relative, 2) + ' the time of ' + parent + ' elsewhere (' + fix(x.latency.n) + ' timed keystrokes). ' +
+      'Probability that it is genuinely slower: ' + pct(x.latency.pSlower, 0) + '.']);
+    lines.push(['Evidence', fix(x.n) + ' recency-weighted observations across ' + x.sessions + ' session record' + (x.sessions === 1 ? '' : 's') + '.']);
+    if (x.state === 'emerging') {
+      lines.push(['Confirmation', 'Seen in ' + x.sessionsWithDeficit + ' session so far; it needs ' + x.minSessions +
+        ' separate sessions before it is trained, so one unusual session cannot fill the training list.']);
+    } else if (x.state === 'weak' || x.state === 'hesitant') {
+      lines.push(['Confirmation', 'Worse than ' + parent + ' in ' + x.sessionsWithDeficit + ' separate sessions.']);
+    }
+    lines.push(['Judgement', esc(x.state) + (x.redundant ? ': every occurrence also belongs to ' + parent + ', so it is judged there.' : '') +
+      (x.explainedBy ? ': the difficulty is explained by ' + x.explainedBy.map(seq).join(', ') + '.' : '')]);
+    if (x.stage) lines.push(['Training', pill(x.stage.name) + (x.stage.due ? ' next check from session ' + x.stage.due : '') + (x.stage.regressed ? ', returned after a failed check' : '')]);
+    if (app.layout) { var mv = movement(k); if (mv) lines.push(['Movement', esc(mv)]); }
+    lines.push(['Seen in', esc(x.examples.join(', '))]);
+    el.className = 'panel stack';
+    el.innerHTML = '<h2>Why ' + seq(k) + ' is ' + esc(x.state) + '</h2><dl class="why">' +
+      lines.map(function (l) { return '<dt>' + l[0] + '</dt><dd>' + l[1] + '</dd>'; }).join('') + '</dl>' +
+      '<div class="row"><button class="btn primary" type="button" id="practise">Practise ' + seq(k) + ' for 3 minutes</button></div>';
+    document.getElementById('practise').onclick = function () { startExercise('targeted', { pinned: [k], minutes: 3 }); };
+  }
+
+  // ---------- errors ----------
+  function viewErrors() {
+    var rows = app.trainer.substitutions({ minOpp: 30 }).filter(function (r) { return r.count >= 2; }).slice(0, 40);
+    var html = '<section class="stack"><h1>Recurring substitutions</h1>' +
+      '<p class="muted">Which key comes out when another was intended. Rates are per opportunity to type the intended character and include errors you corrected. Rare pairs are shrunk toward the overall substitution rate, so a one-off does not top the list.</p></section>';
+    var L = app.layout;
+    if (L) {
+      // Kinds of slips across all substitutions on the declared layout.
+      var kinds = {}, total = 0;
+      app.trainer.substitutions({ minOpp: 1 }).forEach(function (r) {
+        var rel = FT.layout.relation(L, r.expected, r.actual);
+        if (!rel) return;
+        var k = kinds[rel.kind] || (kinds[rel.kind] = { n: 0 });
+        k.n += r.count; total += r.count;
+      });
+      var KIND = FT.layout.KINDS;
+      var list = Object.keys(kinds).sort(function (a, b) { return kinds[b].n - kinds[a].n; });
+      if (total >= 3) {
+        html += '<section class="stack"><h3>Kinds of slips</h3><p class="muted">How the typed key relates to the intended one on your layout, across ' + fix(total) + ' substitutions. ' +
+          'In studies of skilled typists, neighbouring keys and mirror keys are the most common slips (Grudin 1983).</p><ul class="list">' +
+          list.map(function (k) { return '<li><b class="num">' + pct(kinds[k].n / total, 0) + '</b> ' + esc(KIND[k]) + '</li>'; }).join('') + '</ul></section>';
+      }
+    }
+    if (!rows.length) html += '<p class="panel">No recurring substitutions yet.</p>';
+    else {
+      html += '<div class="tablewrap"><table><thead><tr><th>Intended</th><th>Typed</th>' + (L ? '<th>Kind</th>' : '') + '<th>Rate</th><th>Times</th><th>Opportunities</th><th>Recent examples</th></tr></thead><tbody>' +
+        rows.map(function (r, i) {
+          var rel = L && FT.layout.relation(L, r.expected, r.actual);
+          return '<tr class="clickable" data-i="' + i + '"><td>' + seq(r.expected) + '</td><td>' + seq(r.actual) + '</td>' +
+            (L ? '<td>' + esc(rel ? rel.label : '') + '</td>' : '') +
+            '<td class="num">' + pct(r.rate, 2) + '</td><td class="num">' + fix(r.count) + '</td><td class="num">' + r.opportunities + '</td>' +
+            '<td class="ex">' + esc(r.examples.slice(0, 3).map(function (e) { return e.context; }).join(', ')) + '</td></tr>';
+        }).join('') + '</tbody></table></div><section id="subex"></section>';
+    }
+    setView(html);
+    app.$view.querySelectorAll('tr[data-i]').forEach(function (tr) {
+      tr.onclick = function () {
+        var r = rows[+tr.dataset.i], el = document.getElementById('subex');
+        el.className = 'panel stack';
+        el.innerHTML = '<h2>' + seq(r.expected) + ' typed as ' + seq(r.actual) + '</h2><div class="tablewrap"><table><thead><tr><th>Word</th><th>Where</th><th>Corrected</th><th>Later letter</th><th>Exercise</th></tr></thead><tbody>' +
+          r.examples.map(function (e) {
+            return '<tr><td>' + esc(e.word) + '</td><td>' + seq(e.context) + '</td><td>' + (e.corrected ? 'yes' : 'no') + '</td><td>' + (e.premature ? 'yes' : '') + '</td><td>' + esc(e.exercise || '') + '</td></tr>';
+          }).join('') + '</tbody></table></div><p class="muted">“Later letter” marks a typed letter that occurs later in the same word.</p>';
+      };
+    });
+  }
+
+  // ---------- history ----------
+  function viewHistory() {
+    var h = app.trainer.history().slice().reverse();
+    var html = '<section class="stack"><h1>History</h1><p class="muted">Every exercise, newest first. “Random words” is the unbiased sample that targeted practice never influences.</p></section>';
+    if (!h.length) html += '<p class="panel">No exercises yet.</p>';
+    else html += '<div class="tablewrap"><table><thead><tr><th>When</th><th>Exercise</th><th>Min</th><th>WPM</th><th>Accuracy</th><th>Random words</th><th>Effort</th><th>Hesitation</th><th>Rhythm</th><th>Vocabulary</th></tr></thead><tbody>' +
+      h.map(function (x) {
+        var d = new Date(x.t);
+        return '<tr><td class="num">' + esc(d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</td>' +
+          '<td>' + esc((EXERCISES[x.type] || { name: x.type }).name) + '</td><td class="num">' + fix(x.ms / 60000, 1) + '</td>' +
+          '<td class="num">' + fix(x.wpm) + '</td><td class="num">' + pct(x.faa) + '</td><td class="num">' + pct(x.randomFaa) + '</td>' +
+          '<td class="num">' + (x.effort || '–') + '</td><td class="num">' + pct(x.hes) + '</td><td class="num">' + fix(x.cv, 2) + '</td>' +
+          '<td class="num">' + Math.round(x.frontier) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+    setView(html);
+  }
+
+  Object.assign(U, { viewSequences: viewSequences, markSel: markSel, movement: movement, showWhy: showWhy, viewErrors: viewErrors, viewHistory: viewHistory });
+})(globalThis.FT);
