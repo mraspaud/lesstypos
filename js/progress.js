@@ -69,5 +69,49 @@
       t: Math.min.apply(null, trials.map(function (h) { return h.t; })) };
   }
 
-  FT.progress = { compare: compare, timeline: timeline, benchmarkResult: benchmarkResult };
+  function dayKey(t) {
+    var d = new Date(t);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  // Groups entries by local day and summarises each day with fn(entries).
+  function byDay(entries, fn) {
+    var days = [], groups = {};
+    entries.forEach(function (h) {
+      var k = dayKey(h.t);
+      if (!groups[k]) { groups[k] = []; days.push(k); }
+      groups[k].push(h);
+    });
+    return days.sort().map(function (k) { return Object.assign({ day: k, t: groups[k][0].t }, fn(groups[k])); });
+  }
+  function med(list, key) {
+    var v = list.map(function (h) { return h[key]; }).filter(function (x) { return x != null; });
+    return v.length ? FT.timing.median(v) : null;
+  }
+
+  // Comparable progress series (comparable sessions only, one point per day):
+  //   relaxed   relaxed practice of >= 50 words: WPM, accuracy, effort, rhythm, word-start penalty;
+  //   benchmark complete sets of 3 trials (median and range);
+  //   pairMs    common-pair timing from every exercise except speed bursts.
+  var MIN_WORDS = 50, SET_SIZE = 3;
+  function series(history) {
+    var relaxed = history.filter(function (h) { return h.type === 'relaxed' && h.words >= MIN_WORDS; });
+    var sets = [];
+    history.forEach(function (h) { if (h.type === 'benchmark' && h.set && sets.indexOf(h.set) < 0) sets.push(h.set); });
+    var effort = function (l) {
+      var v = l.map(function (h) { return h.effort; }).filter(function (x) { return x != null; });
+      return v.length ? v.reduce(function (a, b) { return a + b; }, 0) / v.length : null;
+    };
+    return {
+      relaxed: byDay(relaxed, function (l) {
+        return { n: l.length, wpm: med(l, 'wpm'), faa: med(l, 'faa'), effort: effort(l), cv: med(l, 'cv'), startMs: med(l, 'startMs') };
+      }),
+      benchmark: sets.map(function (set) { return benchmarkResult(history, set); })
+        .filter(function (r) { return r.trials >= SET_SIZE; }),
+      pairMs: byDay(history.filter(function (h) { return h.type !== 'bursts' && h.pairMs != null; }), function (l) {
+        return { ms: med(l, 'pairMs') };
+      }),
+    };
+  }
+
+  FT.progress = { compare: compare, timeline: timeline, benchmarkResult: benchmarkResult, series: series };
 })(globalThis.FT);

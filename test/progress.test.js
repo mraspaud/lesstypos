@@ -66,3 +66,33 @@ test('the first word is timed from its first keystroke', () => {
   const tl = FT.progress.timeline(words);
   assert.equal(Math.round(tl[0].burst), 150); // 5 chars over 0.4 s between first and last keydown
 });
+
+// Functionality: progress series keep only comparable sessions together and
+// summarise each day by its median.
+const D = (d, h = 9) => Date.UTC(2026, 0, d, h);
+const HIST = [
+  { type: 'relaxed', t: D(1), wpm: 50, faa: 0.98, effort: 3, words: 200, pairMs: 120, startMs: 90, cv: 0.5 },
+  { type: 'relaxed', t: D(1, 18), wpm: 54, faa: 0.99, effort: 2, words: 200, pairMs: 110, startMs: 80, cv: 0.4 },
+  { type: 'bursts', t: D(1), wpm: 80, faa: 0.95, words: 100, pairMs: 70 },
+  { type: 'relaxed', t: D(3), wpm: 56, faa: 0.99, effort: null, words: 200, pairMs: 105, startMs: 70, cv: 0.4 },
+  { type: 'relaxed', t: D(4), wpm: 99, faa: 1, words: 20 },                         // too short to count
+  ...[60, 64, 62].map((wpm, i) => ({ type: 'benchmark', set: 'a', t: D(2, 9 + i), wpm, faa: 0.98, pairMs: 100 })),
+  ...[70, 66].map((wpm, i) => ({ type: 'benchmark', set: 'b', t: D(5, 9 + i), wpm, faa: 0.98 })), // incomplete set
+];
+
+test('relaxed practice is summarised per day', () => {
+  const r = plain(FT.progress.series(HIST).relaxed);
+  assert.deepEqual(r.map((p) => [p.day, p.wpm, p.n]), [['2026-01-01', 52, 2], ['2026-01-03', 56, 1]]);
+  assert.equal(r[0].effort, 2.5);
+  assert.equal(r[1].effort, null);
+});
+
+test('benchmarks count only complete sets of three trials', () => {
+  const b = plain(FT.progress.series(HIST).benchmark);
+  assert.deepEqual(b.map((p) => [p.set, p.wpm, p.min, p.max]), [['a', 62, 60, 64]]);
+});
+
+test('common-pair timing leaves out speed bursts', () => {
+  const p = plain(FT.progress.series(HIST).pairMs);
+  assert.deepEqual(p.map((x) => [x.day, x.ms]), [['2026-01-01', 115], ['2026-01-02', 100], ['2026-01-03', 105]]);
+});
