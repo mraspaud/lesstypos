@@ -76,6 +76,18 @@
         return list.filter(Boolean).map(FT.codec.decodeSession).sort(function (a, b) { return a.startedAt - b.startedAt; });
       });
     }
+    // Stored sizes (JSON length) of the raw sessions and the derived profile.
+    function sizes() {
+      return db.keys().then(function (keys) {
+        var ks = keys.filter(function (k) { return String(k).indexOf('session:') === 0; });
+        return Promise.all(ks.map(function (k) { return db.get(k); }).concat([db.get('profile')]));
+      }).then(function (recs) {
+        var profile = recs.pop();
+        return { sessions: recs.length,
+          sessionBytes: recs.reduce(function (a, r) { return a + JSON.stringify(r).length; }, 0),
+          profileBytes: profile ? JSON.stringify(profile).length : 0 };
+      });
+    }
     // Re-saves sessions stored before compaction; returns how many.
     function compactSessions() {
       return db.keys().then(function (keys) {
@@ -161,7 +173,7 @@
     }
 
     return { load: load, saveSettings: saveSettings, saveProfile: saveProfile, saveSession: saveSession,
-      listSessions: listSessions, exportAll: exportAll, compactSessions: compactSessions,
+      listSessions: listSessions, exportAll: exportAll, compactSessions: compactSessions, sizes: sizes,
       saveText: saveText, getText: getText, deleteText: deleteText, listTexts: listTexts, importAll: importAll, reset: reset, kind: db.kind };
   }
 

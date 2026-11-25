@@ -19,3 +19,9 @@ test('no late keys, no note', () => {
   assert.equal(FT.fmt.lateNote([]), '');
   assert.equal(FT.fmt.lateNote(undefined), '');
 });
+
+test('the storage line gives sessions and statistics sizes', () => {
+  assert.equal(FT.fmt.storageLine({ sessions: 12, sessionBytes: 2.5 * 1048576, profileBytes: 400 * 1024 }),
+    '12 exercises take 2.5 MB; statistics derived from them take 400 KB.');
+  assert.equal(FT.fmt.storageLine({ sessions: 1, sessionBytes: 900, profileBytes: 0 }), '1 exercise takes 1 KB; statistics derived from them take 0 KB.');
+});

@@ -138,9 +138,13 @@
     if (navigator.storage && navigator.storage.estimate) {
       navigator.storage.estimate().then(function (e) {
         var el = document.getElementById('usage');
-        if (el && e.usage != null) el.textContent = 'Using ' + (e.usage / 1048576).toFixed(1) + ' MB of storage.';
+        if (el && e.usage != null) el.textContent = 'Using ' + (e.usage / 1048576).toFixed(1) + ' MB of storage. ' + el.textContent;
       }).catch(function () {});
     }
+    app.store.sizes().then(function (z) {
+      var el = document.getElementById('usage');
+      if (el) el.textContent = (el.textContent ? el.textContent + ' ' : '') + FT.fmt.storageLine(z);
+    }).catch(function () {});
     function backup() { return app.store.exportAll().then(function (d) { return JSON.stringify(d); }); }
     document.getElementById('exp').onclick = function () {
       backup().then(function (json) {

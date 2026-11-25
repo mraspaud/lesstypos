@@ -177,3 +177,14 @@ test('compacting converts sessions stored plain and leaves encoded ones alone', 
   const list = await s.listSessions();
   assert.deepEqual(plain(list.find((x) => x.id === 'old').words), plain(typedSession('old').words));
 });
+
+test('the store reports how much its sessions and statistics take', async () => {
+  const s = mk();
+  await s.saveSession(typedSession('a'));
+  await s.saveSession(typedSession('b', 2));
+  await s.saveProfile({ frontier: 300 });
+  const z = await s.sizes();
+  assert.equal(z.sessions, 2);
+  assert.ok(z.sessionBytes > 100);
+  assert.equal(z.profileBytes, JSON.stringify({ frontier: 300 }).length);
+});

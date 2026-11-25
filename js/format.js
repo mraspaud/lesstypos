@@ -21,5 +21,13 @@
       'Their single-key speed is not judged; their errors are, and so is the timing of longer sequences ending on them, which share the same delay.';
   }
 
-  FT.fmt = { esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
+  function size(bytes) {
+    return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.round(bytes / 1024) + ' KB';
+  }
+  function storageLine(z) {
+    return z.sessions + (z.sessions === 1 ? ' exercise takes ' : ' exercises take ') + size(z.sessionBytes) +
+      '; statistics derived from them take ' + size(z.profileBytes) + '.';
+  }
+
+  FT.fmt = { storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
 })(globalThis.FT);
