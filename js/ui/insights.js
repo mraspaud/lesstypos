@@ -34,7 +34,8 @@
       [['focus', 'In training'], ['kept', 'Consolidating and mastered'], ['all', 'All with enough evidence']].map(function (x) {
         return '<button type="button" data-tab="' + x[0] + '" aria-pressed="' + (seqTab === x[0]) + '">' + esc(x[1]) + '</button>';
       }).join('') + '</div>' +
-      '<p class="muted num">' + keys.length + ' sequences observed; ' + counts.insufficient + ' do not have enough observations yet.</p></section>' +
+      '<p class="muted num">' + keys.length + ' sequences observed; ' + counts.insufficient + ' do not have enough observations yet.</p>' +
+      (ev.late.length ? '<p class="muted" id="latenote">' + FT.fmt.lateNote(ev.late) + '</p>' : '') + '</section>' +
       movementTable(ev);
     if (!shown.length) {
       html += '<p class="panel">' + (seqTab === 'focus' ? 'Nothing needs extra practice yet. Sequences appear here once the evidence shows they cost errors or time.' : 'No sequences in this group yet.') + '</p>';
@@ -94,8 +95,10 @@
     var parent = x.parent ? seq(x.parent) : 'all your typing';
     lines.push(['Errors', pct(x.errorRate) + ' of first attempts, against ' + pct(x.parentErrorRate) + ' for ' + parent + ' elsewhere. ' +
       'Probability that it is genuinely worse: ' + pct(x.pWorse, 0) + '.']);
-    lines.push(['Timing', 'Typed in ×' + fix(x.latency.relative, 2) + ' the time of ' + parent + ' elsewhere (' + fix(x.latency.n) + ' timed keystrokes). ' +
-      'Probability that it is genuinely slower: ' + pct(x.latency.pSlower, 0) + '.']);
+    lines.push(['Timing', x.lateKey
+      ? 'Not judged: your keyboard sends ' + seq(k) + ' late (a tap-hold key), so its time against all your typing is shifted by the keyboard, not by you.'
+      : 'Typed in ×' + fix(x.latency.relative, 2) + ' the time of ' + parent + ' elsewhere (' + fix(x.latency.n) + ' timed keystrokes). ' +
+        'Probability that it is genuinely slower: ' + pct(x.latency.pSlower, 0) + '.']);
     lines.push(['Evidence', fix(x.n) + ' recency-weighted observations across ' + x.sessions + ' session record' + (x.sessions === 1 ? '' : 's') + '.']);
     if (x.state === 'emerging') {
       lines.push(['Confirmation', 'Seen in ' + x.sessionsWithDeficit + ' session so far; it needs ' + x.minSessions +

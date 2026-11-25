@@ -11,5 +11,15 @@
   function fix(x, d) { return x == null || !isFinite(x) ? '–' : x.toFixed(d == null ? 0 : d); }
   function pill(name) { return name ? '<span class="pill ' + esc(name) + '">' + esc(name) + '</span>' : ''; }
 
-  FT.fmt = { esc: esc, seq: seq, pct: pct, fix: fix, pill: pill };
+  function list(items) {
+    return items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+  }
+  // Keys the keyboard sends late (FT.timing.lateKeys), as shown on the Sequences page.
+  function lateNote(chars) {
+    if (!chars || !chars.length) return '';
+    return 'Your keyboard sends ' + list(chars.map(seq)) + ' late: tap-hold keys arrive only once the keyboard has decided between tap and hold. ' +
+      'Their single-key speed is not judged; their errors are, and so is the timing of longer sequences ending on them, which share the same delay.';
+  }
+
+  FT.fmt = { esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
 })(globalThis.FT);
