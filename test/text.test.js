@@ -86,3 +86,10 @@ test('a declared key of three letters typed as fast separate keystrokes is one p
   const st = [['t', 0], ['h', 4], ['e', 8], ['n', 200]].map(([ch, t], i) => ({ k: 'c', ch, t, g: i + 1 }));
   assert.deepEqual(plain(FT.text.pressIds(st, ['the'])), [0, 0, 0, 1]);
 });
+
+test('an acute accent typed as an apostrophe counts as one', () => {
+  assert.ok(FT.text.same('´', "'"));
+  assert.ok(FT.text.same("'", '´'));
+  assert.ok(FT.text.sameStr('don´t', "don't"));
+  assert.ok(!FT.text.same('`', "'")); // the grave accent is a real ASCII character
+});
