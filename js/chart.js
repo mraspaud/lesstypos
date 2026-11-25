@@ -104,5 +104,89 @@
     hit.addEventListener('pointerleave', function () { g.setAttribute('visibility', 'hidden'); tip.hidden = true; });
   }
 
-  FT.chart = { niceStep: niceStep, monotonePath: monotonePath, timeline: timeline };
+  // ---- scales and ticks (pure) ----
+  function scale(domain, range, log) {
+    var f = log ? Math.log : function (v) { return v; };
+    var d0 = f(domain[0]), d1 = f(domain[1]), r0 = range[0], r1 = range[1];
+    return function (v) { return d1 === d0 ? (r0 + r1) / 2 : r0 + (f(v) - d0) / (d1 - d0) * (r1 - r0); };
+  }
+  function ticks(lo, hi) {
+    var raw = (hi - lo) / 5 || 1, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    var step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag, out = [];
+    for (var v = Math.floor(lo / step) * step; v <= Math.ceil(hi / step) * step + step / 2; v += step) out.push(+v.toFixed(10));
+    return out;
+  }
+  var LOG_MANTISSA = [1, 1.5, 2, 3, 5, 8];
+  function logTicks(lo, hi) {
+    var all = [];
+    for (var e = Math.floor(Math.log10(lo)) - 1; e <= Math.ceil(Math.log10(hi)); e++) {
+      LOG_MANTISSA.forEach(function (m) { all.push(+(m * Math.pow(10, e)).toPrecision(6)); });
+    }
+    var first = all.filter(function (v) { return v <= lo; }).pop(), last = all.filter(function (v) { return v >= hi; })[0];
+    var out = all.filter(function (v) { return v >= first && v <= last; });
+    return out.length >= 3 ? out : ticks(lo, hi); // narrow ranges: round linear values, still placed on the log scale
+  }
+  var DAY = 864e5, DAY_STEPS = [1, 2, 3, 5, 7, 14, 30, 60, 90, 180, 365];
+  function dayTicks(t0, t1) {
+    var span = Math.max(1, (t1 - t0) / DAY), step = DAY_STEPS.filter(function (s) { return span / s <= 6; })[0] || 365;
+    var out = [];
+    for (var t = Math.ceil(t0 / DAY) * DAY; t <= t1; t += step * DAY) out.push(t);
+    return out;
+  }
+
+  // ---- progress chart: one series over time, one axis ----
+  // cfg: { points: [{ t, y, lo, hi, fill (0..1 or null), tip }], log, yMin, yMax,
+  //        color: CSS var name, fmt: value formatter, label: axis caption }
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function dayLabel(t) { var d = new Date(t); return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()]; }
+  function progress(el, cfg) {
+    var pts = cfg.points;
+    var W = Math.max(280, el.clientWidth || 480), H = 190, L = 46, R = 14, T = 12, B = 26;
+    var ys = [];
+    pts.forEach(function (p) { ys.push(p.y); if (p.lo != null) ys.push(p.lo, p.hi); });
+    var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys);
+    if (cfg.yMin != null) lo = Math.min(lo, cfg.yMin);
+    if (cfg.yMax != null) hi = Math.max(hi, cfg.yMax);
+    var tk = cfg.log ? logTicks(lo, hi) : ticks(lo - (hi - lo) * 0.1, hi + (hi - lo) * 0.1);
+    if (cfg.yMax != null) tk = tk.filter(function (v) { return v <= cfg.yMax; });
+    var y = scale([tk[0], tk[tk.length - 1]], [H - B, T], cfg.log);
+    var t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+    if (t1 - t0 < DAY) { t0 -= DAY; t1 += DAY; }
+    var x = scale([t0, t1], [L + 8, W - R - 8]);
+    var fmt = cfg.fmt || function (v) { return fix(v); };
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(cfg.label) + ' over time"><g class="axis">';
+    tk.forEach(function (v) {
+      svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>' +
+        '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + esc(fmt(v)) + '</text>';
+    });
+    dayTicks(t0, t1).forEach(function (t) { svg += '<text x="' + x(t) + '" y="' + (H - 6) + '" text-anchor="middle">' + dayLabel(t) + '</text>'; });
+    svg += '</g>';
+    var color = 'var(' + (cfg.color || '--series-1') + ')';
+    if (pts.length > 1) svg += '<path class="trend" style="stroke:' + color + '" d="' + monotonePath(pts.map(function (p) { return [x(p.t), y(p.y)]; })) + '"/>';
+    pts.forEach(function (p, i) {
+      if (p.lo != null) svg += '<line class="range" style="stroke:' + color + '" x1="' + x(p.t) + '" x2="' + x(p.t) + '" y1="' + y(p.lo) + '" y2="' + y(p.hi) + '"/>';
+      var fill = p.fill === undefined ? 1 : p.fill;
+      svg += '<circle class="pt" data-i="' + i + '" cx="' + x(p.t) + '" cy="' + y(p.y) + '" r="5" style="stroke:' + color + ';fill:' +
+        (fill == null ? 'var(--surface)' : color) + ';fill-opacity:' + (fill == null ? 1 : 0.15 + 0.85 * fill) + '"/>';
+    });
+    svg += '<line class="cross" id="pcross" y1="' + T + '" y2="' + (H - B) + '" visibility="hidden"/>' +
+      '<rect class="hit" x="' + L + '" y="0" width="' + (W - L - R) + '" height="' + H + '" fill="transparent"/></svg>';
+    el.innerHTML = svg + '<div class="tip" hidden></div>';
+    var root = el.querySelector('svg'), tip = el.querySelector('.tip'), cross = el.querySelector('#pcross');
+    el.querySelector('.hit').addEventListener('pointermove', function (e) {
+      var r = root.getBoundingClientRect(), sx = (e.clientX - r.left) * (W / r.width), best = 0;
+      pts.forEach(function (p, i) { if (Math.abs(x(p.t) - sx) < Math.abs(x(pts[best].t) - sx)) best = i; });
+      var p = pts[best], px = x(p.t) * r.width / W;
+      cross.setAttribute('x1', x(p.t)); cross.setAttribute('x2', x(p.t)); cross.setAttribute('visibility', 'visible');
+      tip.hidden = false;
+      tip.innerHTML = p.tip;
+      var left = px + 12;
+      if (left + tip.offsetWidth > r.width) left = px - 12 - tip.offsetWidth;
+      tip.style.left = Math.max(0, left) + 'px'; tip.style.top = '8px';
+    });
+    el.querySelector('.hit').addEventListener('pointerleave', function () { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); });
+  }
+
+  FT.chart = { progress: progress, niceStep: niceStep, monotonePath: monotonePath, timeline: timeline,
+    scale: scale, ticks: ticks, logTicks: logTicks, dayTicks: dayTicks };
 })(globalThis.FT);

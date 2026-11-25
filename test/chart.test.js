@@ -35,3 +35,29 @@ test('short series fall back to straight lines', () => {
   assert.equal(FT.chart.monotonePath([]), '');
   assert.equal(FT.chart.monotonePath([[0, 1], [5, 2]]), 'M0.0 1.0L5.0 2.0');
 });
+
+test('linear and log scales map a domain onto a pixel range', () => {
+  const lin = FT.chart.scale([0, 100], [200, 0]);
+  assert.equal(lin(0), 200); assert.equal(lin(50), 100); assert.equal(lin(100), 0);
+  const log = FT.chart.scale([10, 1000], [0, 100], true);
+  assert.ok(Math.abs(log(100) - 50) < 1e-9);
+});
+
+test('ticks cover the domain with round values', () => {
+  assert.deepEqual(plain(FT.chart.ticks(0, 87)), [0, 20, 40, 60, 80, 100]);
+  assert.deepEqual(plain(FT.chart.ticks(52, 61)), [52, 54, 56, 58, 60, 62]);
+  assert.deepEqual(plain(FT.chart.logTicks(80, 260)), [80, 100, 150, 200, 300]);
+});
+
+test('date ticks are whole days, at most about six', () => {
+  const day = 864e5, t0 = Date.UTC(2026, 0, 1);
+  const tk = FT.chart.dayTicks(t0, t0 + 40 * day);
+  assert.ok(tk.length >= 3 && tk.length <= 7, String(tk.length));
+  assert.ok(tk.every((t) => t % day === 0));
+});
+
+test('a narrow log range still gets at least three tick labels', () => {
+  const tk = FT.chart.logTicks(103, 130);
+  assert.ok(tk.length >= 3, JSON.stringify(tk));
+  assert.ok(tk[0] <= 103 && tk[tk.length - 1] >= 130);
+});

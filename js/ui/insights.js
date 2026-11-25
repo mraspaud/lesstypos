@@ -145,11 +145,54 @@
   }
 
   // ---------- history ----------
+  // Progress over time: one small chart per measure, each on its own axis,
+  // comparing only comparable sessions (FT.progress.series).
+  var EFFORT_NAMES = ['', 'no effort', 'comfortable', 'moderate', 'demanding', 'maximum effort'];
+  function progressCharts(h) {
+    var s = FT.progress.series(h), date = function (t) { return new Date(t).toLocaleDateString(); };
+    var charts = [
+      { title: 'Relaxed speed', note: 'Median WPM per day of relaxed practice. Fill shows rated effort: hollow = not rated, light = little effort, solid = maximum.',
+        label: 'Relaxed WPM', color: '--series-1', min: 1, rows: s.relaxed,
+        point: function (p) { return { t: p.t, y: p.wpm, fill: p.effort == null ? null : (p.effort - 1) / 4,
+          tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.t)) + '<br>' + p.n + ' session' + (p.n > 1 ? 's' : '') + ', effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1) + ' (' + EFFORT_NAMES[Math.round(p.effort)] + ')') }; },
+        cols: ['Day', 'WPM', 'Accuracy', 'Effort'], cells: function (p) { return [esc(date(p.t)), fix(p.wpm), pct(p.faa), p.effort == null ? '–' : fix(p.effort, 1)]; } },
+      { title: 'Benchmark', note: 'Median of each complete set of 3 one-minute trials; the line shows the range of the trials.',
+        label: 'Benchmark WPM', color: '--series-2', min: 1, rows: s.benchmark,
+        point: function (p) { return { t: p.t, y: p.wpm, lo: p.min, hi: p.max, tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.t)) + '<br>trials ' + fix(p.min) + '–' + fix(p.max) + ', accuracy ' + pct(p.faa) }; },
+        cols: ['Day', 'Median WPM', 'Range', 'Accuracy'], cells: function (p) { return [esc(date(p.t)), fix(p.wpm), fix(p.min) + '–' + fix(p.max), pct(p.faa)]; } },
+      { title: 'Common-pair timing', note: 'Median time between the letters of the 30 most common pairs, inside words. Lower is faster; this measure barely moves from familiarity alone. Log scale.',
+        label: 'Common-pair timing in ms', color: '--series-1', min: 1, rows: s.pairMs, log: true, fmt: function (v) { return Math.round(v) + ''; },
+        point: function (p) { return { t: p.t, y: p.ms, tip: '<b>' + fix(p.ms) + ' ms</b> · ' + esc(date(p.t)) }; },
+        cols: ['Day', 'ms'], cells: function (p) { return [esc(date(p.t)), fix(p.ms)]; } },
+      { title: 'Accuracy', note: 'First-attempt accuracy per day of relaxed practice. Corrected errors count.',
+        label: 'Relaxed first-attempt accuracy', color: '--series-1', min: 1, yMax: 1, rows: s.relaxed, fmt: function (v) { return pct(v, 1); },
+        point: function (p) { return { t: p.t, y: p.faa, tip: '<b>' + pct(p.faa) + '</b> · ' + esc(date(p.t)) }; },
+        cols: ['Day', 'Accuracy'], cells: function (p) { return [esc(date(p.t)), pct(p.faa)]; } },
+    ];
+    var html = '<section class="stack"><h2>Progress</h2><div class="progress-grid">' + charts.map(function (c, i) {
+      var enough = c.rows.length >= c.min;
+      return '<section class="progress-chart stack"><h3>' + esc(c.title) + '</h3><p class="muted">' + esc(c.note) + '</p>' +
+        (enough ? '<div class="chart" id="pc' + i + '"></div>' : '<p class="panel muted">Not enough data yet.</p>') +
+        '<details class="tableview"><summary>Show as table</summary><div class="tablewrap"><table><thead><tr>' +
+        c.cols.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
+        c.rows.slice().reverse().map(function (p) { return '<tr>' + c.cells(p).map(function (v) { return '<td class="num">' + v + '</td>'; }).join('') + '</tr>'; }).join('') +
+        '</tbody></table></div></details></section>';
+    }).join('') + '</div></section>';
+    return { html: html, draw: function () {
+      charts.forEach(function (c, i) {
+        var el = document.getElementById('pc' + i);
+        if (el) FT.chart.progress(el, { points: c.rows.map(c.point), log: c.log, yMax: c.yMax, color: c.color, fmt: c.fmt, label: c.label });
+      });
+    } };
+  }
+
   function viewHistory() {
     var h = app.trainer.history().slice().reverse();
-    var html = '<section class="stack"><h1>History</h1><p class="muted">Every exercise, newest first. “Random words” is the unbiased sample that targeted practice never influences.</p></section>';
+    var pc = progressCharts(app.trainer.history());
+    var html = '<section class="stack"><h1>History</h1></section>' + pc.html +
+      '<section class="stack"><h2>All exercises</h2><p class="muted">Newest first. “Random words” is the unbiased sample that targeted practice never influences.</p></section>';
     if (!h.length) html += '<p class="panel">No exercises yet.</p>';
-    else html += '<div class="tablewrap"><table><thead><tr><th>When</th><th>Exercise</th><th>Min</th><th>WPM</th><th>Accuracy</th><th>Random words</th><th>Effort</th><th>Hesitation</th><th>Rhythm</th><th>Vocabulary</th></tr></thead><tbody>' +
+    else html += '<div class="tablewrap"><table id="alltable"><thead><tr><th>When</th><th>Exercise</th><th>Min</th><th>WPM</th><th>Accuracy</th><th>Random words</th><th>Effort</th><th>Hesitation</th><th>Rhythm</th><th>Vocabulary</th></tr></thead><tbody>' +
       h.map(function (x) {
         var d = new Date(x.t);
         return '<tr><td class="num">' + esc(d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</td>' +
@@ -159,6 +202,7 @@
           '<td class="num">' + Math.round(x.frontier) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
     setView(html);
+    pc.draw();
   }
 
   Object.assign(U, { viewSequences: viewSequences, markSel: markSel, movement: movement, showWhy: showWhy, viewErrors: viewErrors, viewHistory: viewHistory });

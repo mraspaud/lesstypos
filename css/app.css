@@ -214,3 +214,10 @@ details.tableview summary { cursor: pointer; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { .pace-fill { transition: none; } }
 .pill.current { color: var(--accent); border-color: var(--accent); }
 .progstep { gap: 8px; }
+
+/* progress charts (History) */
+.progress-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 24px; }
+.progress-chart { min-width: 0; }
+.progress-chart .trend { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.progress-chart .range { stroke-width: 2; stroke-linecap: round; opacity: 0.6; }
+.progress-chart circle.pt { stroke-width: 2; }

@@ -135,8 +135,8 @@ await step('progress persists across a reload', async () => {
   await page.reload();
   await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
   await page.keyboard.press('h');
-  await page.locator('tbody tr').first().waitFor();
-  assert.equal(await page.locator('tbody tr').count(), 1);
+  await page.locator('#alltable tbody tr').first().waitFor();
+  assert.equal(await page.locator('#alltable tbody tr').count(), 1);
 });
 
 await step('sequences page explains a sequence', async () => {
@@ -353,6 +353,20 @@ await step('a benchmark set runs three trials and shows the median', async () =>
   assert.equal(n, 3);
   await page.keyboard.press('Enter');
   await page.getByRole('button', { name: /Benchmark/ }).waitFor();
+});
+
+await step('History shows progress charts with tooltips and tables', async () => {
+  await page.locator('[data-go="history"]').click();
+  for (const title of ['Relaxed speed', 'Benchmark', 'Common-pair timing', 'Accuracy']) {
+    await page.locator('.progress-chart h3', { hasText: title }).waitFor();
+  }
+  const chart = page.locator('.progress-chart').first();
+  await chart.locator('svg circle.pt').first().waitFor();
+  const box = await chart.locator('svg').boundingBox();
+  await page.mouse.move(box.x + box.width - 20, box.y + box.height / 2);
+  await chart.locator('.tip:not([hidden])').waitFor();
+  assert.ok((await chart.locator('details table tbody tr').count()) >= 1);
+  if (shots) await page.screenshot({ path: shots + '/history.png', fullPage: true });
 });
 
 await step('phone width has no horizontal scroll', async () => {
