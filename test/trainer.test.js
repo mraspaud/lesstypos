@@ -279,3 +279,16 @@ test('the trainer reports swapped letter pairs from its exercises', () => {
   assert.equal(sw[0].expected, 'eo');
   assert.equal(sw[0].count, 1);
 });
+
+// Functionality: timestamps are stored at 0.01 ms (design choice: below the
+// browsers' own timer coarsening), so stored sessions encode exactly.
+test('finishing an exercise rounds its timestamps to 0.01 ms without touching the input', () => {
+  const tr = FT.trainer.create({ seed: 5 });
+  const stream = [{ k: 'c', ch: 'a', t: 100.123456, g: 1 }, { k: 'c', ch: 't', t: 250.987654, g: 2 }, { k: 'c', ch: ' ', t: 400.0000001, g: 3 }];
+  const keys = [{ k: 'd', c: 'KeyA', t: 99.999999 }, { k: 'u', c: 'KeyA', t: 180.555555 }];
+  const { raw } = tr.finish({ type: 'relaxed', startedAt: 0, durationMs: 500, words: [{ target: 'at', stream }], keys });
+  assert.deepEqual(plain(raw.words[0].stream.map((e) => e.t)), [100.12, 250.99, 400]);
+  assert.deepEqual(plain(raw.keys.map((e) => e.t)), [100, 180.56]);
+  assert.equal(stream[0].t, 100.123456);
+  assert.equal(keys[0].t, 99.999999);
+});

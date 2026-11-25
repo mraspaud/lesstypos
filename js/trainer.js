@@ -97,8 +97,8 @@
         run: input.run || null,
         set: input.set || null,
         planMs: input.planMs || null,
-        words: input.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta || null }; }),
-        keys: input.keys || [],
+        words: input.words.map(function (w) { return { target: w.target, stream: w.stream.map(FT.codec.withRoundedTime), meta: w.meta || null }; }),
+        keys: (input.keys || []).map(FT.codec.withRoundedTime),
       };
       if (input.text) raw.text = { id: input.text.id, from: input.text.from, to: input.text.from + input.words.length };
       if (input.rounds) raw.rounds = input.rounds;
