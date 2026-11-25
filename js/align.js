@@ -175,7 +175,7 @@
     var w = 1 / als.length;
     var merged = {};
     var order = [];
-    var targets = Parr.map(function (ch, pos) { return { ch: ch, pos: pos, err: 0, types: {}, t: null, g: null, actual: {} }; });
+    var targets = Parr.map(function (ch, pos) { return { ch: ch, pos: pos, err: 0, types: {}, t: null, g: null, idx: null, actual: {} }; });
     for (var a = 0; a < als.length; a++) {
       var r = analyzeOne(Parr, stream, flags, flaggedIdx, als[a]);
       for (var k = 0; k < r.events.length; k++) {
@@ -195,6 +195,7 @@
           tg.t = f.t;
           var se = stream[f.idx];
           tg.g = se ? se.g : null;
+          tg.idx = f.idx;
         }
       }
     }
