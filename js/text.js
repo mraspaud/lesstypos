@@ -93,7 +93,7 @@
       var e = stream[i];
       if (e.k !== 'c') { out.push(null); continue; }
       var prev = i > 0 && stream[i - 1].k === 'c' ? stream[i - 1] : null;
-      var same = prev && prev.g === e.g;
+      var same = prev && prev.g != null && prev.g === e.g;
       if (!same && prev && ms.length) {
         // characters of the current press so far, plus this one: a declared key?
         var start = i - 1;

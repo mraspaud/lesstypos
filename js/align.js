@@ -125,8 +125,9 @@
 
   // An unflagged letter was later erased: it was an attempt at P[pos].
   // Returns the next target position.
-  function corrected(rec, P, e, i, pos) {
-    if (pos >= P.length) { rec.ins(P.length - 1, true, e, i, false); return P.length + 1; }
+  function corrected(rec, P, e, i, pos, pressErr) {
+    if (pressErr.has(i)) { rec.ins(Math.min(pos, P.length - 1), true, e, i, false); return pos; } // rest of a wrong press
+    if (pos >= P.length) { rec.ins(P.length - 1, true, e, i, false); pressErr.mark(i); return P.length + 1; }
     if (eq(e.ch, P[pos])) { rec.correct(pos, true, e, i); return pos + 1; }
     if (pos + 1 < P.length && eq(e.ch, P[pos + 1])) { // typed the next letter early
       rec.omit(pos, true, e.t, i);
@@ -134,6 +135,7 @@
       return pos + 2;
     }
     rec.sub(pos, true, e, i);
+    pressErr.mark(i);
     return pos + 1;
   }
 
@@ -155,7 +157,7 @@
         if (live.length) v = live.pop() - 1; // back to the erased letter's position
         v = Math.max(0, v);
       } else {
-        v = corrected(rec, P, e, i, v);
+        v = corrected(rec, P, e, i, v, pressErr);
         live.push(v);
       }
     });
@@ -166,9 +168,11 @@
     return { events: rec.events, first: rec.first };
   }
 
-  // Wrong first attempts that belong to the same target press, or were typed
-  // by the same press, are one mistake: each such group totals one error.
-  // Omissions are not linked through the keystroke that followed them.
+  // Wrong first attempts typed by the same press are one mistake; so are an
+  // omitted letter and a substituted letter of the same target press (one key
+  // pressed where a multi-letter key was meant). Separate wrong presses stay
+  // separate. Each group totals one error. Omissions are not linked through
+  // the keystroke that followed them. (Design choice, user decision.)
   function sharePressErrors(first, presses) {
     var parent = first.map(function (_, i) { return i; });
     var find = function (i) { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
@@ -176,8 +180,13 @@
     first.forEach(function (f, pos) {
       if (!f || !f.err) return;
       var link = function (map, key) { if (key == null) return; if (map[key] == null) map[key] = pos; else parent[find(pos)] = find(map[key]); };
-      link(byT, presses.target[pos]);
       if (f.type !== 'omit') link(byTyped, presses.typed[f.idx]);
+    });
+    first.forEach(function (f, pos) {
+      if (!f || !f.err || f.type !== 'omit') return;
+      first.forEach(function (g, q) {
+        if (q !== pos && g && g.err && g.type === 'sub' && presses.target[q] === presses.target[pos]) parent[find(pos)] = find(q);
+      });
     });
     var size = {};
     first.forEach(function (f, pos) { if (f && f.err) size[find(pos)] = (size[find(pos)] || 0) + 1; });
@@ -269,49 +278,64 @@
     var flags = flagStream(stream), flaggedIdx = [];
     for (var f = 0; f < stream.length; f++) if (flags[f] && stream[f].ch !== ' ') flaggedIdx.push(f);
     var typedPress = FT.text.pressIds(stream, macros), targetPress = FT.text.targetPresses(P, macros);
-    var D = msdMatrix(Parr, T), end = n;
-    if (!complete) for (var i = 0; i <= n; i++) if (D[i][m] < D[end][m]) end = i;
-    // One optimal path, walked from the end. On ties an extra letter is placed
-    // as late as possible ("caat" for "cat": the second a is the extra), then
-    // matches/substitutions, then omissions.
-    var ops = [];
-    for (var a = end, b = m; a > 0 || b > 0;) {
-      if (b > 0 && D[a][b - 1] + 1 === D[a][b]) { ops.push({ p: null, t: b - 1, before: a }); b--; }
-      else if (a > 0 && b > 0 && D[a - 1][b - 1] + (eq(Parr[a - 1], T[b - 1]) ? 0 : 1) === D[a][b]) { ops.push({ p: a - 1, t: b - 1 }); a--; b--; }
-      else { ops.push({ p: a - 1, t: null }); a--; }
-    }
-    ops.reverse();
+    var D = msdMatrix(Parr, T);
     var pressOf = function (j) { return typedPress[flaggedIdx[j]]; };
-    var wrongPress = {};
-    ops.forEach(function (o) { if (o.p != null && o.t != null && !eq(Parr[o.p], T[o.t])) wrongPress[pressOf(o.t)] = true; });
-    var positions = Parr.map(function (_, k) { return { status: k < end ? 'ok' : 'untyped', group: null }; });
-    var extras = [], parent = Parr.map(function (_, k) { return k; });
-    var find = function (k) { while (parent[k] !== k) k = parent[k] = parent[parent[k]]; return k; };
-    var byT = {}, byTyped = {};
-    var link = function (map, key, k) { if (key == null) return; if (map[key] == null) map[key] = k; else parent[find(k)] = find(map[key]); };
-    ops.forEach(function (o) {
-      if (o.p == null) {
-        if (!wrongPress[pressOf(o.t)]) extras.push({ before: o.before, ch: T[o.t] });
-        return;
-      }
-      if (o.t != null && eq(Parr[o.p], T[o.t])) return;
-      positions[o.p].status = 'bad';
-      link(byT, targetPress[o.p], o.p);
-      if (o.t != null) link(byTyped, pressOf(o.t), o.p);
-    });
-    // a group is a press mark when a multi-letter press is involved on either side
-    var multi = {}, typedSize = {}, targetSize = {};
-    typedPress.forEach(function (p) { if (p != null) typedSize[p] = (typedSize[p] || 0) + 1; });
+    var typedSize = {}, targetSize = {};
+    flaggedIdx.forEach(function (idx) { var p = typedPress[idx]; if (p != null) typedSize[p] = (typedSize[p] || 0) + 1; });
     targetPress.forEach(function (p) { targetSize[p] = (targetSize[p] || 0) + 1; });
-    ops.forEach(function (o) {
-      if (o.p == null || positions[o.p].status !== 'bad') return;
-      if (targetSize[targetPress[o.p]] > 1 || (o.t != null && typedSize[pressOf(o.t)] > 1)) multi[find(o.p)] = true;
-    });
-    positions.forEach(function (x, k) {
-      if (x.status !== 'bad') { x.press = false; return; }
-      x.group = find(k); x.press = !!multi[x.group];
-    });
-    return { positions: positions, extras: extras, cursor: end + extras.length };
+    // A finished word aligns to its end. A word in progress may end anywhere;
+    // among equally good ends, show the fewest extra letters, then the fewest
+    // red ones ("x" for "cat": c is red, not an extra x in front).
+    if (complete) return layout(n);
+    var best = null;
+    for (var e = 0; e <= n; e++) {
+      if (D[e][m] !== Math.min.apply(null, D.map(function (row) { return row[m]; }))) continue;
+      var r = layout(e), bad = r.positions.filter(function (x) { return x.status === 'bad'; }).length;
+      if (!best || r.extras.length < best.extras.length || (r.extras.length === best.extras.length && bad < best.bad)) { best = r; best.bad = bad; }
+    }
+    delete best.bad;
+    return best;
+
+    function layout(end) {
+      // One optimal path, walked from the end. On ties an extra letter is placed
+      // as late as possible ("caat" for "cat": the second a is the extra), then
+      // matches/substitutions, then omissions.
+      var ops = [];
+      for (var a = end, b = m; a > 0 || b > 0;) {
+        if (b > 0 && D[a][b - 1] + 1 === D[a][b]) { ops.push({ p: null, t: b - 1, before: a }); b--; }
+        else if (a > 0 && b > 0 && D[a - 1][b - 1] + (eq(Parr[a - 1], T[b - 1]) ? 0 : 1) === D[a][b]) { ops.push({ p: a - 1, t: b - 1 }); a--; b--; }
+        else { ops.push({ p: a - 1, t: null }); a--; }
+      }
+      ops.reverse();
+      var wrongPress = {};
+      ops.forEach(function (o) { if (o.p != null && o.t != null && !eq(Parr[o.p], T[o.t])) wrongPress[pressOf(o.t)] = true; });
+      var positions = Parr.map(function (_, k) { return { status: k < end ? 'ok' : 'untyped', group: null }; });
+      var extras = [], parent = Parr.map(function (_, k) { return k; });
+      var find = function (k) { while (parent[k] !== k) k = parent[k] = parent[parent[k]]; return k; };
+      var byT = {}, byTyped = {};
+      var link = function (map, key, k) { if (key == null) return; if (map[key] == null) map[key] = k; else parent[find(k)] = find(map[key]); };
+      ops.forEach(function (o) {
+        if (o.p == null) {
+          if (!wrongPress[pressOf(o.t)]) extras.push({ before: o.before, ch: T[o.t] });
+          return;
+        }
+        if (o.t != null && eq(Parr[o.p], T[o.t])) return;
+        positions[o.p].status = 'bad';
+        link(byT, targetPress[o.p], o.p);
+        if (o.t != null) link(byTyped, pressOf(o.t), o.p);
+      });
+      // a group is a press mark when a multi-letter press is involved on either side
+      var multi = {};
+      ops.forEach(function (o) {
+        if (o.p == null || positions[o.p].status !== 'bad') return;
+        if (targetSize[targetPress[o.p]] > 1 || (o.t != null && typedSize[pressOf(o.t)] > 1)) multi[find(o.p)] = true;
+      });
+      positions.forEach(function (x, k) {
+        if (x.status !== 'bad') { x.press = false; return; }
+        x.group = find(k); x.press = !!multi[x.group];
+      });
+      return { positions: positions, extras: extras, cursor: end + extras.length };
+    }
   }
 
   FT.align = { displayWord: displayWord, analyzeWord: analyzeWord, flagStream: flagStream };

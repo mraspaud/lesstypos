@@ -199,3 +199,42 @@ test('display: mistakes involving a multi-letter press are flagged as press mark
   assert.deepEqual([the.positions[0].press, the.positions[1].press], [true, true]);
   assert.equal(DW('cat', 'cbt', true, ['th']).positions[1].press, false);
 });
+
+// ---- review findings on press-based errors ----
+test('display, word in progress: a wrong first letter shows as a red letter, not an extra in front', () => {
+  const d = DW('cat', 'x', false, []);
+  assert.equal(statuses(d), 'bad untyped untyped');
+  assert.deepEqual(d.extras, []);
+  assert.equal(d.cursor, 1);
+});
+
+test('display, word in progress: the th key alone for "you" already marks y', () => {
+  const d = DW('you', '[th]', false);
+  assert.equal(statuses(d), 'bad untyped untyped');
+  assert.deepEqual(d.extras, []);
+});
+
+test('correcting a wrong th press does not blame the next letter', () => {
+  assert.deepEqual(plain(AP('you ', '[th]<<you ').targets.map((x) => x.err)), [1, 0, 0, 0]);
+  assert.deepEqual(plain(AP('you ', '[th]<ou ').targets.map((x) => x.err)), [1, 0, 0, 0]);
+});
+
+test('target-press grouping does not depend on the alignment: separate wrong presses stay separate', () => {
+  assert.equal(total(AP('the ', 'hte ')), 2);       // two separate keys, both out of place
+  assert.equal(total(AP('the ', 'xye ')), 2);       // two separate wrong presses for the th key
+  assert.equal(total(AP('the ', 'xe ')), 1);        // one key where the th key was meant
+});
+
+test('stream entries without an input group are separate presses', () => {
+  const st = Array.from('cxyt ').map((ch, i) => ({ k: 'c', ch, t: i * 100 }));
+  assert.deepEqual(plain(FT.text.pressIds(st, [])), [0, 1, 2, 3, 4]);
+  // nothing absorbed: x and y are two mistakes; the two equally good readings
+  // (x for a and y for t, or both x and y at a) are weighted 1/2 each
+  assert.equal(total(FT.align.analyzeWord('cat ', st, { macros: [] })), 1.5);
+});
+
+test('display: a press whose extra letter was erased is not marked as a multi-letter press', () => {
+  const d = DW('yo', '[th]<o', true);
+  assert.equal(d.positions[0].status, 'bad');
+  assert.equal(d.positions[0].press, false);
+});
