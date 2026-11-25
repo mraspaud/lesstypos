@@ -179,7 +179,7 @@
         label: 'Benchmark WPM', color: '--series-2', min: 1, rows: s.benchmark,
         point: function (p) { return { t: p.t, y: p.wpm, lo: p.min, hi: p.max, tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.t)) + '<br>trials ' + fix(p.min) + '–' + fix(p.max) + ', accuracy ' + pct(p.faa) }; },
         cols: ['Day', 'Median WPM', 'Range', 'Accuracy'], cells: function (p) { return [esc(date(p.t)), fix(p.wpm), fix(p.min) + '–' + fix(p.max), pct(p.faa)]; } },
-      { title: 'Common-pair timing', note: 'Median time between the letters of the 30 most common pairs, inside words. Lower is faster; this measure barely moves from familiarity alone. Log scale.',
+      { title: 'Common-pair timing', note: 'Median time between the letters of the 30 most common pairs inside words, in relaxed practice, weighted by how many such pairs each exercise had. Lower is faster. Pairs typed with a multi-letter key (such as th) are not timed. Log scale.',
         label: 'Common-pair timing in ms', color: '--series-1', min: 1, rows: s.pairMs, log: true, fmt: function (v) { return Math.round(v) + ''; },
         point: function (p) { return { t: p.t, y: p.ms, tip: '<b>' + fix(p.ms) + ' ms</b> · ' + esc(date(p.t)) }; },
         cols: ['Day', 'ms'], cells: function (p) { return [esc(date(p.t)), fix(p.ms)]; } },
@@ -187,6 +187,10 @@
         label: 'Relaxed first-attempt accuracy', color: '--series-1', min: 1, yMax: 1, rows: s.relaxed, fmt: function (v) { return pct(v, 1); },
         point: function (p) { return { t: p.t, y: p.faa, tip: '<b>' + pct(p.faa) + '</b> · ' + esc(date(p.t)) }; },
         cols: ['Day', 'Accuracy'], cells: function (p) { return [esc(date(p.t)), pct(p.faa)]; } },
+      { title: 'Effort signals (experimental)', note: 'Measured signals that tend to fall as typing becomes automatic: the extra time before the first letter of each word (charted, research: Crump et al. 2019) and how uneven your keystroke timing is (rhythm, in the table and tooltip; Kalfaoglu & Stafford 2014). They are proxies, not a validated measure of effort: compare them with your own ratings.',
+        label: 'Extra time at word starts in ms', color: '--series-2', min: 1, rows: s.relaxed.filter(function (p) { return p.startMs != null; }), fmt: function (v) { return Math.round(v) + ''; },
+        point: function (p) { return { t: p.t, y: p.startMs, tip: '<b>+' + fix(p.startMs) + ' ms</b> at word starts · ' + esc(date(p.t)) + '<br>rhythm variation ' + fix(p.cv, 2) + ', rated effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1)) }; },
+        cols: ['Day', 'Word starts (ms)', 'Rhythm', 'Rated effort'], cells: function (p) { return [esc(date(p.t)), fix(p.startMs), fix(p.cv, 2), p.effort == null ? '–' : fix(p.effort, 1)]; } },
     ];
     var html = '<section class="stack"><h2>Progress</h2><div class="progress-grid">' + charts.map(function (c, i) {
       var enough = c.rows.length >= c.min;

@@ -53,7 +53,7 @@ test('date ticks are whole days, at most about six', () => {
   const day = 864e5, t0 = Date.UTC(2026, 0, 1);
   const tk = FT.chart.dayTicks(t0, t0 + 40 * day);
   assert.ok(tk.length >= 3 && tk.length <= 7, String(tk.length));
-  assert.ok(tk.every((t) => t % day === 0));
+  assert.ok(tk.every((t) => new Date(t).getHours() === 0));
 });
 
 test('a narrow log range still gets at least three tick labels', () => {

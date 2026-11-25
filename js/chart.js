@@ -130,11 +130,13 @@
     var covered = Math.log(hi / lo) / Math.log(last / first);
     return out.length >= 3 && covered >= 0.4 ? out : ticks(lo, hi);
   }
+  // Ticks at local midnights (like the per-day grouping in FT.progress).
   var DAY = 864e5, DAY_STEPS = [1, 2, 3, 5, 7, 14, 30, 60, 90, 180, 365];
   function dayTicks(t0, t1) {
     var span = Math.max(1, (t1 - t0) / DAY), step = DAY_STEPS.filter(function (s) { return span / s <= 6; })[0] || 365;
-    var out = [];
-    for (var t = Math.ceil(t0 / DAY) * DAY; t <= t1; t += step * DAY) out.push(t);
+    var d = new Date(t0), out = [];
+    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + (d.getHours() || d.getMinutes() || d.getSeconds() ? 1 : 0));
+    for (; d.getTime() <= t1; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + step)) out.push(d.getTime());
     return out;
   }
 
@@ -142,7 +144,7 @@
   // cfg: { points: [{ t, y, lo, hi, fill (0..1 or null), tip }], log, yMin, yMax,
   //        color: CSS var name, fmt: value formatter, label: axis caption }
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  function dayLabel(t) { var d = new Date(t); return d.getUTCDate() + ' ' + MONTHS[d.getUTCMonth()]; }
+  function dayLabel(t) { var d = new Date(t); return d.getDate() + ' ' + MONTHS[d.getMonth()]; }
   function progress(el, cfg) {
     var pts = cfg.points;
     var W = Math.max(280, el.clientWidth || 480), H = 190, L = 46, R = 14, T = 12, B = 26;
@@ -173,10 +175,10 @@
       svg += '<circle class="pt" data-i="' + i + '" cx="' + x(p.t) + '" cy="' + y(p.y) + '" r="5" style="stroke:' + color + ';fill:' +
         (fill == null ? 'var(--surface)' : color) + ';fill-opacity:' + (fill == null ? 1 : 0.15 + 0.85 * fill) + '"/>';
     });
-    svg += '<line class="cross" id="pcross" y1="' + T + '" y2="' + (H - B) + '" visibility="hidden"/>' +
+    svg += '<line class="cross" y1="' + T + '" y2="' + (H - B) + '" visibility="hidden"/>' +
       '<rect class="hit" x="' + L + '" y="0" width="' + (W - L - R) + '" height="' + H + '" fill="transparent"/></svg>';
     el.innerHTML = svg + '<div class="tip" hidden></div>';
-    var root = el.querySelector('svg'), tip = el.querySelector('.tip'), cross = el.querySelector('#pcross');
+    var root = el.querySelector('svg'), tip = el.querySelector('.tip'), cross = el.querySelector('line.cross');
     el.querySelector('.hit').addEventListener('pointermove', function (e) {
       var r = root.getBoundingClientRect(), sx = (e.clientX - r.left) * (W / r.width), best = 0;
       pts.forEach(function (p, i) { if (Math.abs(x(p.t) - sx) < Math.abs(x(pts[best].t) - sx)) best = i; });
@@ -252,6 +254,6 @@
     render();
   }
 
-  FT.chart = { heatmap: heatmap, progress: progress, niceStep: niceStep, monotonePath: monotonePath, timeline: timeline,
+  FT.chart = { dayLabel: dayLabel, heatmap: heatmap, progress: progress, niceStep: niceStep, monotonePath: monotonePath, timeline: timeline,
     scale: scale, ticks: ticks, logTicks: logTicks, dayTicks: dayTicks };
 })(globalThis.FT);

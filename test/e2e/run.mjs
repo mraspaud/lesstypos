@@ -359,7 +359,7 @@ await step('a benchmark set runs three trials and shows the median', async () =>
 
 await step('History shows progress charts with tooltips and tables', async () => {
   await page.locator('[data-go="history"]').click();
-  for (const title of ['Relaxed speed', 'Benchmark', 'Common-pair timing', 'Accuracy']) {
+  for (const title of ['Relaxed speed', 'Benchmark', 'Common-pair timing', 'Accuracy', 'Effort signals (experimental)']) {
     await page.locator('.progress-chart h3', { hasText: title }).waitFor();
   }
   const chart = page.locator('.progress-chart').first();
