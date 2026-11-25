@@ -271,3 +271,20 @@ test('after 400 sessions a context keeps a bounded number of buckets and judgeme
   const saved = plain(m.toJSON());
   assert.deepEqual(plain(FT.model.create(saved.cfg, saved.state).state().contexts.th.b.map((x) => x.blk ?? null)), plain(b.map((x) => x.blk ?? null)));
 });
+
+// Review findings: contexts typed in different sessions must sit at the same
+// compaction level, so per-session comparisons with the parent and with all
+// typing stay matched.
+test('a deficit replicated long ago and recently is still confirmed after years of other typing', () => {
+  const errQ = (ctx, ch) => (ch === 'q' ? { p: 0.3 } : null);
+  const Q = ['quiet', 'quick', 'queen', 'equal', 'quote'];
+  const m = FT.model.create();
+  for (let s = 1; s <= 250; s++) {
+    const words = s <= 60 || s === 130 || s === 131 ? [...FILLER, ...Q] : FILLER;
+    m.ingest(makeRecords(words, 40, errQ, 2000 + s), { session: s, day: s });
+  }
+  const st = m.state().contexts;
+  const levels = (k) => st[k].b.filter((b) => b.s <= 64).map((b) => typeof b.blk);
+  assert.deepEqual(plain(levels('q')), plain(levels('e'))); // same level for the same old sessions
+  assert.ok(m.evaluate({ day: 250 }).get('q').errSessions >= 2);
+});

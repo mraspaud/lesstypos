@@ -70,3 +70,34 @@ test('a session stored before compaction decodes as it is', () => {
   const s = realistic(3);
   assert.deepEqual(plain(decodeSession(plain(s))), plain(s));
 });
+
+// Review findings: odd shapes are kept as they are, never corrupted.
+test('lone surrogate halves, non-finite times and prototype-named key codes survive', () => {
+  const halves = session([{ target: 'x', stream: [{ k: 'c', ch: '\uD83D', t: 1, g: 0 }, { k: 'c', ch: '\uDE00', t: 2, g: 1 }, { k: 'b', t: 3 }], meta: null }], []);
+  assert.deepEqual(roundTrip(halves), plain(halves));
+  const nan = session([{ target: 'ab', stream: [{ k: 'c', ch: 'a', t: NaN, g: 0 }], meta: null }, { target: 'b', stream: [{ k: 'c', ch: 'b', t: 5, g: 1 }], meta: null }],
+    [{ k: 'd', c: 'KeyA', t: Infinity }, { k: 'd', c: 'KeyB', t: 7 }]);
+  const enc = encodeSession(nan), dec = decodeSession(enc);
+  assert.ok(Number.isNaN(dec.words[0].stream[0].t));
+  assert.equal(dec.words[1].stream[0].t, 5);
+  assert.equal(dec.keys[0].t, Infinity);
+  const proto = session([], [{ k: 'd', c: 'constructor', t: 1 }, { k: 'u', c: '__proto__', t: 2 }, { k: 'd', c: 'toString', t: 3 }]);
+  assert.deepEqual(roundTrip(proto), plain(proto));
+});
+
+test('words with extra fields or no stream, and sessions without words, stay intact', () => {
+  const s = session([{ target: 'a', stream: [{ k: 'c', ch: 'a', t: 1, g: 0 }], meta: null, tEnd: 9 }, { target: 'b', meta: null }], []);
+  assert.deepEqual(roundTrip(s), plain(s));
+  const bare = { id: 'z', startedAt: 1 };
+  assert.deepEqual(roundTrip(bare), bare);
+});
+
+test('a damaged encoded session is recognised', () => {
+  const enc = plain(encodeSession(session([{ target: 'ab', stream: [{ k: 'c', ch: 'a', t: 1, g: 0 }, { k: 'c', ch: 'b', t: 2, g: 1 }], meta: null }], [{ k: 'd', c: 'KeyA', t: 1 }])));
+  assert.equal(FT.codec.validSession(enc), true);
+  const cut = plain(enc); cut.words[0].t.pop();
+  assert.equal(FT.codec.validSession(cut), false);
+  const badKeys = plain(enc); badKeys.keys.ev.push(9);
+  assert.equal(FT.codec.validSession(badKeys), false);
+  assert.equal(FT.codec.validSession({ id: 'plain', words: [] }), true);
+});

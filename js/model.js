@@ -133,15 +133,18 @@
           c.ex.push(words[x]);
         }
         if (c.ex.length > cfg.maxExamples) c.ex.splice(0, c.ex.length - cfg.maxExamples);
-        compact(c, session);
       });
       st.sessions = Math.max(st.sessions, session);
+      // every context, typed this session or not, so all sit at the same
+      // compaction level and per-session comparisons stay matched
+      Object.keys(st.contexts).forEach(function (k) { compact(st.contexts[k], st.sessions); });
       st.lastDay = Math.max(st.lastDay, day);
     }
 
     // Buckets older than the newest `exactSessions` sessions are merged into
     // fixed session blocks shared by all contexts, so parent and child buckets
     // stay aligned. A merged bucket takes the n-weighted mean session and day.
+    // Every context is compacted at every ingest, so the levels always match.
     // Blocks of `block` sessions; once a whole `bigBlock`-session block is
     // older than `bigAfter` sessions, it is merged into one (blk 'C<n>'), so
     // storage stays bounded over years (design choice; such old evidence

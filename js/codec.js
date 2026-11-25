@@ -21,19 +21,21 @@
   function steps(t) { return Math.round(t * STEP); }
   function onlyKeys(o, allowed) { return Object.keys(o).every(function (k) { return allowed.indexOf(k) >= 0; }); }
   function plainEntry(e) {
-    if (typeof e.t !== 'number') return false;
+    if (!Number.isFinite(e.t)) return false;
     if (e.k === 'b') return onlyKeys(e, ['k', 't']);
     return e.k === 'c' && onlyKeys(e, ['k', 'ch', 't', 'g', 'auto']) && typeof e.ch === 'string' &&
       Array.from(e.ch).length === 1 && e.ch !== BACK && (e.auto === undefined || e.auto === true) &&
-      (e.g === undefined || typeof e.g === 'number');
+      (e.g === undefined || Number.isFinite(e.g));
   }
 
   function encodeKeys(keys) {
-    var ok = keys.every(function (e) { return onlyKeys(e, ['k', 'c', 't']) && (e.k === 'd' || e.k === 'u') && typeof e.c === 'string' && typeof e.t === 'number'; });
+    var ok = Array.isArray(keys) && keys.every(function (e) {
+      return onlyKeys(e, ['k', 'c', 't']) && (e.k === 'd' || e.k === 'u') && typeof e.c === 'string' && Number.isFinite(e.t);
+    });
     if (!ok) return keys;
-    var codes = [], index = {}, ev = [], clock = { t: 0 };
+    var codes = [], index = Object.create(null), ev = [], clock = { t: 0 };
     keys.forEach(function (e) {
-      if (!(e.c in index)) { index[e.c] = codes.length; codes.push(e.c); }
+      if (index[e.c] === undefined) { index[e.c] = codes.length; codes.push(e.c); }
       ev.push(index[e.c] * 2 + (e.k === 'u' ? 1 : 0), delta(clock, 't', steps(e.t)));
     });
     return { codes: codes, ev: ev };
@@ -50,7 +52,8 @@
 
   // clock: { t, g } carried across the words of a session.
   function encodeWord(w, clock) {
-    if (!w.stream.every(plainEntry)) return w;
+    if (!onlyKeys(w, ['target', 'stream', 'meta']) || !Array.isArray(w.stream) || !w.stream.every(plainEntry)) return w;
+    var saved = { t: clock.t, g: clock.g };
     var c = '', ts = [], gs = [], auto = [];
     w.stream.forEach(function (e, i) {
       ts.push(delta(clock, 't', steps(e.t)));
@@ -59,12 +62,13 @@
       gs.push(e.g === undefined ? null : delta(clock, 'g', e.g));
       if (e.auto) auto.push(i);
     });
+    if (Array.from(c).length !== w.stream.length) { clock.t = saved.t; clock.g = saved.g; return w; } // e.g. lone surrogate halves
     var out = { target: w.target, meta: w.meta, c: c, t: ts, g: gs };
     if (auto.length) out.a = auto;
     return out;
   }
   function decodeWord(w, clock) {
-    if (w.stream) return w;
+    if (w.c === undefined) return w;
     var chars = Array.from(w.c), stream = [], gi = 0, auto = {};
     (w.a || []).forEach(function (i) { auto[i] = true; });
     chars.forEach(function (ch, i) {
@@ -82,7 +86,7 @@
   function encodeSession(s) {
     if (s.enc) return s;
     var clock = { t: 0, g: 0 }, out = Object.assign({}, s, { enc: 1 });
-    out.words = (s.words || []).map(function (w) { return encodeWord(w, clock); });
+    if (s.words) out.words = s.words.map(function (w) { return encodeWord(w, clock); });
     if (s.keys) out.keys = encodeKeys(s.keys);
     return out;
   }
@@ -90,10 +94,30 @@
     if (!s || !s.enc) return s;
     var clock = { t: 0, g: 0 }, out = Object.assign({}, s);
     delete out.enc;
-    out.words = s.words.map(function (w) { return decodeWord(w, clock); });
+    if (s.words) out.words = s.words.map(function (w) { return decodeWord(w, clock); });
     if (s.keys) out.keys = decodeKeys(s.keys);
     return out;
   }
 
-  FT.codec = { roundTime: roundTime, withRoundedTime: withRoundedTime, encodeSession: encodeSession, decodeSession: decodeSession };
+  // Whether an encoded session is whole (array lengths and indices agree).
+  function isInt(x) { return Number.isInteger(x); }
+  function validWord(w) {
+    if (w.c === undefined) return true;
+    if (typeof w.c !== 'string' || !Array.isArray(w.t) || !Array.isArray(w.g)) return false;
+    var chars = Array.from(w.c), letters = chars.filter(function (ch) { return ch !== BACK; }).length;
+    return w.t.length === chars.length && w.t.every(isInt) && w.g.length === letters &&
+      w.g.every(function (x) { return x === null || isInt(x); }) &&
+      (w.a === undefined || (Array.isArray(w.a) && w.a.every(function (i) { return isInt(i) && i >= 0 && i < chars.length; })));
+  }
+  function validKeys(k) {
+    if (k === undefined || Array.isArray(k)) return true;
+    if (!k || !Array.isArray(k.codes) || !Array.isArray(k.ev) || k.ev.length % 2) return false;
+    return k.ev.every(function (x, i) { return isInt(x) && (i % 2 || (x >= 0 && x >> 1 < k.codes.length)); });
+  }
+  function validSession(s) {
+    if (!s || !s.enc) return true;
+    return (s.words === undefined || (Array.isArray(s.words) && s.words.every(validWord))) && validKeys(s.keys);
+  }
+
+  FT.codec = { validSession: validSession, roundTime: roundTime, withRoundedTime: withRoundedTime, encodeSession: encodeSession, decodeSession: decodeSession };
 })(globalThis.FT);

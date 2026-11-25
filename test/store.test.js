@@ -188,3 +188,26 @@ test('the store reports how much its sessions and statistics take', async () => 
   assert.ok(z.sessionBytes > 100);
   assert.equal(z.profileBytes, JSON.stringify({ frontier: 300 }).length);
 });
+
+test('a backup with a damaged compact exercise is refused before anything is replaced', async () => {
+  const a = mk();
+  await a.saveSession(typedSession('s1'));
+  const dump = JSON.parse(JSON.stringify(await a.exportAll()));
+  dump.sessions[0].words[0].t.pop();
+  const b = mk();
+  await b.saveSession(typedSession('keep'));
+  await assert.rejects(b.importAll(dump), /damaged/);
+  assert.equal((await b.listSessions())[0].id, 'keep');
+});
+
+test('compacting runs once: later starts do not read every exercise again', async () => {
+  const adapter = FT.store.memoryAdapter();
+  await adapter.set('session:old', Object.assign(typedSession('old'), { schema: 1 }));
+  const s = FT.store.create({ adapter });
+  assert.equal(await s.compactSessions(), 1);
+  let reads = 0;
+  const get = adapter.get;
+  adapter.get = (k) => { if (String(k).startsWith('session:')) reads++; return get(k); };
+  assert.equal(await FT.store.create({ adapter }).compactSessions(), 0);
+  assert.equal(reads, 0);
+});

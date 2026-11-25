@@ -89,16 +89,19 @@
           profileBytes: profile ? JSON.stringify(profile).length : 0 };
       });
     }
-    // Re-saves sessions stored before compaction; returns how many.
+    // Re-saves sessions stored before compaction; returns how many. Runs once
+    // (the 'compacted' flag); new sessions are always saved compact.
     function compactSessions() {
-      return keysWith('session:').then(function (ks) {
+      return db.get('compacted').then(function (done) { return done ? [] : keysWith('session:'); }).then(function (ks) {
         return Promise.all(ks.map(function (k) {
           return db.get(k).then(function (rec) {
             if (!rec || rec.enc) return 0;
             return db.set(k, FT.codec.encodeSession(rec)).then(function () { return 1; });
           });
         }));
-      }).then(function (n) { return n.reduce(function (a, b) { return a + b; }, 0); });
+      }).then(function (n) {
+        return db.set('compacted', true).then(function () { return n.reduce(function (a, b) { return a + b; }, 0); });
+      });
     }
     // Prose texts: { id, title, words: [...], pos, addedAt }.
     function saveText(t) { return db.set('text:' + t.id, t); }
@@ -131,6 +134,7 @@
           throw new Error('This file is not a LessTypos export');
         }
         if (data.schema > FT.SCHEMA) throw new Error('This export comes from a newer version (schema ' + data.schema + ')');
+        if (!data.sessions.every(FT.codec.validSession)) throw new Error('This export contains a damaged exercise; nothing was changed');
         (data.texts || []).forEach(function (t) {
           if (!t || !t.id || !Array.isArray(t.words)) throw new Error('This export contains a text without words');
         });
