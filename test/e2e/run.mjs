@@ -63,6 +63,37 @@ await step('typing an exercise with a corrected error, stopping and rating effor
   if (shots) await page.screenshot({ path: shots + '/summary.png', fullPage: true });
 });
 
+await step('the current line stays in the middle while typing many lines', async () => {
+  await page.keyboard.press('Enter');
+  await page.locator('.w').first().waitFor();
+  const words = await page.$$eval('.w', (els) => els.slice(0, 110).map((e) => e.textContent));
+  const lines = [];
+  for (let i = 0; i < 110; i++) {
+    await page.keyboard.type(words[i] + ' ', { delay: 2 });
+    lines.push(await page.evaluate(() => {
+      const c = document.getElementById('caret').getBoundingClientRect(), w = document.getElementById('window').getBoundingClientRect();
+      return Math.floor((c.top + c.height / 2 - w.top) / (w.height / 3));
+    }));
+  }
+  const first = lines.indexOf(1);
+  assert.ok(first > 0 && lines.slice(first).every((l) => l === 1), lines.join(''));
+});
+
+await step('backspace corrects the previous word when it has an error', async () => {
+  const w = await page.$$eval('.w', (els) => els.filter((e) => !e.querySelector('.ok,.bad')).slice(0, 2).map((e) => e.textContent));
+  const wrong = (w[0][0] === 'z' ? 'y' : 'z') + w[0].slice(1);
+  await page.keyboard.type(wrong + ' ', { delay: 10 });
+  for (let i = 0; i < w[0].length + 1; i++) await page.keyboard.press('Backspace');
+  await page.keyboard.type(w[0] + ' ', { delay: 10 });
+  const ok = await page.evaluate((target) => {
+    const done = [...document.querySelectorAll('.w')].filter((e) => e.textContent === target && e.querySelector('.ok'));
+    return done.length > 0 && !done[done.length - 1].querySelector('.bad');
+  }, w[0]);
+  assert.ok(ok);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+});
+
 await step('progress persists across a reload', async () => {
   await page.waitForTimeout(300);
   await page.reload();

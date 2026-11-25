@@ -45,13 +45,26 @@ test('extra characters beyond the word are kept', () => {
   assert.equal(s.state().wordIndex, 1);
 });
 
-test('backspace cannot cross into a committed word', () => {
+test('backspace cannot cross into a correctly typed committed word', () => {
   const FT = load();
   const s = FT.session.create(['a', 'b']);
   typeString(s, 'a <<b');
   const st = s.state();
   assert.equal(st.words[0].typed, 'a ');
   assert.equal(st.words[1].typed, 'b');
+});
+
+test('backspace can return into a previous word that contains an error', () => {
+  const FT = load();
+  const s = FT.session.create(['cat', 'dog']);
+  typeString(s, 'cot <<<at dog ');
+  const st = s.state();
+  assert.equal(st.words[0].typed, 'cat ');
+  assert.equal(st.words[0].committed, true);
+  assert.equal(st.words[1].typed, 'dog ');
+  assert.equal(st.wordIndex, 2);
+  // the first word's stream holds the whole history, including the erased space
+  assert.deepEqual(plain(st.words[0].stream.map((e) => e.k === 'b' ? '<' : e.ch).join('')), 'cot <<<at ');
 });
 
 test('a space at the start of a word is ignored', () => {

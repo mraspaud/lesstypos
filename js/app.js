@@ -235,14 +235,16 @@
   }
   function trimAbove() {
     // Drop committed words more than one line above the view to keep the DOM small.
-    var st = ty.session.state(), cur = ty.els[st.wordIndex], removed = false;
-    var lh = cur.getBoundingClientRect().height, top = ty.inner.getBoundingClientRect().top;
+    // Measure everything first: removing a word reflows the following ones.
+    var st = ty.session.state(), cur = ty.els[st.wordIndex];
+    var lh = cur.getBoundingClientRect().height, top = ty.inner.getBoundingClientRect().top, drop = [];
     for (var i = 0; i < st.wordIndex; i++) {
       var el = ty.els[i];
       if (!el || !el.parentNode) continue;
-      if (el.getBoundingClientRect().top - top + lh <= ty.offset - lh) { el.parentNode.removeChild(el); removed = true; } else break;
+      if (el.getBoundingClientRect().top - top + lh <= ty.offset - lh) drop.push(el); else break;
     }
-    if (removed) { ty.offset = -1; placeCaret(); }
+    drop.forEach(function (el) { el.parentNode.removeChild(el); });
+    if (drop.length) { ty.offset = -1; placeCaret(); }
   }
   function beginIfNeeded(t) {
     if (ty.first != null) return;
@@ -280,15 +282,22 @@
   }
   function onBack(t) {
     if (!ty || ty.stopped || ty.first == null) return;
+    var before = ty.session.state().wordIndex;
     ty.session.input({ kind: 'back', t: t });
-    paintWord(ty.session.state().wordIndex);
+    var now = ty.session.state().wordIndex;
+    paintWord(now);
+    if (now !== before) paintWord(before);
     placeCaret();
   }
   function onBackWord(t) {
     if (!ty || ty.stopped || ty.first == null) return;
+    var before = ty.session.state().wordIndex;
+    if (!ty.session.current().typed.length) ty.session.input({ kind: 'back', t: t }); // step into a wrong previous word
     var w = ty.session.current();
     while (w.typed.length) ty.session.input({ kind: 'back', t: t });
-    paintWord(ty.session.state().wordIndex);
+    var now = ty.session.state().wordIndex;
+    paintWord(now);
+    if (now !== before) paintWord(before);
     placeCaret();
   }
   function onEscape() {

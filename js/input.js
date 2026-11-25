@@ -7,7 +7,12 @@
   function attach(el, h) {
     function onKeyDown(e) {
       if (!e.repeat) h.onKey && h.onKey({ k: 'd', c: e.code || e.key, t: e.timeStamp });
-      if (e.key === 'Escape') { e.preventDefault(); h.onEscape && h.onEscape(); }
+      // Backspace is handled here: browsers do not reliably fire beforeinput
+      // for deletions in an empty field.
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        if (e.ctrlKey || e.altKey || e.metaKey) h.onBackWord(e.timeStamp); else h.onBack(e.timeStamp);
+      } else if (e.key === 'Escape') { e.preventDefault(); h.onEscape && h.onEscape(); }
       else if (e.key === 'Tab') { e.preventDefault(); h.onTab && h.onTab(); }
       else if (e.key === 'Enter') { e.preventDefault(); h.onEnter && h.onEnter(); }
     }

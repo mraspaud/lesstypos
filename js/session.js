@@ -35,7 +35,14 @@
       var w = current();
       if (!w) return;
       if (ev.kind === 'back') {
-        if (w.typed.length === 0) return;
+        if (w.typed.length === 0) {
+          // Return into the previous word only if it was committed with an error.
+          var prev = words[wordIndex - 1];
+          if (!prev || prev.typed === prev.target + ' ') return;
+          wordIndex--;
+          prev.committed = false;
+          w = prev;
+        }
         w.typed = w.typed.slice(0, -1);
         w.stream.push({ k: 'b', t: ev.t });
         return;
