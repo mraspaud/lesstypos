@@ -72,10 +72,23 @@
         return list.filter(Boolean).sort(function (a, b) { return a.startedAt - b.startedAt; });
       });
     }
+    function listPrefix(prefix) {
+      return db.keys().then(function (keys) {
+        var ks = keys.filter(function (k) { return String(k).indexOf(prefix) === 0; });
+        return Promise.all(ks.map(function (k) { return db.get(k); }));
+      }).then(function (list) { return list.filter(Boolean); });
+    }
+    // Prose texts: { id, title, words: [...], pos, addedAt }.
+    function saveText(t) { return db.set('text:' + t.id, t); }
+    function getText(id) { return db.get('text:' + id); }
+    function deleteText(id) { return db.del('text:' + id); }
+    function listTexts() {
+      return listPrefix('text:').then(function (l) { return l.sort(function (a, b) { return a.addedAt - b.addedAt; }); });
+    }
     function exportAll() {
-      return Promise.all([load(), listSessions()]).then(function (r) {
+      return Promise.all([load(), listSessions(), listTexts()]).then(function (r) {
         return { format: FORMAT, schema: FT.SCHEMA, app: FT.version, exportedAt: new Date().toISOString(),
-          settings: r[0].settings, profile: r[0].profile, sessions: r[1] };
+          settings: r[0].settings, profile: r[0].profile, sessions: r[1], texts: r[2] };
       });
     }
     function migrate(d) {
@@ -99,7 +112,7 @@
         var d = migrate(clone(data));
         var p = mode === 'replace' ? reset('all') : Promise.resolve();
         return p.then(function () {
-          var writes = d.sessions.map(saveSession);
+          var writes = d.sessions.map(saveSession).concat((d.texts || []).map(saveText));
           if (mode === 'replace' || d.settings) writes.push(saveSettings(d.settings || {}));
           if (mode === 'replace') writes.push(d.profile ? saveProfile(d.profile) : db.del('profile'));
           return Promise.all(writes);
@@ -113,6 +126,7 @@
           if (what === 'all') return true;
           if (what === 'profile') return k === 'profile';
           if (what === 'sessions') return k.indexOf('session:') === 0;
+          if (what === 'texts') return k.indexOf('text:') === 0;
           if (what === 'settings') return k === 'settings';
           return false;
         });
@@ -121,7 +135,8 @@
     }
 
     return { load: load, saveSettings: saveSettings, saveProfile: saveProfile, saveSession: saveSession,
-      listSessions: listSessions, exportAll: exportAll, importAll: importAll, reset: reset, kind: db.kind };
+      listSessions: listSessions, exportAll: exportAll,
+      saveText: saveText, getText: getText, deleteText: deleteText, listTexts: listTexts, importAll: importAll, reset: reset, kind: db.kind };
   }
 
   FT.store = { create: create, memoryAdapter: memoryAdapter, idbAdapter: idbAdapter, FORMAT: FORMAT, migrations: MIGRATIONS };

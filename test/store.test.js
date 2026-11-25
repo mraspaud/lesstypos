@@ -82,3 +82,22 @@ test('storage failures surface as errors the UI can report', async () => {
   const s = FT.store.create({ adapter: broken });
   await assert.rejects(s.saveSettings({}), /quota/);
 });
+
+test('prose texts are stored, updated, listed, exported and imported', async () => {
+  const s = mk();
+  await s.saveText({ id: 't1', title: 'Moby-Dick', words: ['Call', 'me', 'Ishmael.'], pos: 0, addedAt: 1 });
+  await s.saveText({ id: 't2', title: 'Emma', words: ['Emma', 'Woodhouse'], pos: 0, addedAt: 2 });
+  const t = (await s.listTexts()).find((x) => x.id === 't1');
+  t.pos = 2;
+  await s.saveText(t);
+  assert.equal((await s.getText('t1')).pos, 2);
+  await s.deleteText('t2');
+  assert.deepEqual(plain((await s.listTexts()).map((x) => x.id)), ['t1']);
+  const dump = JSON.parse(JSON.stringify(await s.exportAll()));
+  assert.equal(dump.texts.length, 1);
+  const b = mk();
+  await b.importAll(dump);
+  assert.equal((await b.getText('t1')).pos, 2);
+  await b.reset('profile');
+  assert.equal((await b.listTexts()).length, 1);
+});

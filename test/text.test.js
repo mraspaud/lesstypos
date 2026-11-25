@@ -49,3 +49,15 @@ test('a session treats an equivalent character as correct when looking for error
   for (const ch of "don't ") s.input({ kind: 'text', data: ch, t: 1 });
   assert.equal(s.input({ kind: 'back', t: 2 }), false); // nothing wrong nearby
 });
+
+// Functionality: pasted prose becomes a word list, keeping capitals and
+// punctuation, with typographic clean-up and Project Gutenberg boilerplate removed.
+test('prose is split into words, keeping capitals and punctuation', () => {
+  const w = plain(FT.text.prepare('  It was the best\nof times,\n\n\tit was “the worst”… '));
+  assert.deepEqual(w, ['It', 'was', 'the', 'best', 'of', 'times,', 'it', 'was', '“the', 'worst”...']);
+});
+
+test('Project Gutenberg header and footer are removed', () => {
+  const raw = 'The Project Gutenberg eBook of X\nlicence blah\n*** START OF THE PROJECT GUTENBERG EBOOK X ***\nCall me Ishmael.\n*** END OF THE PROJECT GUTENBERG EBOOK X ***\nmore licence';
+  assert.deepEqual(plain(FT.text.prepare(raw)), ['Call', 'me', 'Ishmael.']);
+});

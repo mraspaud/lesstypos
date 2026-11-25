@@ -42,5 +42,18 @@
   }
   function setOptions(o) { Object.assign(opts, o); cache = {}; }
 
-  FT.text = { canon: canon, same: same, sameStr: sameStr, isPrefix: isPrefix, setOptions: setOptions };
+  // Pasted prose -> list of words (whitespace-separated tokens, punctuation
+  // and capitals kept). The ellipsis becomes "..." (it has no one-character
+  // ASCII equivalent). Project Gutenberg boilerplate is removed when present.
+  function prepare(raw) {
+    var t = String(raw || '').replace(/\r\n?/g, '\n');
+    var start = t.search(/^\*\*\* ?START OF (THE|THIS) PROJECT GUTENBERG.*$/im);
+    if (start >= 0) t = t.slice(t.indexOf('\n', start) + 1);
+    var end = t.search(/^\*\*\* ?END OF (THE|THIS) PROJECT GUTENBERG.*$/im);
+    if (end >= 0) t = t.slice(0, end);
+    t = t.replace(/\u2026/g, '...');
+    return t.split(/[\s\u00A0\u2009\u202F]+/).filter(Boolean);
+  }
+
+  FT.text = { canon: canon, same: same, sameStr: sameStr, isPrefix: isPrefix, setOptions: setOptions, prepare: prepare };
 })(globalThis.FT);
