@@ -394,8 +394,9 @@
     } else if (b.phase === 'rest') {
       var left = b.restEnd - now, l = b.last;
       timer.textContent = 'Rest · ' + clock(left);
-      hint('Round ' + b.rounds.length + ': ' + fix(l.stats.wpm) + ' WPM at ' + pct(l.stats.accuracy, 0) + ' — ' + esc(l.res.reason) +
-        '. Target now ' + Math.round(b.target) + ' WPM. Relax your hands; next round in ' + Math.ceil(left / 1000) + ' s.');
+      hint('Round ' + b.rounds.length + ': ' + fix(l.stats.wpm) + ' WPM, ' + pct(l.stats.accuracy, 0) + ' accuracy (' +
+        (l.res.result === 'met' ? 'target met' : esc(l.res.reason)) + '). Target now ' + Math.round(b.target) +
+        ' WPM. Relax your hands; next round in ' + Math.ceil(left / 1000) + ' s.');
       paintPace(null, b.target);
       if (left <= 0) { b.phase = 'ready'; hint('Round ' + (b.rounds.length + 1) + ' of ' + b.total + ': start typing when ready.'); timer.textContent = 'Round ' + (b.rounds.length + 1) + ' of ' + b.total; }
     }
