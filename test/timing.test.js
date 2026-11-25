@@ -127,3 +127,31 @@ test('an automatic space that ends the last word of a text is not timed', () => 
   assert.equal(last.reason, 'auto');
   assert.equal(last.clean, false);
 });
+
+// Functionality: a stable fluency yardstick: median within-word time on a fixed
+// set of very common letter pairs (stable on retest, Van Waes et al. 2021).
+test('common-pair timing uses only the fixed pairs and clean keystrokes', () => {
+  assert.equal(FT.timing.COMMON_PAIRS.length, 30);
+  assert.equal(FT.timing.COMMON_PAIRS[0], 'th');
+  const recs = [];
+  for (let i = 0; i < 25; i++) recs.push({ clean: true, wordInitial: false, ctx: 'xt', ch: 'h', iki: 100 + i });  // "th"
+  recs.push({ clean: true, wordInitial: false, ctx: 'zz', ch: 'q', iki: 900 });   // "zq": not a common pair
+  recs.push({ clean: false, wordInitial: false, ctx: 'xt', ch: 'h', iki: 5000 }); // not clean
+  assert.equal(FT.timing.commonPairMs(recs), 112);
+});
+
+test('common-pair timing needs enough intervals', () => {
+  const recs = Array.from({ length: 10 }, () => ({ clean: true, wordInitial: false, ctx: 'h', ch: 'e', iki: 100 }));
+  assert.equal(FT.timing.commonPairMs(recs), null);
+});
+
+// Functionality: extra time at the start of a word, beyond within-word timing
+// (word-level planning; Crump et al. 2019): a proxy for effort, labelled as such.
+test('word-start penalty is median word-initial minus median within-word interval', () => {
+  const recs = [];
+  for (let i = 0; i < 12; i++) recs.push({ clean: true, wordInitial: true, iki: 200 + i });
+  for (let i = 0; i < 30; i++) recs.push({ clean: true, wordInitial: false, iki: 120 });
+  recs.push({ clean: false, wordInitial: true, iki: 4000 });
+  assert.equal(FT.timing.wordStartMs(recs), 85.5);
+  assert.equal(FT.timing.wordStartMs(recs.slice(0, 3)), null);
+});

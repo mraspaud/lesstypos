@@ -179,6 +179,7 @@
         id: raw.id, type: raw.type, t: raw.startedAt, ms: raw.durationMs, effort: raw.effort,
         wpm: m.metrics.wpm, faa: m.metrics.firstAttemptAccuracy, randomFaa: m.random.firstAttemptAccuracy,
         hes: summary.hesitationRate, cv: summary.rhythmCv, roll: summary.rollover, frontier: summary.frontier,
+        pairMs: FT.timing.commonPairMs(m.tm.records), startMs: FT.timing.wordStartMs(m.tm.records),
         words: m.metrics.words,
       };
     }

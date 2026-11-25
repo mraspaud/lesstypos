@@ -126,6 +126,31 @@
     return ms[0] ? ms[1] / ms[0] : null;
   }
 
-  FT.timing = { extract: extract, macroCandidates: macroCandidates, median: median, rollover: rollover,
-    hesitationRate: hesitationRate, rhythmCv: rhythmCv };
+  // The 30 most frequent within-word English letter pairs (from the bundled
+  // wordfreq list, frozen so the yardstick never changes). Within-word timing
+  // on high-frequency bigrams is stable on retest (Van Waes et al. 2021).
+  var COMMON_PAIRS = ['th', 'he', 'in', 'an', 'er', 're', 'on', 'at', 'nd', 'ou', 'or', 'to', 'en', 'it', 'ng',
+    'es', 'st', 'is', 'te', 'ar', 'ti', 'al', 'ha', 'ed', 've', 'of', 'nt', 'se', 'me', 'hi'];
+  var COMMON = {};
+  COMMON_PAIRS.forEach(function (p) { COMMON[p] = true; });
+  var MIN_PAIRS = 20;
+
+  // Median clean within-word interval on the common pairs (ms), or null.
+  function commonPairMs(records) {
+    var ikis = records.filter(function (r) {
+      return r.clean && !r.wordInitial && r.ctx && COMMON[r.ctx.slice(-1) + r.ch];
+    }).map(function (r) { return r.iki; });
+    return ikis.length >= MIN_PAIRS ? median(ikis) : null;
+  }
+
+  // Extra time before the first letter of a word: median clean word-initial
+  // interval minus median clean within-word interval (ms), or null.
+  function wordStartMs(records) {
+    var init = [], within = [];
+    records.forEach(function (r) { if (r.clean) (r.wordInitial ? init : within).push(r.iki); });
+    return init.length >= 10 && within.length >= MIN_PAIRS ? median(init) - median(within) : null;
+  }
+
+  FT.timing = { wordStartMs: wordStartMs, extract: extract, macroCandidates: macroCandidates, median: median, rollover: rollover,
+    hesitationRate: hesitationRate, rhythmCv: rhythmCv, COMMON_PAIRS: COMMON_PAIRS, commonPairMs: commonPairMs };
 })(globalThis.FT);

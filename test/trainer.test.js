@@ -208,3 +208,15 @@ test('replaying a mixed programme rebuilds exactly the same profile', () => {
   const rebuilt = FT.trainer.rebuild(raws, { seed: 17 });
   assert.deepEqual(plain(rebuilt.profile()), plain(tr.profile()));
 });
+
+test('history entries carry common-pair timing and the word-start penalty', () => {
+  const tr = FT.trainer.create({ seed: 18 });
+  const ex = tr.newExercise({ type: 'relaxed' });
+  const s = FT.session.create(ex.words.slice(0, 150));
+  let t = 0;
+  for (const w of s.state().words.slice(0, 150)) for (const [k, ch] of Array.from(w.target + ' ').entries()) s.input({ kind: 'text', data: ch, t: (t += k === 0 ? 300 : 100) });
+  tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
+  const h = tr.history()[0];
+  assert.equal(h.pairMs, 100);
+  assert.equal(h.startMs, 200);
+});
