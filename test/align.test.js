@@ -156,3 +156,39 @@ test('ordinary errors are unchanged by press grouping', () => {
   assert.deepEqual(plain(AP('cat ', 'cbt ').targets.map((x) => x.err)), [0, 1, 0, 0]);
   assert.equal(total(AP('to ', '[th]<<to ')), 1);
 });
+
+// Functionality: the word on screen shows the best alignment of what was typed
+// with the target, with one mark per wrong press.
+const DW = (p, typed, done = true, macros = ['th']) => {
+  const st = pressStream(typed);
+  const text = st.filter((e, i) => FT.align.flagStream(st)[i]).map((e) => e.ch).join('');
+  return plain(FT.align.displayWord(p, text, st, macros, done));
+};
+const statuses = (d) => d.positions.map((x) => x.status).join(' ');
+
+test('display: th typed for y in "you" marks only y', () => {
+  const d = DW('you', '[th]ou');
+  assert.equal(statuses(d), 'bad ok ok');
+  assert.deepEqual(d.extras, []);
+});
+
+test('display: a single key for the th press marks t and h as one group', () => {
+  const d = DW('the', 'xe');
+  assert.equal(statuses(d), 'bad bad ok');
+  assert.equal(d.positions[0].group, d.positions[1].group);
+  assert.notEqual(d.positions[0].group, null);
+});
+
+test('display: an ordinary extra letter shows as one extra, the rest matches', () => {
+  const d = DW('cat', 'caat', true, []);
+  assert.equal(statuses(d), 'ok ok ok');
+  assert.deepEqual(d.extras.map((x) => [x.before, x.ch]), [[2, 'a']]);
+});
+
+test('display: a partly typed word leaves the rest untyped and puts the cursor after the typing', () => {
+  const d = DW('cat', 'ca', false, []);
+  assert.equal(statuses(d), 'ok ok untyped');
+  assert.equal(d.cursor, 2);
+  const e = DW('cat', 'caat', false, []);
+  assert.equal(e.cursor, 4);   // c a [a] t
+});

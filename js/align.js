@@ -256,5 +256,52 @@
     };
   }
 
-  FT.align = { analyzeWord: analyzeWord, flagStream: flagStream };
+  // What the word on screen shows: the best alignment of the typed text with
+  // the target (not a letter-by-letter comparison by position).
+  //   positions[i]: { status: ok | bad | untyped, group } (group: one wrong
+  //                 press, typed or target side, for one joined mark);
+  //   extras:       typed letters with no target letter ({ before, ch }),
+  //                 except letters that came out of a press already wrong;
+  //   cursor:       number of rendered letters (positions and extras) typed.
+  // While a word is in progress (complete false), the untyped rest is free.
+  function displayWord(P, typed, stream, macros, complete) {
+    var Parr = Array.from(P), T = Array.from(typed.replace(/ $/, '')), n = Parr.length, m = T.length;
+    var flags = flagStream(stream), flaggedIdx = [];
+    for (var f = 0; f < stream.length; f++) if (flags[f] && stream[f].ch !== ' ') flaggedIdx.push(f);
+    var typedPress = FT.text.pressIds(stream, macros), targetPress = FT.text.targetPresses(P, macros);
+    var D = msdMatrix(Parr, T), end = n;
+    if (!complete) for (var i = 0; i <= n; i++) if (D[i][m] < D[end][m]) end = i;
+    // One optimal path, walked from the end. On ties an extra letter is placed
+    // as late as possible ("caat" for "cat": the second a is the extra), then
+    // matches/substitutions, then omissions.
+    var ops = [];
+    for (var a = end, b = m; a > 0 || b > 0;) {
+      if (b > 0 && D[a][b - 1] + 1 === D[a][b]) { ops.push({ p: null, t: b - 1, before: a }); b--; }
+      else if (a > 0 && b > 0 && D[a - 1][b - 1] + (eq(Parr[a - 1], T[b - 1]) ? 0 : 1) === D[a][b]) { ops.push({ p: a - 1, t: b - 1 }); a--; b--; }
+      else { ops.push({ p: a - 1, t: null }); a--; }
+    }
+    ops.reverse();
+    var pressOf = function (j) { return typedPress[flaggedIdx[j]]; };
+    var wrongPress = {};
+    ops.forEach(function (o) { if (o.p != null && o.t != null && !eq(Parr[o.p], T[o.t])) wrongPress[pressOf(o.t)] = true; });
+    var positions = Parr.map(function (_, k) { return { status: k < end ? 'ok' : 'untyped', group: null }; });
+    var extras = [], parent = Parr.map(function (_, k) { return k; });
+    var find = function (k) { while (parent[k] !== k) k = parent[k] = parent[parent[k]]; return k; };
+    var byT = {}, byTyped = {};
+    var link = function (map, key, k) { if (key == null) return; if (map[key] == null) map[key] = k; else parent[find(k)] = find(map[key]); };
+    ops.forEach(function (o) {
+      if (o.p == null) {
+        if (!wrongPress[pressOf(o.t)]) extras.push({ before: o.before, ch: T[o.t] });
+        return;
+      }
+      if (o.t != null && eq(Parr[o.p], T[o.t])) return;
+      positions[o.p].status = 'bad';
+      link(byT, targetPress[o.p], o.p);
+      if (o.t != null) link(byTyped, pressOf(o.t), o.p);
+    });
+    positions.forEach(function (x, k) { if (x.status === 'bad') x.group = find(k); });
+    return { positions: positions, extras: extras, cursor: end + extras.length };
+  }
+
+  FT.align = { displayWord: displayWord, analyzeWord: analyzeWord, flagStream: flagStream };
 })(globalThis.FT);
