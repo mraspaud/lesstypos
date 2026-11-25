@@ -58,5 +58,16 @@
     return out;
   }
 
-  FT.progress = { compare: compare, timeline: timeline };
+  // A benchmark set (usually 3 trials) is scored by the median of its trials.
+  function benchmarkResult(history, set) {
+    var trials = history.filter(function (h) { return h.type === 'benchmark' && h.set === set && h.wpm != null; });
+    if (!trials.length) return null;
+    var wpm = trials.map(function (h) { return h.wpm; });
+    return { set: set, trials: trials.length, wpm: FT.timing.median(wpm),
+      faa: FT.timing.median(trials.map(function (h) { return h.faa; })),
+      min: Math.min.apply(null, wpm), max: Math.max.apply(null, wpm),
+      t: Math.min.apply(null, trials.map(function (h) { return h.t; })) };
+  }
+
+  FT.progress = { compare: compare, timeline: timeline, benchmarkResult: benchmarkResult };
 })(globalThis.FT);

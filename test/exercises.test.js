@@ -83,3 +83,47 @@ test('only relaxed practice changes vocabulary difficulty', () => {
     assert.equal(tr.difficulty.state().frontier, 200, type);
   }
 });
+
+// Functionality: the benchmark is a pure yardstick (user decision): common
+// words, unbiased, never changing statistics, difficulty or targets.
+function finishTyped(tr, type, extra = {}) {
+  const ex = tr.newExercise({ type });
+  const s = FT.session.create(ex.words.slice(0, 120));
+  let t = 0;
+  for (const w of s.state().words.slice(0, 120)) {
+    let prev = '';
+    for (const ch of w.target + ' ') {
+      if (ch === 'h' && prev === 't') { s.input({ kind: 'text', data: 'x', t: (t += 100) }); s.input({ kind: 'back', t: (t += 100) }); }
+      s.input({ kind: 'text', data: ch, t: (t += 100) }); prev = ch;
+    }
+  }
+  return tr.finish(Object.assign({ type, startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) }, extra));
+}
+
+test('benchmark words are unbiased common words', () => {
+  const tr = FT.trainer.create({ seed: 20 });
+  const ex = tr.newExercise({ type: 'benchmark' });
+  assert.ok(ex.words.every((w) => tr.corpus.rankOf(w.word) < 5000 && w.source === 'benchmark' && !w.target));
+  assert.ok(Math.max(...ex.words.map((w) => tr.corpus.rankOf(w.word))) > 1000); // not limited to the frontier
+});
+
+test('a benchmark changes no statistics, difficulty or targets', () => {
+  const tr = FT.trainer.create({ seed: 21 });
+  const before = JSON.stringify({ m: tr.profile().model, s: tr.profile().subs, d: tr.profile().difficulty });
+  const { summary, raw } = finishTyped(tr, 'benchmark', { set: 'b1' });
+  assert.equal(raw.set, 'b1');
+  assert.equal(summary.difficulty, null);
+  assert.equal(JSON.stringify({ m: tr.profile().model, s: tr.profile().subs, d: tr.profile().difficulty }), before);
+  assert.equal(tr.history()[0].type, 'benchmark');
+  assert.equal(tr.history()[0].set, 'b1');
+});
+
+test('a benchmark set is scored by the median of its trials', () => {
+  const h = [
+    { type: 'benchmark', set: 'b1', wpm: 60, faa: 0.97, t: 1 },
+    { type: 'benchmark', set: 'b1', wpm: 70, faa: 0.99, t: 2 },
+    { type: 'benchmark', set: 'b1', wpm: 64, faa: 0.98, t: 3 },
+    { type: 'relaxed', wpm: 99, faa: 1, t: 4 },
+  ];
+  assert.deepEqual(plain(FT.progress.benchmarkResult(h, 'b1')), { set: 'b1', trials: 3, wpm: 64, faa: 0.98, min: 60, max: 70, t: 1 });
+});

@@ -44,6 +44,7 @@
     function newExercise(o) {
       var type = o.type, F = difficulty.state().frontier;
       if (type === 'prose') return proseExercise(o);
+      if (type === 'benchmark') return benchmarkExercise();
       var pinned = o.pinned && o.pinned.length;
       var shares, frontier = F, tg = [];
       if (type === 'warmup' || type === 'bursts') {
@@ -60,6 +61,21 @@
       var ctx = { frontier: frontier, targets: tg };
       return { type: type, words: gen.next(400, ctx), more: function (n) { return gen.next(n, ctx); }, targets: tg,
         noTargets: type === 'targeted' && !pinned && !tg.length };
+    }
+    // Benchmark: a fresh, unbiased sample of the 5,000 most common words.
+    var BENCH_RANKS = 5000;
+    function benchmarkExercise() {
+      var rng = FT.rng(seed + sessionCount * 131 + history.length * 17 + 3), last = null;
+      function take(n) {
+        var out = [];
+        while (out.length < n) {
+          var w = corpus.words[Math.floor(rng() * Math.min(BENCH_RANKS, corpus.size))];
+          if (w === last) continue;
+          out.push({ word: w, source: 'benchmark' }); last = w;
+        }
+        return out;
+      }
+      return { type: 'benchmark', words: take(400), more: take, targets: [] };
     }
     function proseExercise(o) {
       var text = o.text, at = text.pos || 0, batch = o.batch || 400;
@@ -79,6 +95,7 @@
         macros: (settings.macros || []).slice(),
         accents: settings.accents !== false,
         run: input.run || null,
+        set: input.set || null,
         words: input.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta || null }; }),
         keys: input.keys || [],
       };
@@ -164,7 +181,7 @@
         model.ingest(m.tm.records, { session: session, day: raw.day });
         summary.stageChanges = model.endSession({ session: session, day: raw.day });
       }
-      subs.ingest(m.analyses, { exercise: raw.type, session: session, t: raw.startedAt });
+      if (raw.type !== 'benchmark') subs.ingest(m.analyses, { exercise: raw.type, session: session, t: raw.startedAt });
       if (raw.type === 'bursts' && raw.rounds) summary.rounds = bursts.apply(m.words, raw.rounds, history, raw.startedAt);
       if (DIFFICULTY_TYPES[raw.type]) {
         summary.difficulty = difficulty.update({
@@ -176,7 +193,7 @@
 
     function historyEntry(raw, m, summary) {
       return {
-        id: raw.id, type: raw.type, t: raw.startedAt, ms: raw.durationMs, effort: raw.effort,
+        id: raw.id, type: raw.type, t: raw.startedAt, ms: raw.durationMs, effort: raw.effort, set: raw.set || undefined,
         wpm: m.metrics.wpm, faa: m.metrics.firstAttemptAccuracy, randomFaa: m.random.firstAttemptAccuracy,
         hes: summary.hesitationRate, cv: summary.rhythmCv, roll: summary.rollover, frontier: summary.frontier,
         pairMs: FT.timing.commonPairMs(m.tm.records), startMs: FT.timing.wordStartMs(m.tm.records),
