@@ -392,6 +392,14 @@ await step('with a layout, the Errors page and summaries show a keyboard heatmap
   await page.locator('.heatmap svg rect.key').first().waitFor();
 });
 
+await step('with a layout, Sequences shows performance by movement type', async () => {
+  await page.locator('[data-go="sequences"]').click();
+  const t = page.locator('#movement');
+  await t.locator('td', { hasText: 'alternation' }).first().waitFor();
+  await t.locator('[data-key]').first().click();
+  await page.locator('#why h2').waitFor();
+});
+
 await step('phone width has no horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   for (const k of ['p', 't', 'q', 'h', 's', 'd']) {

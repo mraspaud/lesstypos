@@ -34,7 +34,8 @@
       [['focus', 'In training'], ['kept', 'Consolidating and mastered'], ['all', 'All with enough evidence']].map(function (x) {
         return '<button type="button" data-tab="' + x[0] + '" aria-pressed="' + (seqTab === x[0]) + '">' + esc(x[1]) + '</button>';
       }).join('') + '</div>' +
-      '<p class="muted num">' + keys.length + ' sequences observed; ' + counts.insufficient + ' do not have enough observations yet.</p></section>';
+      '<p class="muted num">' + keys.length + ' sequences observed; ' + counts.insufficient + ' do not have enough observations yet.</p></section>' +
+      movementTable(ev);
     if (!shown.length) {
       html += '<p class="panel">' + (seqTab === 'focus' ? 'Nothing needs extra practice yet. Sequences appear here once the evidence shows they cost errors or time.' : 'No sequences in this group yet.') + '</p>';
     } else {
@@ -55,7 +56,24 @@
     setView(html);
     app.$view.querySelectorAll('[data-tab]').forEach(function (b) { b.onclick = function () { seqTab = b.dataset.tab; viewSequences(); }; });
     app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.onclick = function () { seqSel = r.dataset.key; showWhy(seqSel); markSel(); }; });
+    app.$view.querySelectorAll('#movement [data-key]').forEach(function (b) { b.onclick = function () { seqSel = b.dataset.key; showWhy(seqSel); markSel(); }; });
     if (seqSel && all[seqSel]) showWhy(seqSel);
+  }
+  // Letter pairs grouped by movement type on the declared layout (descriptive).
+  var MOVEMENT = { alternate: 'alternation (other hand)', 'roll-in': 'inward roll', 'roll-out': 'outward roll',
+    sfb: 'same finger', repeat: 'same key twice', 'full-scissor': 'full scissor', 'half-scissor': 'half scissor', lsb: 'lateral stretch' };
+  function movementTable(ev) {
+    if (!app.layout) return '';
+    var rows = FT.layout.breakdown(ev, app.layout);
+    if (!rows.length) return '';
+    return '<section class="stack" id="movement"><h3>By movement type</h3><p class="muted">Every letter pair you have typed, grouped by how your fingers move on your layout. ' +
+      'Typing research finds alternating hands usually fastest (Salthouse 1986), so it is the reference. Descriptive only: training does not use it.</p>' +
+      '<div class="tablewrap"><table><thead><tr><th>Movement</th><th>Pairs</th><th>Seen</th><th>Time vs alternation</th><th>First-attempt errors</th><th>Slowest pairs</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr><td>' + esc(MOVEMENT[r.type] || r.type) + (r.overlapping ? ' <span class="muted">(also in a row above)</span>' : '') + '</td><td class="num">' + r.pairs + '</td><td class="num">' + fix(r.n) + '</td>' +
+          '<td class="num">' + (r.time == null ? '–' : '×' + fix(r.time, 2)) + '</td><td class="num">' + pct(r.errorRate) + '</td><td>' +
+          r.worst.map(function (k) { return '<button type="button" class="linkish" data-key="' + esc(k) + '">' + seq(k) + '</button>'; }).join(' ') + '</td></tr>';
+      }).join('') + '</tbody></table></div></section>';
   }
   function markSel() { app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.classList.toggle('selected', r.dataset.key === seqSel); }); }
   // Movement type of the last two or three key presses of a sequence, on the

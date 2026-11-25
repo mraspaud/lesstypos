@@ -143,3 +143,36 @@ test('wide keys (space) take two units and push the keys after them', () => {
   // right thumbs (space, ') take 3 units, centred under the six right columns starting at 7
   assert.equal(cell(' ').x, 8.5);
 });
+
+// Functionality: a breakdown of letter-pair performance by movement type on
+// the declared layout (descriptive; the model stays layout-agnostic).
+test('pairs are grouped by movement type, timed relative to alternation', () => {
+  const L = FT.layout.parse('a s d   j k l\n0 1 2   7 8 9');
+  const ctx = (key, n, errors, latRel, mu) => ({ key, order: 2, n, errors, latN: n, mu, latRel, state: 'ok' });
+  const all = {
+    aj: ctx('aj', 100, 1, 1, Math.log(1.0)),   // alternation
+    sk: ctx('sk', 100, 1, 1, Math.log(1.0)),   // alternation
+    as: ctx('as', 50, 2, 1.1, Math.log(0.9)),  // roll-in (pinky -> ring)
+    aa: ctx('aa', 20, 0, 1, Math.log(1.2)),    // repeat
+    a: { key: 'a', order: 1, n: 500, errors: 5, latN: 500, mu: 0 },
+    xyz: { key: 'xyz', order: 3, n: 9, errors: 0, latN: 9, mu: 0 },
+  };
+  const b = plain(FT.layout.breakdown({ all }, L));
+  const alt = b.find((r) => r.type === 'alternate'), roll = b.find((r) => r.type === 'roll-in');
+  assert.equal(alt.pairs, 2);
+  assert.equal(alt.n, 200);
+  assert.equal(alt.time, 1);
+  assert.ok(Math.abs(roll.time - 0.9) < 1e-9);
+  assert.equal(roll.errorRate, 0.04);
+  assert.deepEqual(roll.worst, ['as']);
+  assert.ok(!b.some((r) => r.type === 'macro'));
+});
+
+test('scissors and lateral stretches get their own (overlapping) rows', () => {
+  const ctx = (key) => ({ key, order: 2, n: 40, errors: 1, latN: 40, mu: 0, latRel: 1 });
+  const b = plain(FT.layout.breakdown({ all: { te: ctx('te'), cr: ctx('cr'), fj: ctx('fj') } }, L));
+  const lsb = b.find((r) => r.type === 'lsb'), sc = b.find((r) => r.type === 'full-scissor');
+  assert.deepEqual(lsb.worst, ['te']);
+  assert.deepEqual(sc.worst, ['cr']);
+  assert.equal(lsb.overlapping, true);
+});

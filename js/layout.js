@@ -162,5 +162,35 @@
     return { cells: cells, width: width, height: rowList.length };
   }
 
-  FT.layout = { grid: grid, parse: parse, classify: classify, presses: presses, relation: relation, FINGER: FINGER, KINDS: KINDS };
+  // Letter-pair performance grouped by movement type on this layout:
+  // pairs observed, observations, time relative to alternation (weighted by
+  // timed observations), first-attempt error rate, and the slowest pairs.
+  // Descriptive only. evaluation: model.evaluate() result.
+  function breakdown(evaluation, layout) {
+    var groups = {};
+    Object.keys(evaluation.all).forEach(function (k) {
+      var c = evaluation.all[k];
+      if (c.order !== 2 || !c.n) return;
+      var cls = classify(layout, k);
+      if (!cls || cls.type === 'macro') return;
+      // each pair counts in its movement type, and also in any tag it carries
+      // (scissors, lateral stretches), which therefore overlap the main rows
+      [cls.type].concat(cls.tags.filter(function (t) { return t !== 'sfb'; })).forEach(function (type, i) {
+        var g = groups[type] || (groups[type] = { type: type, overlapping: i > 0, pairs: 0, n: 0, errors: 0, latN: 0, latSum: 0, items: [] });
+        g.pairs++; g.n += c.n; g.errors += c.errors;
+        if (c.latN) { g.latN += c.latN; g.latSum += c.latN * Math.exp(c.mu); }
+        g.items.push(c);
+      });
+    });
+    var list = Object.keys(groups).map(function (t) { return groups[t]; });
+    var alt = groups.alternate, ref = alt && alt.latN ? alt.latSum / alt.latN : 1;
+    return list.map(function (g) {
+      var worst = g.items.slice().sort(function (a, b) { return (b.latRel || 0) - (a.latRel || 0) || b.errors / b.n - a.errors / a.n; })
+        .slice(0, 3).map(function (c) { return c.key; });
+      return { type: g.type, overlapping: g.overlapping, pairs: g.pairs, n: g.n, errorRate: g.n ? g.errors / g.n : null,
+        time: g.latN ? (g.latSum / g.latN) / ref : null, worst: worst };
+    }).sort(function (a, b) { return (a.overlapping - b.overlapping) || b.n - a.n; });
+  }
+
+  FT.layout = { breakdown: breakdown, grid: grid, parse: parse, classify: classify, presses: presses, relation: relation, FINGER: FINGER, KINDS: KINDS };
 })(globalThis.FT);

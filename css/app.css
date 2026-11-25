@@ -230,3 +230,6 @@ details.tableview summary { cursor: pointer; color: var(--muted); }
 .heatmap rect.key.few { fill: var(--surface); stroke-dasharray: 4 3; }
 .heatmap text { fill: var(--ink); font-family: var(--font-text); font-size: 15px; pointer-events: none; }
 .heatmap text.on-dark { fill: var(--bg); }
+
+.linkish { background: none; border: 0; padding: 0; cursor: pointer; color: inherit; }
+.linkish:hover .seq { outline: 1px solid var(--accent); }
