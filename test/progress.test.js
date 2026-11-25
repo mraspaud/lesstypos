@@ -96,3 +96,26 @@ test('common-pair timing leaves out speed bursts', () => {
   const p = plain(FT.progress.series(HIST).pairMs);
   assert.deepEqual(p.map((x) => [x.day, x.ms]), [['2026-01-01', 115], ['2026-01-02', 100], ['2026-01-03', 105]]);
 });
+
+// Functionality: per-key error statistics for the heatmap. A multi-letter key
+// (th) is one press; where wrong presses land is counted too.
+function analysed(pairs) {
+  return pairs.map(([p, typed]) => FT.align.analyzeWord(p + ' ',
+    Array.from(typed + ' ').map((ch, i) => (ch === '<' ? { k: 'b', t: i * 100 } : { k: 'c', ch, t: i * 100, g: i }))));
+}
+
+test('key statistics count presses, with multi-letter keys as one press', () => {
+  const ks = plain(FT.progress.keyStats(analysed([['the', 'the'], ['then', 'tgen'], ['art', 'art']]), ['th']));
+  assert.deepEqual(ks.keys.th, [2, 1]);       // two presses of the th key, one wrong first attempt
+  assert.deepEqual(ks.keys.t, [1, 0]);        // the t in "art" is a plain t press
+  assert.deepEqual(ks.keys.e, [2, 0]);
+  assert.deepEqual(ks.keys[' '], [3, 0]);
+  assert.deepEqual(ks.land, { g: 1 });         // the wrong press landed on g
+});
+
+test('without declared multi-letter keys every character is its own press', () => {
+  const ks = plain(FT.progress.keyStats(analysed([['the', 'thx<e']]), []));
+  assert.deepEqual(ks.keys.t, [1, 0]);
+  assert.deepEqual(ks.keys.e, [1, 1]);
+  assert.deepEqual(ks.land, { x: 1 });
+});

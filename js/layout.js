@@ -120,5 +120,43 @@
     return rel('same-hand');
   }
 
-  FT.layout = { parse: parse, classify: classify, presses: presses, relation: relation, FINGER: FINGER, KINDS: KINDS };
+  // Positions for drawing the layout (in key units). Rows that hold only
+  // thumb keys are thumb clusters, centred under their hand; in other rows
+  // the right hand's keys are shifted by a one-key gap. No stagger geometry.
+  function grid(layout) {
+    var rows = {};
+    Object.keys(layout.keys).forEach(function (k) {
+      var info = layout.keys[k];
+      (rows[info.row] = rows[info.row] || []).push({ key: k, info: info });
+    });
+    var isThumb = function (c) { return c.info.finger === 4 || c.info.finger === 5; };
+    var rowList = Object.keys(rows).map(function (r) {
+      var list = rows[r].sort(function (a, b) { return a.info.col - b.info.col; });
+      return { y: +r, list: list, thumb: list.every(isThumb) };
+    });
+    // Extent of each hand in the main (non-thumb) rows.
+    var leftCols = 0, firstRight = Infinity, lastRight = -1;
+    rowList.filter(function (r) { return !r.thumb; }).forEach(function (r) {
+      r.list.forEach(function (c) {
+        if (c.info.hand === 'L') leftCols = Math.max(leftCols, c.info.col + 1);
+        else { firstRight = Math.min(firstRight, c.info.col); lastRight = Math.max(lastRight, c.info.col); }
+      });
+    });
+    var rightCols = lastRight >= firstRight ? lastRight - firstRight + 1 : 0, rightStart = leftCols + 1;
+    var cells = [];
+    rowList.forEach(function (r) {
+      ['L', 'R'].forEach(function (hand) {
+        var mine = r.list.filter(function (c) { return c.info.hand === hand; });
+        var start = hand === 'L' ? (leftCols - mine.length) / 2 : rightStart + (rightCols - mine.length) / 2;
+        mine.forEach(function (c, i) {
+          var x = r.thumb ? start + i : hand === 'L' ? c.info.col : rightStart + c.info.col - firstRight;
+          cells.push({ key: c.key, label: c.key === ' ' ? 'space' : c.key, x: x, y: r.y, hand: hand, finger: c.info.finger });
+        });
+      });
+    });
+    var width = cells.reduce(function (a, c) { return Math.max(a, c.x + 1); }, 0);
+    return { cells: cells, width: width, height: rowList.length };
+  }
+
+  FT.layout = { grid: grid, parse: parse, classify: classify, presses: presses, relation: relation, FINGER: FINGER, KINDS: KINDS };
 })(globalThis.FT);

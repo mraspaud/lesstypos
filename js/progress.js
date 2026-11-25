@@ -113,5 +113,35 @@
     };
   }
 
-  FT.progress = { compare: compare, timeline: timeline, benchmarkResult: benchmarkResult, series: series };
+  // Per-key error statistics for the keyboard heatmap (layout-free: keyed by
+  // the characters a key types). The target text is split into presses, a
+  // declared multi-letter key (e.g. "th") being one press. keys[press] =
+  // [presses, first-attempt errors]; land[char] = wrong presses typing char.
+  function keyStats(analyses, macros) {
+    var ms = (macros || []).slice().sort(function (a, b) { return b.length - a.length; });
+    var keys = {}, land = {};
+    analyses.forEach(function (an) {
+      var P = an.targets.map(function (x) { return x.ch; });
+      for (var i = 0; i < P.length;) {
+        var tok = P[i], len = 1;
+        for (var m = 0; m < ms.length; m++) {
+          var mm = Array.from(ms[m]);
+          if (P.slice(i, i + mm.length).join('') === ms[m]) { tok = ms[m]; len = mm.length; break; }
+        }
+        var err = 0;
+        for (var j = i; j < i + len; j++) err = Math.max(err, an.targets[j].err);
+        var k = keys[tok] || (keys[tok] = [0, 0]);
+        k[0] += 1; k[1] += err;
+        i += len;
+      }
+      an.events.forEach(function (e) {
+        if (e.type !== 'sub' && e.type !== 'transpose') return;
+        var a = FT.text.canon(e.actual);
+        land[a] = (land[a] || 0) + e.w;
+      });
+    });
+    return { keys: keys, land: land };
+  }
+
+  FT.progress = { keyStats: keyStats, compare: compare, timeline: timeline, benchmarkResult: benchmarkResult, series: series };
 })(globalThis.FT);

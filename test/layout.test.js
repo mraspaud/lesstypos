@@ -118,3 +118,17 @@ test('neighbouring, mirror-image and unrelated substitutions', () => {
   assert.equal(FT.layout.relation(T, 's', 'd').kind, 'same-hand');
   assert.equal(FT.layout.relation(T, 'n', 'é'), null);           // not on the layout
 });
+
+test('the layout grid separates the hands and centres thumb keys under each hand', () => {
+  const T = FT.layout.parse(THORNIUM);
+  const g = plain(FT.layout.grid(T));
+  const cell = (k) => g.cells.find((c) => c.key === k);
+  assert.deepEqual([cell('z').x, cell('z').y], [0, 0]);
+  assert.ok(cell('j').x - cell('g').x > 1);          // gap between the hands
+  assert.equal(cell('th').hand, 'R');
+  assert.equal(cell('qu').y, 3);
+  // left thumbs (qu r) centred under the six left columns: x = 2, 3
+  assert.deepEqual([cell('qu').x, cell('r').x], [2, 3]);
+  assert.equal(cell(' ').label, 'space');
+  assert.equal(g.width, 13);
+});
