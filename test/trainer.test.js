@@ -86,3 +86,17 @@ test('a profile survives serialisation', () => {
   const tr2 = FT.trainer.create({ seed: 6, profile: JSON.parse(JSON.stringify(tr.profile())) });
   assert.deepEqual(plain(tr2.profile()), plain(tr.profile()));
 });
+
+test('a pinned-sequence exercise focuses on that sequence and does not move difficulty', () => {
+  const tr = FT.trainer.create({ seed: 7 });
+  const ex = tr.newExercise({ type: 'targeted', pinned: ['ing'] });
+  const share = ex.words.filter((w) => w.target === 'ing').length / ex.words.length;
+  assert.ok(share > 0.35, String(share));
+  assert.ok(ex.words.every((w) => w.target == null || w.target === 'ing'));
+  const s = FT.session.create(ex.words.slice(0, 160));
+  let t = 0;
+  for (const w of s.state().words.slice(0, 160)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const { summary } = tr.finish({ type: 'targeted', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
+  assert.equal(summary.difficulty, null);
+  assert.equal(tr.difficulty.state().frontier, 200);
+});

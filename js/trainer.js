@@ -27,9 +27,15 @@
       return model.trainingTargets({ session: sessionCount + 1, day: dayOf(now()), freq: corpus.freqWeight });
     }
 
+    // o.pinned: contexts chosen by the user; they replace the model's targets
+    // and get a larger share of the text.
     function newExercise(o) {
-      var gen = FT.generator.create({ corpus: corpus, seed: seed + sessionCount * 31 + 7 });
-      var tg = targets().slice(0, 10);
+      var pinned = o.pinned && o.pinned.length;
+      var gen = FT.generator.create({ corpus: corpus, seed: seed + sessionCount * 31 + 7,
+        shares: pinned ? { random: 0.2, target: 0.5, maintenance: 0 } : undefined });
+      var tg = pinned
+        ? o.pinned.map(function (k) { return { key: k, priority: 1, stage: 'weak' }; })
+        : targets().slice(0, 10);
       var ctx = { frontier: difficulty.state().frontier, targets: tg };
       return { type: o.type, words: gen.next(400, ctx), more: function (n) { return gen.next(n, ctx); }, targets: tg };
     }

@@ -31,7 +31,7 @@ test('export then import into an empty store restores everything', async () => {
   await a.saveProfile({ frontier: 250 });
   await a.saveSession({ id: 's1', startedAt: 1, words: [{ target: 'a', stream: [] }] });
   const dump = JSON.parse(JSON.stringify(await a.exportAll()));
-  assert.equal(dump.format, 'fluentype-export');
+  assert.equal(dump.format, 'lesstypos-export');
   const b = mk();
   await b.importAll(dump);
   const d = await b.load();
@@ -43,15 +43,15 @@ test('export then import into an empty store restores everything', async () => {
 test('invalid or future-version imports are rejected without changing data', async () => {
   const s = mk();
   await s.saveSettings({ keep: true });
-  await assert.rejects(s.importAll({ hello: 1 }), /not a Fluentype export/);
-  await assert.rejects(s.importAll({ format: 'fluentype-export', schema: FT.SCHEMA + 1, sessions: [] }), /newer/);
+  await assert.rejects(s.importAll({ hello: 1 }), /not a LessTypos export/);
+  await assert.rejects(s.importAll({ format: 'lesstypos-export', schema: FT.SCHEMA + 1, sessions: [] }), /newer/);
   assert.equal((await s.load()).settings.keep, true);
 });
 
 test('older exports are migrated step by step', async () => {
   const migrations = { 0: (d) => { d.sessions.forEach((x) => { x.words = x.items; delete x.items; }); return d; } };
   const s = mk({ migrations });
-  await s.importAll({ format: 'fluentype-export', schema: 0, settings: {}, profile: null,
+  await s.importAll({ format: 'lesstypos-export', schema: 0, settings: {}, profile: null,
     sessions: [{ id: 'old', startedAt: 1, schema: 0, items: [{ target: 'x', stream: [] }] }] });
   const ses = await s.listSessions();
   assert.equal(ses[0].words[0].target, 'x');

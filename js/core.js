@@ -1,4 +1,4 @@
-// Fluentype core namespace. Classic script (works from file://).
+// LessTypos core namespace. Classic script (works from file://).
 (function (g) {
   'use strict';
   var FT = (g.FT = g.FT || {});

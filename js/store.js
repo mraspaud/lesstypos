@@ -5,7 +5,7 @@
 // Adapters: IndexedDB in the browser, memory for tests / fallback.
 (function (FT) {
   'use strict';
-  var FORMAT = 'fluentype-export';
+  var FORMAT = 'lesstypos-export';
   var MIGRATIONS = {};
 
   function clone(x) { return x == null ? x : JSON.parse(JSON.stringify(x)); }
@@ -23,7 +23,7 @@
 
   function idbAdapter(name) {
     var dbp = new Promise(function (res, rej) {
-      var req = indexedDB.open(name || 'fluentype', 1);
+      var req = indexedDB.open(name || 'lesstypos', 1);
       req.onupgradeneeded = function () { req.result.createObjectStore('kv'); };
       req.onsuccess = function () { res(req.result); };
       req.onerror = function () { rej(req.error); };
@@ -93,7 +93,7 @@
       var mode = (o && o.mode) || 'replace';
       return Promise.resolve().then(function () {
         if (!data || data.format !== FORMAT || !Array.isArray(data.sessions) || typeof data.schema !== 'number') {
-          throw new Error('This file is not a Fluentype export');
+          throw new Error('This file is not a LessTypos export');
         }
         if (data.schema > FT.SCHEMA) throw new Error('This export comes from a newer version (schema ' + data.schema + ')');
         var d = migrate(clone(data));

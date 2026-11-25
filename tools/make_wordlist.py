@@ -1,4 +1,4 @@
-"""Generate data/<lang>.words.js from wordfreq.
+"""Generate data/<lang>.words.js from wordfreq (for LessTypos).
 
 Usage: python tools/make_wordlist.py en 30000
 Requires: pip install wordfreq english-words
@@ -14,6 +14,10 @@ import json
 import sys
 
 from wordfreq import top_n_list, zipf_frequency
+
+# English words of one or two letters worth practising; the frequency list
+# contains many tokenisation fragments (s, t, ve, ll...) and abbreviations.
+SHORT_EN = set("a i to of in is it on be as at he by my or we an so me if up do no us go am oh ok hi ha ah ox ax ye yo".split())
 
 PROFANITY = {
     "fuck", "fucking", "fucked", "fucker", "fucks", "shit", "shitty", "bitch",
@@ -46,7 +50,7 @@ def main(lang="en", n=30000):
                 return False
             return len(base) > 3
 
-        words = [w for w in words if keep(w) or w in ("i",)]
+        words = [w for w in words if (len(w) > 2 and keep(w)) or w in SHORT_EN]
     words = words[:n]
     zipf = [round(zipf_frequency(w, lang), 2) for w in words]
     out = f"data/{lang}.words.js"
