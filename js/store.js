@@ -2,11 +2,15 @@
 // Raw sessions are the source of truth (derived statistics can be rebuilt from
 // them); every record carries the schema version. Export/import is validated
 // and migrated step by step (migrations[n] upgrades schema n to n+1).
+// Sessions are stored and exported compactly (FT.codec, schema 2) and read
+// back exactly; plain records and schema-1 exports still load.
 // Adapters: IndexedDB in the browser, memory for tests / fallback.
 (function (FT) {
   'use strict';
   var FORMAT = 'lesstypos-export';
-  var MIGRATIONS = {};
+  var MIGRATIONS = {
+    1: function (d) { return d; }, // schema 2 encodes sessions; plain sessions still decode
+  };
 
   function clone(x) { return x == null ? x : JSON.parse(JSON.stringify(x)); }
 
@@ -62,15 +66,27 @@
     function saveProfile(p) { return db.set('profile', p).then(function () { return db.set('meta', { schema: FT.SCHEMA }); }); }
     function saveSession(s) {
       var rec = Object.assign({}, s, { schema: s.schema != null ? s.schema : FT.SCHEMA });
-      return db.set('session:' + s.id, rec);
+      return db.set('session:' + s.id, FT.codec.encodeSession(rec));
     }
     function listSessions() {
       return db.keys().then(function (keys) {
         var ks = keys.filter(function (k) { return String(k).indexOf('session:') === 0; });
         return Promise.all(ks.map(function (k) { return db.get(k); }));
       }).then(function (list) {
-        return list.filter(Boolean).sort(function (a, b) { return a.startedAt - b.startedAt; });
+        return list.filter(Boolean).map(FT.codec.decodeSession).sort(function (a, b) { return a.startedAt - b.startedAt; });
       });
+    }
+    // Re-saves sessions stored before compaction; returns how many.
+    function compactSessions() {
+      return db.keys().then(function (keys) {
+        var ks = keys.filter(function (k) { return String(k).indexOf('session:') === 0; });
+        return Promise.all(ks.map(function (k) {
+          return db.get(k).then(function (rec) {
+            if (!rec || rec.enc) return 0;
+            return db.set(k, FT.codec.encodeSession(rec)).then(function () { return 1; });
+          });
+        }));
+      }).then(function (n) { return n.reduce(function (a, b) { return a + b; }, 0); });
     }
     function listPrefix(prefix) {
       return db.keys().then(function (keys) {
@@ -88,7 +104,7 @@
     function exportAll() {
       return Promise.all([load(), listSessions(), listTexts()]).then(function (r) {
         return { format: FORMAT, schema: FT.SCHEMA, app: FT.version, exportedAt: new Date().toISOString(),
-          settings: r[0].settings, profile: r[0].profile, sessions: r[1], texts: r[2] };
+          settings: r[0].settings, profile: r[0].profile, sessions: r[1].map(FT.codec.encodeSession), texts: r[2] };
       });
     }
     function migrate(d) {
@@ -145,7 +161,7 @@
     }
 
     return { load: load, saveSettings: saveSettings, saveProfile: saveProfile, saveSession: saveSession,
-      listSessions: listSessions, exportAll: exportAll,
+      listSessions: listSessions, exportAll: exportAll, compactSessions: compactSessions,
       saveText: saveText, getText: getText, deleteText: deleteText, listTexts: listTexts, importAll: importAll, reset: reset, kind: db.kind };
   }
 

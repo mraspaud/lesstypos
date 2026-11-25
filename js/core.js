@@ -3,7 +3,7 @@
   'use strict';
   var FT = (g.FT = g.FT || {});
   FT.version = '0.1.0';
-  FT.SCHEMA = 1;
+  FT.SCHEMA = 2; // 2: sessions stored and exported compactly (FT.codec)
   // Bump when derived statistics change meaning; profiles are then rebuilt
   // from the raw sessions (the source of truth).
   FT.MODEL_VERSION = 7; // 3: a session is a programme run; 4: progress fields in history; 5: one wrong press = one error; 6: simultaneous pairs and late keys; 7: transpositions

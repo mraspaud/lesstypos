@@ -131,7 +131,8 @@
     }).catch(function () { adapter = FT.store.memoryAdapter(); app.storageOk = false; })
       .then(function () {
         app.store = FT.store.create({ adapter: adapter });
-        return app.store.load();
+        // sessions stored before compaction are re-saved compactly (once)
+        return app.store.compactSessions().catch(function () {}).then(app.store.load);
       }).then(function (d) {
         app.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
         applySettings();

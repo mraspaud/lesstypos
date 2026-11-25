@@ -151,6 +151,13 @@ await step('sequences page explains a sequence', async () => {
 
 await step('export, delete everything, import restores the history', async () => {
   const dump = await page.evaluate(() => window.FT.app.store.exportAll().then((d) => JSON.stringify(d)));
+  assert.ok(JSON.parse(dump).sessions.every((x) => x.enc === 1)); // backups carry compact sessions
+  const stored = await page.evaluate(async () => {
+    const a = window.FT.store.idbAdapter('lesstypos');
+    const k = (await a.keys()).filter((x) => String(x).startsWith('session:'));
+    return Promise.all(k.map((x) => a.get(x).then((r) => r.enc)));
+  });
+  assert.ok(stored.length && stored.every((e) => e === 1)); // stored compact in IndexedDB
   await page.keyboard.press('d');
   const del = page.getByRole('button', { name: 'Delete everything' });
   await del.click();

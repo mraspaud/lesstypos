@@ -5,7 +5,8 @@
 //   keys:  { codes: [...], ev: [code * 2 + (keyup ? 1 : 0), Δsteps, ...] }
 //   words: { target, meta, c: typed characters ('\b' = backspace),
 //            t: [Δsteps...], g: [Δgroup or null...], a: [auto entry indices] }
-// Δsteps run across the whole session in 0.01 ms steps. Anything with an
+// Δsteps run across the whole session in 0.01 ms steps (a session saved
+// before timestamps were rounded is rounded on encoding). Anything with an
 // unexpected shape is stored as it is.
 (function (FT) {
   'use strict';

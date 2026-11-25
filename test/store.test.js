@@ -121,3 +121,59 @@ test('imported texts without words are rejected', async () => {
   const s = mk();
   await assert.rejects(s.importAll({ format: 'lesstypos-export', schema: FT.SCHEMA, sessions: [], texts: [{ id: 'bad', title: 'x' }] }), /text/i);
 });
+
+// Functionality: sessions are stored and exported compactly (FT.codec) and
+// read back exactly; older plain records and schema-1 exports still load.
+const typedSession = (id, startedAt = 1) => ({
+  id, startedAt, type: 'relaxed', words: [{ target: 'ab', stream: [{ k: 'c', ch: 'a', t: 10.5, g: 0 }, { k: 'c', ch: 'b', t: 120.25, g: 1 }], meta: null }],
+  keys: [{ k: 'd', c: 'KeyA', t: 10 }, { k: 'u', c: 'KeyA', t: 80.5 }],
+});
+
+test('sessions are stored encoded and listed as they were saved', async () => {
+  const adapter = FT.store.memoryAdapter();
+  const s = FT.store.create({ adapter });
+  await s.saveSession(typedSession('s1'));
+  const rec = await adapter.get('session:s1');
+  assert.equal(rec.enc, 1);
+  const [back] = await s.listSessions();
+  assert.equal(back.enc, undefined);
+  assert.deepEqual(plain(back.words), plain(typedSession('s1').words));
+  assert.deepEqual(plain(back.keys), plain(typedSession('s1').keys));
+});
+
+test('backups carry encoded sessions and import back exactly, replacing or merging', async () => {
+  const a = mk();
+  await a.saveSession(typedSession('s1'));
+  const dump = JSON.parse(JSON.stringify(await a.exportAll()));
+  assert.equal(dump.schema, FT.SCHEMA);
+  assert.equal(dump.sessions[0].enc, 1);
+  for (const mode of ['replace', 'merge']) {
+    const b = mk();
+    await b.saveSession(typedSession('s0', 0));
+    await b.importAll(dump, { mode });
+    const list = await b.listSessions();
+    const s1 = list.find((x) => x.id === 's1');
+    assert.deepEqual(plain(s1.words), plain(typedSession('s1').words));
+    assert.equal(list.length, mode === 'merge' ? 2 : 1);
+  }
+});
+
+test('a backup from before compaction (schema 1, plain sessions) imports', async () => {
+  const b = mk();
+  await b.importAll({ format: 'lesstypos-export', schema: 1, settings: {}, profile: null, sessions: [typedSession('old')] });
+  const [s] = await b.listSessions();
+  assert.deepEqual(plain(s.keys), plain(typedSession('old').keys));
+});
+
+test('compacting converts sessions stored plain and leaves encoded ones alone', async () => {
+  const adapter = FT.store.memoryAdapter();
+  await adapter.set('session:old', Object.assign(typedSession('old'), { schema: 1 }));
+  const s = FT.store.create({ adapter });
+  await s.saveSession(typedSession('new', 2));
+  const before = await adapter.get('session:new');
+  assert.equal(await s.compactSessions(), 1);
+  assert.equal((await adapter.get('session:old')).enc, 1);
+  assert.deepEqual(plain(await adapter.get('session:new')), plain(before));
+  const list = await s.listSessions();
+  assert.deepEqual(plain(list.find((x) => x.id === 'old').words), plain(typedSession('old').words));
+});
