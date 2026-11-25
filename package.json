@@ -1,0 +1,10 @@
+{
+  "name": "fluentype",
+  "private": true,
+  "description": "Adaptive typing fluency trainer (static, local-first).",
+  "license": "Apache-2.0",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "e2e": "node test/e2e/run.mjs"
+  }
+}
