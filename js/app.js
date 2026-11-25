@@ -175,7 +175,9 @@
     ty.capture.addEventListener('focus', function () { if (ty) { ty.win.classList.remove('blurred'); hint(ty.first == null ? 'Start typing when ready. <kbd>Esc</kbd> stops, <kbd>Tab</kbd> restarts.' : ''); } });
     focusCapture();
     placeCaret();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (ty) placeCaret(); });
   }
+  window.addEventListener('resize', function () { if (ty) placeCaret(); });
   function focusCapture() { if (ty) ty.capture.focus({ preventScroll: true }); }
   function hint(html) { var el = document.getElementById('hint'); if (el) el.innerHTML = html; }
   function clock(ms) {
@@ -209,30 +211,36 @@
     el.innerHTML = html;
     el.classList.toggle('missed', w.committed && typed.length < T.length);
   }
+  // Caret and line scrolling from on-screen rectangles, relative to the typing
+  // window (independent of offsetParent quirks and of the host page's CSS).
   function placeCaret() {
     var st = ty.session.state(), i = st.wordIndex, el = ty.els[i];
-    if (!el) return;
+    if (!el || !el.isConnected) return;
     var typed = Array.from(st.words[i].typed).length, letters = el.children;
-    var x, y, lh = el.offsetHeight;
-    if (typed < letters.length) { x = el.offsetLeft + letters[typed].offsetLeft; }
-    else { var last = letters[letters.length - 1]; x = el.offsetLeft + (last ? last.offsetLeft + last.offsetWidth : 0); }
-    y = el.offsetTop;
-    var line = Math.round(y / lh);
-    var offset = Math.max(0, line - 1) * lh;
+    var win = ty.win.getBoundingClientRect(), inner = ty.inner.getBoundingClientRect();
+    var r, x;
+    if (typed < letters.length) { r = letters[typed].getBoundingClientRect(); x = r.left; }
+    else if (letters.length) { r = letters[letters.length - 1].getBoundingClientRect(); x = r.right; }
+    else { r = el.getBoundingClientRect(); x = r.left; }
+    var lineH = el.getBoundingClientRect().height || r.height;
+    var yInInner = r.top - inner.top;                       // unaffected by the current scroll offset
+    var line = Math.round((el.getBoundingClientRect().top - inner.top) / lineH);
+    var offset = Math.max(0, line - 1) * lineH;
     if (offset !== ty.offset) {
       ty.offset = offset;
       ty.inner.style.transform = 'translateY(' + (-offset) + 'px)';
     }
-    ty.caret.style.left = x + 'px';
-    ty.caret.style.top = (y - offset + (lh - ty.caret.offsetHeight) / 2) + 'px';
+    ty.caret.style.left = (x - win.left) + 'px';
+    ty.caret.style.top = (yInInner - offset + (r.height - ty.caret.offsetHeight) / 2) + 'px';
   }
   function trimAbove() {
     // Drop committed words more than one line above the view to keep the DOM small.
-    var st = ty.session.state(), lh = ty.els[st.wordIndex].offsetHeight, removed = false;
+    var st = ty.session.state(), cur = ty.els[st.wordIndex], removed = false;
+    var lh = cur.getBoundingClientRect().height, top = ty.inner.getBoundingClientRect().top;
     for (var i = 0; i < st.wordIndex; i++) {
       var el = ty.els[i];
       if (!el || !el.parentNode) continue;
-      if (el.offsetTop + lh <= ty.offset - lh) { el.parentNode.removeChild(el); removed = true; } else break;
+      if (el.getBoundingClientRect().top - top + lh <= ty.offset - lh) { el.parentNode.removeChild(el); removed = true; } else break;
     }
     if (removed) { ty.offset = -1; placeCaret(); }
   }
