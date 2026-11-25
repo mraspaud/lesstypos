@@ -143,18 +143,22 @@
       });
     });
     var rightCols = lastRight >= firstRight ? lastRight - firstRight + 1 : 0, rightStart = leftCols + 1;
+    var keyWidth = function (k) { return k === ' ' ? 2 : 1; }; // the space bar is drawn two keys wide
     var cells = [];
     rowList.forEach(function (r) {
       ['L', 'R'].forEach(function (hand) {
         var mine = r.list.filter(function (c) { return c.info.hand === hand; });
-        var start = hand === 'L' ? (leftCols - mine.length) / 2 : rightStart + (rightCols - mine.length) / 2;
-        mine.forEach(function (c, i) {
-          var x = r.thumb ? start + i : hand === 'L' ? c.info.col : rightStart + c.info.col - firstRight;
-          cells.push({ key: c.key, label: c.key === ' ' ? 'space' : c.key, x: x, y: r.y, hand: hand, finger: c.info.finger });
+        var span = mine.reduce(function (a, c) { return a + keyWidth(c.key); }, 0);
+        var x = hand === 'L' ? (leftCols - span) / 2 : rightStart + (rightCols - span) / 2;
+        mine.forEach(function (c) {
+          var w = keyWidth(c.key);
+          var at = r.thumb ? x : hand === 'L' ? c.info.col : rightStart + c.info.col - firstRight;
+          cells.push({ key: c.key, label: c.key === ' ' ? 'space' : c.key, x: at, y: r.y, w: w, hand: hand, finger: c.info.finger });
+          x += w;
         });
       });
     });
-    var width = cells.reduce(function (a, c) { return Math.max(a, c.x + 1); }, 0);
+    var width = cells.reduce(function (a, c) { return Math.max(a, c.x + c.w); }, 0);
     return { cells: cells, width: width, height: rowList.length };
   }
 

@@ -220,3 +220,19 @@ test('history entries carry common-pair timing and the word-start penalty', () =
   assert.equal(h.pairMs, 100);
   assert.equal(h.startMs, 200);
 });
+
+test('exercises record per-key statistics with the multi-letter keys they were typed with', () => {
+  const tr = FT.trainer.create({ seed: 19, settings: { macros: ['th'] } });
+  const s = FT.session.create(['the', 'then', 'art']);
+  let t = 0;
+  for (const ch of 'the tgen art ') s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const { summary } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
+  assert.deepEqual(plain(summary.keyStats.keys.th), [2, 1]);
+  assert.deepEqual(plain(tr.history()[0].keys.th), [2, 1]);
+  assert.deepEqual(plain(tr.history()[0].land), { g: 1 });
+});
+
+test('key statistics add up across history', () => {
+  const total = plain(FT.progress.sumKeys([{ keys: { a: [2, 1] }, land: { x: 1 } }, { keys: { a: [3, 0], b: [1, 1] } }, {}]));
+  assert.deepEqual(total, { keys: { a: [5, 1], b: [1, 1] }, land: { x: 1 } });
+});

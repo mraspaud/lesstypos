@@ -295,6 +295,8 @@
     var corrected = m.IF ? m.IF + ' corrected keystrokes, ' : '';
     notes.push('<li>' + corrected + m.F + ' backspaces, ' + fix(m.INF) + ' uncorrected errors.</li>');
     html += '<section class="stack"><h3>What happened</h3><ul class="list">' + notes.join('') + '</ul></section>';
+    var showKeys = app.layout && s.keyStats;
+    if (showKeys) html += '<section class="stack"><h3>Errors by key</h3><div class="heatmap" id="hmex"></div></section>';
     var tg = app.trainer.targets().slice(0, 6);
     if (tg.length) html += '<section class="stack"><h3>Next focus</h3><div class="row">' + tg.map(function (x) { return seq(x.key) + ' ' + pill(x.stage); }).join('&nbsp;&nbsp;') + '</div></section>';
     var inProg = info.opts && info.opts.programme && app.run;
@@ -302,6 +304,7 @@
     else html += '<div class="row"><button class="btn primary" type="button" id="again">Practise again <kbd>Enter</kbd></button>' +
       '<button class="btn" type="button" id="seqs">See sequences <kbd>q</kbd></button></div>';
     setView(html);
+    if (showKeys) FT.chart.heatmap(document.getElementById('hmex'), FT.layout.grid(app.layout), s.keyStats);
     if (inProg) {
       bindProgrammeBar();
       if (s.timeline && s.timeline.length > 1) FT.chart.timeline(document.getElementById('chart'), s.timeline);

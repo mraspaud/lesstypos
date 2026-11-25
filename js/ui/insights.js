@@ -103,6 +103,7 @@
     var html = '<section class="stack"><h1>Recurring substitutions</h1>' +
       '<p class="muted">Which key comes out when another was intended. Rates are per opportunity to type the intended character and include errors you corrected. Rare pairs are shrunk toward the overall substitution rate, so a one-off does not top the list.</p></section>';
     var L = app.layout;
+    if (L) html += '<section class="stack"><h3>Errors by key</h3><p class="muted">All your exercises, on your layout.</p><div class="heatmap" id="hmall"></div></section>';
     if (L) {
       // Kinds of slips across all substitutions on the declared layout.
       var kinds = {}, total = 0;
@@ -132,6 +133,7 @@
         }).join('') + '</tbody></table></div><section id="subex"></section>';
     }
     setView(html);
+    if (L) FT.chart.heatmap(document.getElementById('hmall'), FT.layout.grid(L), FT.progress.sumKeys(app.trainer.history()));
     app.$view.querySelectorAll('tr[data-i]').forEach(function (tr) {
       tr.onclick = function () {
         var r = rows[+tr.dataset.i], el = document.getElementById('subex');

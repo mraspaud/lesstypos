@@ -369,6 +369,29 @@ await step('History shows progress charts with tooltips and tables', async () =>
   if (shots) await page.screenshot({ path: shots + '/history.png', fullPage: true });
 });
 
+await step('with a layout, the Errors page and summaries show a keyboard heatmap', async () => {
+  await page.locator('[data-go="errors"]').click();
+  const hm = page.locator('.heatmap').first();
+  await hm.locator('svg rect.key').first().waitFor();
+  assert.ok(await hm.locator('svg rect.key').count() >= 30);
+  await hm.locator('text=space').first().waitFor();
+  await hm.getByRole('button', { name: /Where wrong presses land/ }).click();
+  await hm.locator('svg rect.key').first().waitFor();
+  const box = await hm.locator('svg').boundingBox();
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.35);
+  if (shots) await page.screenshot({ path: shots + '/heatmap.png', fullPage: true });
+  // the summary of a finished exercise has one too
+  await page.locator('[data-go="home"]').click();
+  await page.getByRole('button', { name: /Relaxed practice only/ }).click();
+  await page.locator('.w').first().waitFor();
+  const ws = await page.$$eval('.w', (e) => e.slice(0, 14).map((x) => x.textContent));
+  await page.keyboard.type(ws.join(' ') + ' ', { delay: 5 });
+  await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
+  await page.getByText('How much effort did that take?').waitFor();
+  await page.keyboard.press('2');
+  await page.locator('.heatmap svg rect.key').first().waitFor();
+});
+
 await step('phone width has no horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   for (const k of ['p', 't', 'q', 'h', 's', 'd']) {

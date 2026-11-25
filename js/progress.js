@@ -143,5 +143,18 @@
     return { keys: keys, land: land };
   }
 
-  FT.progress = { keyStats: keyStats, compare: compare, timeline: timeline, benchmarkResult: benchmarkResult, series: series };
+  // Adds up per-key statistics across history entries.
+  function sumKeys(entries) {
+    var keys = {}, land = {};
+    entries.forEach(function (h) {
+      Object.keys(h.keys || {}).forEach(function (k) {
+        var a = keys[k] || (keys[k] = [0, 0]);
+        a[0] += h.keys[k][0]; a[1] += h.keys[k][1];
+      });
+      Object.keys(h.land || {}).forEach(function (c) { land[c] = (land[c] || 0) + h.land[c]; });
+    });
+    return { keys: keys, land: land };
+  }
+
+  FT.progress = { sumKeys: sumKeys, keyStats: keyStats, compare: compare, timeline: timeline, benchmarkResult: benchmarkResult, series: series };
 })(globalThis.FT);

@@ -132,3 +132,14 @@ test('the layout grid separates the hands and centres thumb keys under each hand
   assert.equal(cell(' ').label, 'space');
   assert.equal(g.width, 13);
 });
+
+test('wide keys (space) take two units and push the keys after them', () => {
+  const T = FT.layout.parse(THORNIUM);
+  const g = plain(FT.layout.grid(T));
+  const cell = (k) => g.cells.find((c) => c.key === k);
+  assert.equal(cell(' ').w, 2);
+  assert.equal(cell('z').w, 1);
+  assert.equal(cell("'").x, cell(' ').x + 2);
+  // right thumbs (space, ') take 3 units, centred under the six right columns starting at 7
+  assert.equal(cell(' ').x, 8.5);
+});
