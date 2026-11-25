@@ -205,3 +205,14 @@ test('a key judged on time again in a later session is no longer late', () => {
   m.ingest(makeRecords(FILLER, 100, () => null, 63), { session: 4, day: 3, late: { chars: [], judged: [] } });
   assert.deepEqual(plain(m.evaluate({ day: 3 }).late), ['e']);
 });
+
+test('a longer sequence ending on a late key is judged against the same delay', () => {
+  // every e is shifted by the keyboard (x1.6); "he" is genuinely slower again
+  const shifted = (ctx, ch) => (ch === 'e' ? { log: Math.log(1.6) + (ctx.endsWith('k') ? Math.log(1.5) : 0) } : null);
+  const m = FT.model.create();
+  for (let s = 0; s < 4; s++) m.ingest(makeRecords([...FILLER, 'keen', 'kept', 'keys', 'make', 'like', 'take'], 400, shifted, 70 + s), { session: s + 1, day: s, late });
+  const ev = m.evaluate({ day: 4 });
+  assert.equal(ev.get('e').hesitant, false);
+  assert.equal(ev.get('ke').hesitant, true);   // slower than e elsewhere: flagged
+  assert.equal(ev.get('he').hesitant, false);  // only the keyboard's delay: not flagged
+});

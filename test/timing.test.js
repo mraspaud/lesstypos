@@ -211,3 +211,15 @@ test('rollover can leave out keys whose key-up times carry no information', () =
   assert.equal(FT.timing.rollover(keys), 1 / 3);
   assert.equal(FT.timing.rollover(keys, { exclude: ['KeyE'] }), 0);
 });
+
+test('the auto-inserted space does not take the last letter out of timing', () => {
+  const s = FT.session.create(['ab', 'cd']);
+  [['a', 100], ['b', 300], [' ', 500], ['c', 700], ['d', 900]].forEach(([ch, t]) => s.input({ kind: 'text', data: ch, t }));
+  s.input({ kind: 'text', data: ' ', t: 900, auto: true });
+  const words = s.state().words.filter((w) => w.committed);
+  const last = words[1].stream[words[1].stream.length - 1];
+  if (!last.auto) { last.auto = true; } // the typing screen marks it
+  const r = FT.timing.extract(words);
+  const d = r.records.find((x) => x.ch === 'd');
+  assert.equal(d.clean, true);
+});

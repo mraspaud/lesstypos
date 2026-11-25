@@ -75,3 +75,43 @@ test('no key log: nothing is late', () => {
   assert.deepEqual(plain(FT.timing.lateKeys([], []).chars), []);
   assert.deepEqual(plain(FT.timing.lateKeys(undefined, []).chars), []);
 });
+
+// Review findings.
+test('a home-row-mods keyboard where most presses are late keys is still detected', () => {
+  const s = [];
+  for (let i = 0; i < 12; i++) {
+    for (const ch of 'arstneio ') s.push([ch, 0.5]);
+    s.push(['b', 80], ['k', 90]);
+  }
+  const { keys, words } = typed(s);
+  const r = FT.timing.lateKeys(keys, words);
+  assert.deepEqual(plain(r.chars).sort(), [' ', 'a', 'e', 'i', 'n', 'o', 'r', 's', 't']);
+});
+
+test('a tap whose keydown and keyup share a timestamp is an instant tap', () => {
+  const { keys, words } = typed(userLike().map(([ch, h]) => [ch, h < 1 ? 0 : h]));
+  assert.deepEqual(plain(FT.timing.lateKeys(keys, words).chars).sort(), [' ', 'e']);
+  // ... and it does not stay "held" for the rollover measure
+  const k = [{ k: 'd', c: 'KeyE', t: 0 }, { k: 'u', c: 'KeyE', t: 0 }, { k: 'd', c: 'KeyA', t: 100 }, { k: 'u', c: 'KeyA', t: 180 }];
+  assert.equal(FT.timing.rollover(k), 0);
+});
+
+test('one input event carrying two letters does not shift which press produced which letter', () => {
+  const s = userLike();
+  const { keys, words } = typed(s);
+  // a two-letter input event right before an 'a' press: 'xy' at the same t, from one key
+  const t0 = 1e5;
+  keys.push({ k: 'd', c: 'KeyQ', t: t0 }, { k: 'u', c: 'KeyQ', t: t0 + 80 },
+    { k: 'd', c: 'KeyA', t: t0 + 3 }, { k: 'u', c: 'KeyA', t: t0 + 83 });
+  words.push({ target: 'y', stream: [{ k: 'c', ch: 'x', t: t0 + 1, g: 900 }, { k: 'c', ch: 'y', t: t0 + 1, g: 900 }, { k: 'c', ch: 'a', t: t0 + 4, g: 901 }] });
+  const r = FT.timing.lateKeys(keys, words);
+  assert.equal(r.holds.y, undefined);
+  assert.equal(r.holds.a.n, 13);
+});
+
+test('late keys are reported as the canonical character the model uses', () => {
+  const s = [];
+  for (let i = 0; i < 12; i++) s.push(['’', 0.5], ['a', 80], ['o', 80]);
+  const { keys, words } = typed(s);
+  assert.deepEqual(plain(FT.timing.lateKeys(keys, words).chars), ["'"]);
+});

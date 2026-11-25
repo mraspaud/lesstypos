@@ -81,6 +81,7 @@
     for (var i = 1; i < records.length; i++) {
       var r = records[i];
       if (r.iki == null || r.iki >= SIMULTANEOUS_MS || r.macro) continue;
+      if (r.reason === 'auto' || records[i - 1].reason === 'auto') continue; // inserted by the app, not the keyboard
       [records[i - 1], r].forEach(function (x) {
         if (x.reason === null) { x.reason = 'simultaneous'; x.clean = false; }
       });
@@ -107,14 +108,19 @@
       .sort(function (a, b) { return b.confidence - a.confidence; });
   }
 
+  // Key events in time order; equal times keep the logged order (a synthetic
+  // tap logs its keydown and keyup at the same instant).
+  function byTime(ev) { return ev.sort(function (a, b) { return a.t - b.t; }); }
+
   // Rollover ratio (Dhakal et al. 2018): share of keydowns made while another
   // (non-modifier) key is still held. keys: [{k:'d'|'u', c: code, t}].
   var MODS = /^(Shift|Control|Alt|Meta|CapsLock|OS)/;
-  // opts.exclude: key codes left out (keys sent late as synthetic taps).
+  // opts.exclude: key codes left out (keys sent late as synthetic taps, whose
+  // key-up times are the keyboard's, not the finger's; design choice).
   function rollover(keys, opts) {
     var held = {}, nHeld = 0, total = 0, rolled = 0, skip = {};
     ((opts && opts.exclude) || []).forEach(function (c) { skip[c] = true; });
-    var ev = (keys || []).slice().sort(function (a, b) { return a.t - b.t || (a.k === 'u' ? -1 : 1); });
+    var ev = byTime((keys || []).slice());
     for (var i = 0; i < ev.length; i++) {
       var e = ev[i];
       if (MODS.test(e.c) || skip[e.c]) continue;
@@ -131,18 +137,21 @@
   // a tap-hold key not settled on press arrives as a synthetic tap at the
   // firmware's decision time, its keyup within a millisecond of its keydown.
   // Design choice: >= LATE_MIN_N single-key presses, >= LATE_SHARE of them held
-  // < INSTANT_MS, and a normal median hold overall (>= HOLD_INFO_MS; otherwise
-  // the input carries no hold information). keys: [{k, c, t}]; words carry
+  // < INSTANT_MS, and at least one key with >= LATE_MIN_N presses whose median
+  // hold is >= HOLD_INFO_MS (otherwise the input carries no hold information). keys: [{k, c, t}]; words carry
   // streams; macros as for FT.text.pressIds.
   var MATCH_MS = 5, INSTANT_MS = 3, LATE_MIN_N = 10, LATE_SHARE = 0.8, HOLD_INFO_MS = 20;
-  // Each character typed, in time order, and whether it was a press of its own
-  // (not part of a multi-letter key's press).
+  // Each press that typed characters, in time order: its (canonical, as the
+  // model sees it) first character and whether it typed only that character.
   function typedChars(words, macros) {
     var chars = [];
     (words || []).forEach(function (w) {
       var ids = FT.text.pressIds(w.stream, macros), size = {};
       ids.forEach(function (p) { if (p != null) size[p] = (size[p] || 0) + 1; });
-      w.stream.forEach(function (e, i) { if (e.k === 'c') chars.push({ ch: e.ch, t: e.t, single: size[ids[i]] === 1 }); });
+      w.stream.forEach(function (e, i) {
+        if (e.k !== 'c' || e.auto || (i > 0 && ids[i] === ids[i - 1])) return; // one entry per press
+        chars.push({ ch: FT.text.canon(e.ch), t: e.t, single: size[ids[i]] === 1 });
+      });
     });
     return chars.sort(function (a, b) { return a.t - b.t; });
   }
@@ -150,8 +159,7 @@
   // Every completed key press (keydown to keyup, modifiers left out), with the
   // character it produced: the earliest unclaimed one within MATCH_MS.
   function keyHolds(keys, chars) {
-    var ev = (keys || []).filter(function (e) { return !MODS.test(e.c); })
-      .sort(function (a, b) { return a.t - b.t || (a.k === 'u' ? -1 : 1); });
+    var ev = byTime((keys || []).filter(function (e) { return !MODS.test(e.c); }));
     var j = 0, down = {}, out = [];
     ev.forEach(function (e) {
       if (e.k === 'd') {
@@ -166,14 +174,16 @@
   }
 
   function lateKeys(keys, words, macros) {
-    var presses = keyHolds(keys, typedChars(words, macros)), holds = {}, codeOf = {};
+    var presses = keyHolds(keys, typedChars(words, macros)), holds = {}, codeOf = {}, times = {};
     presses.forEach(function (p) {
       if (!p.ch || !p.ch.single) return;
       var h = holds[p.ch.ch] || (holds[p.ch.ch] = { n: 0, instant: 0 });
       h.n++; if (p.hold < INSTANT_MS) h.instant++;
+      (times[p.ch.ch] = times[p.ch.ch] || []).push(p.hold);
       codeOf[p.ch.ch] = p.code;
     });
-    var info = presses.length && median(presses.map(function (p) { return p.hold; })) >= HOLD_INFO_MS;
+    // Hold information: at least one well-observed key is held like a finger holds it.
+    var info = Object.keys(holds).some(function (ch) { return holds[ch].n >= LATE_MIN_N && median(times[ch]) >= HOLD_INFO_MS; });
     // judged: keys with enough presses (and hold information) for a verdict
     var judged = !info ? [] : Object.keys(holds).filter(function (ch) { return holds[ch].n >= LATE_MIN_N; });
     var late = judged.filter(function (ch) { return holds[ch].instant / holds[ch].n >= LATE_SHARE; });
@@ -197,7 +207,8 @@
   }
 
   // The 30 most frequent within-word English letter pairs (from the bundled
-  // wordfreq list, frozen so the yardstick never changes). Within-word timing
+  // wordfreq list, frozen so the yardstick never changes). Like every timing
+  // statistic, it uses clean intervals only, so simultaneous pairs are out. Within-word timing
   // on high-frequency bigrams is stable on retest (Van Waes et al. 2021).
   var COMMON_PAIRS = ['th', 'he', 'in', 'an', 'er', 're', 'on', 'at', 'nd', 'ou', 'or', 'to', 'en', 'it', 'ng',
     'es', 'st', 'is', 'te', 'ar', 'ti', 'al', 'ha', 'ed', 've', 'of', 'nt', 'se', 'me', 'hi'];
