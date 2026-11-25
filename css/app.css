@@ -1,36 +1,38 @@
 /* Layout concept: one calm column; the typing window dominates; text yet to
    type is the strongest ink, typed text recedes so the eye looks ahead. */
 :root {
-  --bg: #eef1f4;
-  --surface: #f8fafb;
-  --ink: #1d2733;
-  --muted: #5b6978;
-  --done: #a3afbb;
-  --accent: #2b7a74;
-  --accent-soft: #d6ebe8;
-  --err: #b4455b;
-  --err-soft: #f6dfe4;
-  --warn: #9a6b12;
-  --line: #d3dbe2;
-  --series-1: #008c7f; /* running average (validated: light surface) */
-  --series-2: #c65f18; /* per-word speed */
+  /* Kanagawa Paper "Canvas" (light) — github.com/thesimonho/kanagawa-paper */
+  --bg: #e1e1de;          /* canvasWhite4: editor background */
+  --surface: #ecece8;     /* canvasWhite6: floating surfaces */
+  --ink: #616569;         /* canvasGray3: primary text */
+  --muted: #77746c;       /* canvasGray2: secondary text */
+  --done: #92928b;        /* canvasGray1: muted text (typed text recedes) */
+  --accent: #6a7893;      /* canvasTeal1: primary accent */
+  --accent-soft: #ccced0;
+  --err: #a36360;         /* canvasRed1: error */
+  --err-soft: #d8cecb;
+  --warn: #a1805e;        /* canvasOrange1: warning */
+  --line: #cbc8bc;        /* canvasWhite1 */
+  --series-1: #4d699b;    /* lotusBlue4: running average */
+  --series-2: #cc6d00;    /* lotusOrange: per-word speed */
   --font-text: "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --font-ui: "Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
   --type-size: 1.6rem;
   --type-line: 2.4;
   color-scheme: light;
 }
+/* Kanagawa Paper "Ink" (dark) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #141a20; --surface: #1b232b; --ink: #dde5ed; --muted: #8e9cab; --done: #56636f;
-    --accent: #62b9b0; --accent-soft: #1f3a38; --err: #e17b8e; --err-soft: #3c2128; --warn: #d9a548;
-    --line: #2a343e; --series-1: #1fae9f; --series-2: #d47a2a; color-scheme: dark;
+    --bg: #1F1F28; --surface: #2A2A37; --ink: #DCD7BA; --muted: #9e9b93; --done: #54546D;
+    --accent: #658594; --accent-soft: #2d333e; --err: #c4746e; --err-soft: #3d2e35; --warn: #c4b28a;
+    --line: #363646; --series-1: #7E9CD8; --series-2: #DCA561; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #141a20; --surface: #1b232b; --ink: #dde5ed; --muted: #8e9cab; --done: #56636f;
-  --accent: #62b9b0; --accent-soft: #1f3a38; --err: #e17b8e; --err-soft: #3c2128; --warn: #d9a548;
-  --line: #2a343e; --series-1: #1fae9f; --series-2: #d47a2a; color-scheme: dark;
+  --bg: #1F1F28; --surface: #2A2A37; --ink: #DCD7BA; --muted: #9e9b93; --done: #54546D;
+  --accent: #658594; --accent-soft: #2d333e; --err: #c4746e; --err-soft: #3d2e35; --warn: #c4b28a;
+  --line: #363646; --series-1: #7E9CD8; --series-2: #DCA561; color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -184,8 +186,8 @@ textarea.mono { font-family: var(--font-text); font-size: 0.9rem; min-height: 8r
 .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
 .chart .axis text { fill: var(--muted); font-size: 11px; font-family: var(--font-ui); font-variant-numeric: tabular-nums; }
-.chart .run { stroke: var(--series-1); stroke-width: 2; fill: none; stroke-linejoin: round; stroke-linecap: round; }
-.chart .burst { stroke: var(--series-2); stroke-width: 2; fill: none; stroke-linejoin: round; stroke-linecap: round; opacity: 0.85; }
+.chart .run { stroke: var(--series-1); stroke-width: 2.5; fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.chart .burst { stroke: var(--series-2); stroke-width: 2; fill: none; stroke-linejoin: round; stroke-linecap: round; stroke-dasharray: 5 3; }
 .chart .errmark { stroke: var(--err); stroke-width: 2; stroke-linecap: round; }
 .chart .cross { stroke: var(--muted); stroke-width: 1; }
 .chart .dot1 { fill: var(--series-1); stroke: var(--surface); stroke-width: 2; }
@@ -198,6 +200,6 @@ textarea.mono { font-family: var(--font-text); font-size: 0.9rem; min-height: 8r
 .legend { display: flex; gap: 16px; flex-wrap: wrap; color: var(--muted); font-size: 0.85rem; align-items: center; }
 .legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px; border-radius: 1px; }
 .legend .k1 { background: var(--series-1); }
-.legend .k2 { background: var(--series-2); }
+.legend .k2 { background: repeating-linear-gradient(90deg, var(--series-2) 0 5px, transparent 5px 8px); }
 .legend .kx { color: var(--err); font-style: normal; font-weight: 700; margin-right: 4px; }
 details.tableview summary { cursor: pointer; color: var(--muted); }

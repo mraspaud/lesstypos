@@ -293,7 +293,7 @@
   // Backspace at the start of a word after a correctly typed word does nothing;
   // say why, briefly, and nudge the caret.
   function blocked() {
-    hint('Correctly typed words stay as they are.');
+    hint('Nothing to fix nearby: backspace only goes back to a recent mistake.');
     ty.hinted = true;
     ty.caret.classList.remove('nudge');
     void ty.caret.offsetWidth;
@@ -431,6 +431,28 @@
     var raw = range / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
     return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
   }
+  function monotonePath(pts) {
+    var n = pts.length;
+    if (!n) return '';
+    if (n < 3) return pts.map(function (p, i) { return (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join('');
+    var d = [], m = [];
+    for (var i = 0; i < n - 1; i++) d.push((pts[i + 1][1] - pts[i][1]) / (pts[i + 1][0] - pts[i][0] || 1));
+    m[0] = d[0]; m[n - 1] = d[n - 2];
+    for (i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+    for (i = 0; i < n - 1; i++) {
+      if (d[i] === 0) { m[i] = m[i + 1] = 0; continue; }
+      var a = m[i] / d[i], b = m[i + 1] / d[i], h = a * a + b * b;
+      if (h > 9) { var t = 3 / Math.sqrt(h); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i]; }
+    }
+    var out = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+    for (i = 0; i < n - 1; i++) {
+      var dx = (pts[i + 1][0] - pts[i][0]) / 3;
+      out += 'C' + (pts[i][0] + dx).toFixed(1) + ' ' + (pts[i][1] + m[i] * dx).toFixed(1) + ' ' +
+        (pts[i + 1][0] - dx).toFixed(1) + ' ' + (pts[i + 1][1] - m[i + 1] * dx).toFixed(1) + ' ' +
+        pts[i + 1][0].toFixed(1) + ' ' + pts[i + 1][1].toFixed(1);
+    }
+    return out;
+  }
   function drawTimeline(el, tl) {
     var W = Math.max(300, el.clientWidth || 600), H = 230, L = 36, R = 54, T = 22, B = 26;
     var bursts = tl.map(function (p) { return p.burst; }).filter(function (x) { return x != null; }).sort(function (a, b) { return a - b; });
@@ -452,14 +474,19 @@
       svg += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + i + '</text>';
     }
     svg += '<text x="' + L + '" y="10" text-anchor="start">WPM</text></g>';
+    // Per-word speed is lightly smoothed ([1 2 1] / 4 over neighbouring words);
+    // the tooltip and table keep the raw values. Lines are monotone cubic
+    // curves (Fritsch-Carlson), which never overshoot the data.
+    var smooth = tl.map(function (p, k) {
+      var a = tl[k - 1], c = tl[k + 1], sum = 2 * (p.burst || 0), w = 2;
+      if (a && a.burst != null) { sum += a.burst; w++; }
+      if (c && c.burst != null) { sum += c.burst; w++; }
+      return p.burst == null ? null : sum / w;
+    });
     var path = function (key) {
-      var d = '', pen = false;
-      tl.forEach(function (p) {
-        if (p[key] == null) { pen = false; return; }
-        d += (pen ? 'L' : 'M') + x(p.i).toFixed(1) + ' ' + y(p[key]).toFixed(1);
-        pen = true;
-      });
-      return d;
+      var pts = tl.map(function (p, k) { var v = key === 'burst' ? smooth[k] : p[key]; return v == null ? null : [x(p.i), y(v)]; })
+        .filter(Boolean);
+      return monotonePath(pts);
     };
     svg += '<path class="burst" d="' + path('burst') + '"/>';
     svg += '<path class="run" d="' + path('running') + '"/>';

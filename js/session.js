@@ -3,8 +3,17 @@
 (function (FT) {
   'use strict';
 
-  function create(targets) {
+  var REACH = 5;
+
+  function create(targets, opts) {
+    var reach = (opts && opts.reach) || REACH;
     var words = [];
+    function errorWithin(from) {
+      for (var i = from; i >= 0 && i > from - reach; i--) {
+        if (words[i].typed !== words[i].target + ' ') return true;
+      }
+      return false;
+    }
     var wordIndex = 0;
     var group = 0;
     var listeners = [];
@@ -36,9 +45,11 @@
       if (!w) return;
       if (ev.kind === 'back') {
         if (w.typed.length === 0) {
-          // Return into the previous word only if it was committed with an error.
+          // Return into the previous word only if it, or one of the few words
+          // before it, still contains an error (so an error can be reached and
+          // fixed, but correct text is not reopened for nothing).
           var prev = words[wordIndex - 1];
-          if (!prev || prev.typed === prev.target + ' ') return false;
+          if (!prev || !errorWithin(wordIndex - 1)) return false;
           wordIndex--;
           prev.committed = false;
           w = prev;

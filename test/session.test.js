@@ -45,7 +45,7 @@ test('extra characters beyond the word are kept', () => {
   assert.equal(s.state().wordIndex, 1);
 });
 
-test('backspace cannot cross into a correctly typed committed word', () => {
+test('backspace cannot cross into correct words when nothing nearby is wrong', () => {
   const FT = load();
   const s = FT.session.create(['a', 'b']);
   typeString(s, 'a <<b');
@@ -107,11 +107,28 @@ test('words can carry generator metadata', () => {
   assert.equal(w[1].meta, null);
 });
 
+test('backspace reaches back through correct words to a nearby error', () => {
+  const FT = load();
+  const s = FT.session.create(['have', 'school', 'life', 'home']);
+  typeString(s, 'have schcol life ' + '<'.repeat(9) + 'ool life ');
+  const st = s.state();
+  assert.equal(st.words[1].typed, 'school ');
+  assert.equal(st.words[2].typed, 'life ');
+  assert.equal(st.wordIndex, 3);
+});
+
+test('backspace does not reopen correct words when no error is near', () => {
+  const FT = load();
+  const s = FT.session.create(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']);
+  typeString(s, 'x b c d e f g ');   // the only error is 7 words back
+  assert.equal(s.input({ kind: 'back', t: 1 }), false);
+});
+
 test('a backspace reports whether it changed anything', () => {
   const FT = load();
   const s = FT.session.create(['cat', 'dog', 'sun']);
-  typeString(s, 'cot dog ');
-  assert.equal(s.input({ kind: 'back', t: 1 }), false); // blocked by the correct "dog"
+  typeString(s, 'cat dog ');
+  assert.equal(s.input({ kind: 'back', t: 1 }), false); // nothing wrong nearby
   const s2 = FT.session.create(['cat', 'dog']);
   typeString(s2, 'cot ');
   assert.equal(s2.input({ kind: 'back', t: 1 }), true); // into the wrong "cot"
