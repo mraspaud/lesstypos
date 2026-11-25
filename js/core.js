@@ -6,7 +6,7 @@
   FT.SCHEMA = 1;
   // Bump when derived statistics change meaning; profiles are then rebuilt
   // from the raw sessions (the source of truth).
-  FT.MODEL_VERSION = 3; // 3: a session is a programme run
+  FT.MODEL_VERSION = 4; // 3: a session is a programme run; 4: progress fields in history
   // Seedable PRNG (mulberry32) so generators are reproducible in tests.
   FT.rng = function (seed) {
     var a = (seed >>> 0) || 1;

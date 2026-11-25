@@ -236,3 +236,8 @@ test('key statistics add up across history', () => {
   const total = plain(FT.progress.sumKeys([{ keys: { a: [2, 1] }, land: { x: 1 } }, { keys: { a: [3, 0], b: [1, 1] } }, {}]));
   assert.deepEqual(total, { keys: { a: [5, 1], b: [1, 1] }, land: { x: 1 } });
 });
+
+test('profiles from before the progress fields are rebuilt (model version 4)', () => {
+  assert.ok(FT.MODEL_VERSION >= 4);
+  assert.equal(FT.trainer.needsRebuild({ modelVersion: 3 }), true);
+});
