@@ -6,6 +6,12 @@
 // Ambiguous alignments are weighted 1/N (MacKenzie & Soukoreff 2002).
 // Keystroke classes C/INF/IF/F as in Soukoreff & MacKenzie (2003).
 // Transposition (Salthouse 1986) and "premature" are post-hoc tags.
+// Presses (design choice, user decision): one key action is one mistake. With
+// declared multi-letter keys (opts.macros), letters of one wrong press, on the
+// typed side (FT.text.pressIds) or the target side (FT.text.targetPresses),
+// count as one first-attempt error shared between their positions; an extra
+// letter that came out of a press which already made a mistake is part of it.
+// Keystroke classes (C/INF/IF/F) stay per character.
 (function (FT) {
   'use strict';
   var MAX_ALIGNMENTS = 32;
@@ -106,9 +112,14 @@
 
   // A flagged keystroke survived into the final text: its alignment says
   // what it was. Returns the next target position.
-  function uncorrected(rec, P, e, i, info) {
-    if (info.p === null) { rec.ins(info.pos, false, e, i, true); return info.pos; }
-    if (eq(P[info.p], e.ch)) rec.correct(info.p, false, e, i); else rec.sub(info.p, false, e, i);
+  function uncorrected(rec, P, e, i, info, pressErr) {
+    if (info.p === null) {
+      rec.ins(info.pos, false, e, i, !pressErr.has(i));
+      pressErr.mark(i);
+      return info.pos;
+    }
+    if (eq(P[info.p], e.ch)) rec.correct(info.p, false, e, i);
+    else { rec.sub(info.p, false, e, i); pressErr.mark(i); }
     return info.p + 1;
   }
 
@@ -126,13 +137,19 @@
     return pos + 1;
   }
 
-  function analyzeOne(P, stream, flags, flaggedIdx, al) {
+  function analyzeOne(P, stream, flags, flaggedIdx, al, presses) {
     var map = mapAlignment(al, flaggedIdx.length), rec = recorder(P);
+    // presses that already produced a wrong keystroke in this alignment
+    var wrong = {};
+    var pressErr = {
+      has: function (i) { return presses.typed[i] != null && wrong[presses.typed[i]]; },
+      mark: function (i) { if (presses.typed[i] != null) wrong[presses.typed[i]] = true; },
+    };
     var v = 0, live = [], tCount = 0; // v: target position being attempted; live: positions after each live letter
     stream.forEach(function (e, i) {
       if (flags[i]) {
         map.omissionsBefore[tCount].forEach(function (p) { rec.omit(p, false, e.t, i); });
-        v = uncorrected(rec, P, e, i, map.tInfo[tCount++]);
+        v = uncorrected(rec, P, e, i, map.tInfo[tCount++], pressErr);
         live.push(v);
       } else if (e.k === 'b') {
         if (live.length) v = live.pop() - 1; // back to the erased letter's position
@@ -145,7 +162,26 @@
     var lastT = stream.length ? stream[stream.length - 1].t : 0;
     map.omissionsBefore[flaggedIdx.length].forEach(function (p) { rec.omit(p, false, lastT, stream.length); });
     tagPatterns(P, rec.events);
+    sharePressErrors(rec.first, presses);
     return { events: rec.events, first: rec.first };
+  }
+
+  // Wrong first attempts that belong to the same target press, or were typed
+  // by the same press, are one mistake: each such group totals one error.
+  // Omissions are not linked through the keystroke that followed them.
+  function sharePressErrors(first, presses) {
+    var parent = first.map(function (_, i) { return i; });
+    var find = function (i) { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+    var byT = {}, byTyped = {};
+    first.forEach(function (f, pos) {
+      if (!f || !f.err) return;
+      var link = function (map, key) { if (key == null) return; if (map[key] == null) map[key] = pos; else parent[find(pos)] = find(map[key]); };
+      link(byT, presses.target[pos]);
+      if (f.type !== 'omit') link(byTyped, presses.typed[f.idx]);
+    });
+    var size = {};
+    first.forEach(function (f, pos) { if (f && f.err) size[find(pos)] = (size[find(pos)] || 0) + 1; });
+    first.forEach(function (f, pos) { if (f && f.err) f.err = 1 / size[find(pos)]; });
   }
 
   function tagPatterns(P, events) {
@@ -167,7 +203,9 @@
     }
   }
 
-  function analyzeWord(P, stream) {
+  function analyzeWord(P, stream, opts) {
+    var macros = (opts && opts.macros) || [];
+    var presses = { typed: FT.text.pressIds(stream, macros), target: FT.text.targetPresses(P, macros) };
     var flags = flagStream(stream);
     var flaggedIdx = [];
     var T = '';
@@ -181,7 +219,7 @@
     var order = [];
     var targets = Parr.map(function (ch, pos) { return { ch: FT.text.canon(ch), pos: pos, err: 0, types: {}, t: null, g: null, idx: null, actual: {} }; });
     for (var a = 0; a < als.length; a++) {
-      var r = analyzeOne(Parr, stream, flags, flaggedIdx, als[a]);
+      var r = analyzeOne(Parr, stream, flags, flaggedIdx, als[a], presses);
       for (var k = 0; k < r.events.length; k++) {
         var e = r.events[k];
         var key = [e.type, e.corrected, e.pos, e.idx].join('|');

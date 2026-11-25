@@ -111,3 +111,48 @@ test('a word abandoned with a space keeps its trailing omissions', () => {
   assert.equal(r.events.filter((e) => e.type === 'omit').length, 3);
   assert.equal(r.counts.INF, 3);
 });
+
+// Functionality: one key action = one mistake. Letters of one wrong press, on
+// the typed side (th key) or the target side (a missed th press), count as one
+// error, shared between the positions they cover.
+// Notation: [..] is one multi-character input event; '<' a backspace.
+function pressStream(typed, gapMs = 100) {
+  const out = [];
+  let g = 0, t = 0;
+  for (const part of typed.match(/\[[^\]]+\]|./g)) {
+    g++; t += gapMs;
+    if (part === '<') { out.push({ k: 'b', t }); continue; }
+    for (const ch of part.replace(/^\[|\]$/g, '')) out.push({ k: 'c', ch, t, g });
+  }
+  return out;
+}
+const AP = (p, typed, macros = ['th']) => FT.align.analyzeWord(p, pressStream(typed), { macros });
+const total = (r) => r.targets.reduce((a, x) => a + x.err, 0);
+
+test('th pressed for y in "you": only y is wrong, one error', () => {
+  const r = AP('you ', '[th]ou ');
+  assert.deepEqual(plain(r.targets.map((x) => x.err)), [1, 0, 0, 0]);
+});
+
+test('a single key for a th press in "the": t and h share one error, e matches', () => {
+  const r = AP('the ', 'xe ');
+  assert.deepEqual(plain(r.targets.map((x) => x.err)), [0.5, 0.5, 0, 0]);
+  assert.equal(total(AP('the ', 'xe ', [])), 2);   // without the multi-letter key: two letters, two errors
+});
+
+test('th pressed for "we" in "wet" is one error, corrected or not', () => {
+  assert.equal(total(AP('wet ', '[th]<<wet ')), 1);
+  assert.equal(total(AP('wet ', '[th]et ')), 1);
+});
+
+test('a declared th key sending two fast keystrokes counts as one press too', () => {
+  const st = [{ k: 'c', ch: 't', t: 100, g: 1 }, { k: 'c', ch: 'h', t: 105, g: 2 }, { k: 'b', t: 300 }, { k: 'b', t: 400 },
+    ...Array.from('wet ').map((ch, i) => ({ k: 'c', ch, t: 500 + i * 100, g: 3 + i }))];
+  assert.equal(total(FT.align.analyzeWord('wet ', st, { macros: ['th'] })), 1);
+  assert.equal(total(FT.align.analyzeWord('wet ', st, { macros: [] })), 2);
+});
+
+test('ordinary errors are unchanged by press grouping', () => {
+  assert.deepEqual(plain(AP('cat ', 'cbt ').targets.map((x) => x.err)), [0, 1, 0, 0]);
+  assert.equal(total(AP('to ', '[th]<<to ')), 1);
+});
