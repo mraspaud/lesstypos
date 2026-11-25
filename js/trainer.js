@@ -96,6 +96,7 @@
         accents: settings.accents !== false,
         run: input.run || null,
         set: input.set || null,
+        planMs: input.planMs || null,
         words: input.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta || null }; }),
         keys: input.keys || [],
       };
@@ -194,7 +195,7 @@
 
     function historyEntry(raw, m, summary) {
       return {
-        id: raw.id, type: raw.type, t: raw.startedAt, ms: raw.durationMs, effort: raw.effort, set: raw.set || undefined,
+        id: raw.id, type: raw.type, t: raw.startedAt, ms: raw.durationMs, effort: raw.effort, set: raw.set || undefined, planMs: raw.planMs || undefined,
         wpm: m.metrics.wpm, faa: m.metrics.firstAttemptAccuracy, randomFaa: m.random.firstAttemptAccuracy,
         hes: summary.hesitationRate, cv: summary.rhythmCv, roll: summary.rollover, frontier: summary.frontier,
         pairMs: FT.timing.commonPairMs(m.tm.records), startMs: FT.timing.wordStartMs(m.tm.records),

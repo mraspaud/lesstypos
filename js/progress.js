@@ -58,9 +58,13 @@
     return out;
   }
 
-  // A benchmark set (usually 3 trials) is scored by the median of its trials.
+  // A benchmark trial counts only if it ran (nearly) its full length.
+  var FULL_TRIAL = 0.9, SET_SIZE = 3, DUE_DAYS = 7;
+  function fullTrial(h) { return h.wpm != null && (!h.planMs || h.ms >= FULL_TRIAL * h.planMs); }
+
+  // A benchmark set (usually 3 trials) is scored by the median of its full trials.
   function benchmarkResult(history, set) {
-    var trials = history.filter(function (h) { return h.type === 'benchmark' && h.set === set && h.wpm != null; });
+    var trials = history.filter(function (h) { return h.type === 'benchmark' && h.set === set && fullTrial(h); });
     if (!trials.length) return null;
     var wpm = trials.map(function (h) { return h.wpm; });
     return { set: set, trials: trials.length, wpm: FT.timing.median(wpm),
@@ -92,11 +96,32 @@
   //   relaxed   relaxed practice of >= 50 words: WPM, accuracy, effort, rhythm, word-start penalty;
   //   benchmark complete sets of 3 trials (median and range);
   //   pairMs    common-pair timing from every exercise except speed bursts.
-  var MIN_WORDS = 50, SET_SIZE = 3;
-  function series(history) {
-    var relaxed = history.filter(function (h) { return h.type === 'relaxed' && h.words >= MIN_WORDS; });
+  var MIN_WORDS = 50;
+
+  // Complete benchmark sets (3 full trials), oldest first.
+  function completeSets(history) {
     var sets = [];
     history.forEach(function (h) { if (h.type === 'benchmark' && h.set && sets.indexOf(h.set) < 0) sets.push(h.set); });
+    return sets.map(function (set) { return benchmarkResult(history, set); })
+      .filter(function (r) { return r && r.trials >= SET_SIZE; });
+  }
+  function previousSet(history, set) {
+    var all = completeSets(history), i = all.map(function (r) { return r.set; }).indexOf(set);
+    var before = i < 0 ? all : all.slice(0, i);
+    return before.length ? before[before.length - 1] : null;
+  }
+  function calendarDays(t0, t1) {
+    var a = new Date(t0), b = new Date(t1);
+    return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 864e5);
+  }
+  // Is a benchmark due? Based on the last complete set, in calendar days.
+  function benchmarkStatus(history, now) {
+    var all = completeSets(history), last = all.length ? all[all.length - 1] : null;
+    var days = last ? calendarDays(last.t, now) : null;
+    return { last: last, days: days, due: !last || days >= DUE_DAYS };
+  }
+  function series(history) {
+    var relaxed = history.filter(function (h) { return h.type === 'relaxed' && h.words >= MIN_WORDS; });
     var effort = function (l) {
       var v = l.map(function (h) { return h.effort; }).filter(function (x) { return x != null; });
       return v.length ? v.reduce(function (a, b) { return a + b; }, 0) / v.length : null;
@@ -105,8 +130,7 @@
       relaxed: byDay(relaxed, function (l) {
         return { n: l.length, wpm: med(l, 'wpm'), faa: med(l, 'faa'), effort: effort(l), cv: med(l, 'cv'), startMs: med(l, 'startMs') };
       }),
-      benchmark: sets.map(function (set) { return benchmarkResult(history, set); })
-        .filter(function (r) { return r.trials >= SET_SIZE; }),
+      benchmark: completeSets(history),
       pairMs: byDay(history.filter(function (h) { return h.type !== 'bursts' && h.pairMs != null; }), function (l) {
         return { ms: med(l, 'pairMs') };
       }),
@@ -156,5 +180,5 @@
     return { keys: keys, land: land };
   }
 
-  FT.progress = { sumKeys: sumKeys, keyStats: keyStats, compare: compare, timeline: timeline, benchmarkResult: benchmarkResult, series: series };
+  FT.progress = { completeSets: completeSets, previousSet: previousSet, benchmarkStatus: benchmarkStatus, sumKeys: sumKeys, keyStats: keyStats, compare: compare, timeline: timeline, benchmarkResult: benchmarkResult, series: series };
 })(globalThis.FT);

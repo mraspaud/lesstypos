@@ -66,12 +66,12 @@
 
   // ---------- benchmark ----------
   // A weekly yardstick: 3 trials on unbiased common words, scored by the median.
-  var BENCH_TRIALS = 3, BENCH_DUE_DAYS = 7;
+  var BENCH_TRIALS = 3;
   function benchmarkDue(h) {
-    var last = h.filter(function (x) { return x.type === 'benchmark'; }).pop();
-    if (!last) return 'not taken yet';
-    var days = Math.floor((Date.now() - last.t) / 864e5);
-    return days >= BENCH_DUE_DAYS ? 'due (last ' + days + ' days ago)' : 'last ' + (days ? days + ' day' + (days > 1 ? 's' : '') + ' ago' : 'today');
+    var s = FT.progress.benchmarkStatus(h, Date.now());
+    if (!s.last) return 'not taken yet';
+    var ago = s.days === 0 ? 'today' : s.days === 1 ? 'yesterday' : s.days + ' days ago';
+    return s.due ? 'due (last ' + ago + ')' : 'last ' + ago;
   }
   function startBenchmark() {
     app.bench = { set: 'set-' + Date.now().toString(36), trial: 1 };
@@ -96,9 +96,16 @@
   }
   function viewBenchResult(set) {
     var h = app.trainer.history(), r = FT.progress.benchmarkResult(h, set);
-    var sets = [];
-    h.forEach(function (x) { if (x.type === 'benchmark' && x.set && x.set !== set && sets.indexOf(x.set) < 0) sets.push(x.set); });
-    var prev = sets.length ? FT.progress.benchmarkResult(h, sets[sets.length - 1]) : null;
+    var prev = FT.progress.previousSet(h, set);
+    if (!r || r.trials < BENCH_TRIALS) {
+      app.bench = null;
+      setView('<section class="stack"><h1>Benchmark incomplete</h1><p>Only ' + (r ? r.trials : 0) + ' of ' + BENCH_TRIALS +
+        ' trials ran their full minute, so this set is not used for your progress or the weekly reminder.</p>' +
+        '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button></div></section>');
+      document.getElementById('home').onclick = function () { go('home'); };
+      app.keys = { Enter: function () { go('home'); } };
+      return;
+    }
     var html = '<section class="stack"><h1>Benchmark result</h1><p class="muted">The median of ' + r.trials + ' trials, so one unusual trial does not move it.</p></section>' +
       '<div class="tiles"><div class="tile"><b>' + fix(r.wpm) + '</b><span>WPM (median of ' + r.trials + ' trials)</span></div>' +
       '<div class="tile"><b>' + pct(r.faa) + '</b><span>first-attempt accuracy</span></div>' +
@@ -227,7 +234,7 @@
   function complete(info, render) {
     var res = app.trainer.finish({ type: info.type, startedAt: info.startedAt, durationMs: info.durationMs,
       words: info.words, keys: info.keys, effort: info.effort, text: info.text, rounds: info.rounds, run: info.opts.run,
-      set: info.opts.bench ? app.bench.set : null });
+      set: info.opts.bench ? app.bench.set : null, planMs: info.opts.bench ? info.opts.minutes * 60000 : null });
     var writes = [app.store.saveSession(res.raw).then(saveProfile)];
     if (res.raw.text) {
       var t = info.opts.text;

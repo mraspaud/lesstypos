@@ -119,3 +119,29 @@ test('without declared multi-letter keys every character is its own press', () =
   assert.deepEqual(ks.keys.e, [1, 1]);
   assert.deepEqual(ks.land, { x: 1 });
 });
+
+// Benchmark sets: only complete sets of 3 full-length trials count, for the
+// series, the "due" state and the comparison with the previous benchmark.
+const trial = (set, d, wpm, ms = 60000) => ({ type: 'benchmark', set, t: D(d, 10), wpm, faa: 0.98, ms, planMs: 60000 });
+
+test('a trial stopped early does not count, so its set is incomplete', () => {
+  const h = [trial('a', 1, 60), trial('a', 1, 62), trial('a', 1, 99, 900)];
+  assert.equal(plain(FT.progress.completeSets(h)).length, 0);
+  assert.equal(FT.progress.benchmarkResult(h, 'a').trials, 2);
+});
+
+test('benchmark status uses complete sets and calendar days', () => {
+  const h = [trial('a', 1, 60), trial('a', 1, 62), trial('a', 1, 64), trial('b', 9, 80)];
+  const s = plain(FT.progress.benchmarkStatus(h, D(9, 20)));
+  assert.equal(s.last.set, 'a');
+  assert.equal(s.days, 8);
+  assert.equal(s.due, true);
+  assert.equal(FT.progress.benchmarkStatus(h, D(2, 1)).days, 1);   // the next calendar day, even < 24 h later
+  assert.equal(FT.progress.benchmarkStatus([], D(2)).due, true);
+  assert.equal(FT.progress.benchmarkStatus([], D(2)).last, null);
+});
+
+test('the previous benchmark is the last complete set before this one', () => {
+  const h = [trial('a', 1, 60), trial('a', 1, 62), trial('a', 1, 64), trial('x', 3, 90), trial('c', 5, 70), trial('c', 5, 70), trial('c', 5, 70)];
+  assert.equal(FT.progress.previousSet(h, 'c').set, 'a');
+});
