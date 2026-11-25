@@ -29,15 +29,40 @@
 
     // o.pinned: contexts chosen by the user; they replace the model's targets
     // and get a larger share of the text.
+    // Word sources per exercise type:
+    //   relaxed   frontier mix with training targets (the default generator);
+    //   targeted  denser in training targets (or the user's pinned sequences);
+    //   warmup    familiar words: frontier 0.5x (look-ahead stays below it);
+    //   bursts    familiar words: frontier 0.6x;
+    //   prose     the next words of the current text, from its saved position.
     function newExercise(o) {
+      var type = o.type, F = difficulty.state().frontier;
+      if (type === 'prose') return proseExercise(o);
       var pinned = o.pinned && o.pinned.length;
-      var gen = FT.generator.create({ corpus: corpus, seed: seed + sessionCount * 31 + 7,
-        shares: pinned ? { random: 0.2, target: 0.5, maintenance: 0 } : undefined });
-      var tg = pinned
-        ? o.pinned.map(function (k) { return { key: k, priority: 1, stage: 'weak' }; })
-        : targets().slice(0, 10);
-      var ctx = { frontier: difficulty.state().frontier, targets: tg };
-      return { type: o.type, words: gen.next(400, ctx), more: function (n) { return gen.next(n, ctx); }, targets: tg };
+      var shares, frontier = F, tg = [];
+      if (type === 'warmup' || type === 'bursts') {
+        frontier = Math.max(type === 'warmup' ? 0.5 * F : 0.6 * F, 60);
+        shares = { random: 0.2, target: 0, maintenance: 0 };
+      } else if (pinned) {
+        tg = o.pinned.map(function (k) { return { key: k, priority: 1, stage: 'weak' }; });
+        shares = { random: 0.2, target: 0.5, maintenance: 0 };
+      } else {
+        tg = targets().slice(0, 10);
+        if (type === 'targeted') shares = { random: 0.2, target: 0.5, maintenance: 0.15 };
+      }
+      var gen = FT.generator.create({ corpus: corpus, seed: seed + sessionCount * 31 + 7, shares: shares });
+      var ctx = { frontier: frontier, targets: tg };
+      return { type: type, words: gen.next(400, ctx), more: function (n) { return gen.next(n, ctx); }, targets: tg,
+        noTargets: type === 'targeted' && !pinned && !tg.length };
+    }
+    function proseExercise(o) {
+      var text = o.text, at = text.pos || 0, batch = o.batch || 400;
+      function take(n) {
+        var out = text.words.slice(at, at + n).map(function (w) { return { word: w, source: 'prose' }; });
+        at += out.length;
+        return out;
+      }
+      return { type: 'prose', words: take(batch), more: take, targets: [], text: { id: text.id, from: text.pos || 0 } };
     }
 
     function finish(input) {
@@ -49,6 +74,8 @@
         words: input.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta || null }; }),
         keys: input.keys || [],
       };
+      if (input.text) raw.text = { id: input.text.id, from: input.text.from, to: input.text.from + input.words.length };
+      if (input.rounds) raw.rounds = input.rounds;
       return { raw: raw, summary: process(raw) };
     }
 
