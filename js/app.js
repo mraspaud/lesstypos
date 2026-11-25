@@ -393,6 +393,16 @@
       '<div class="tile"><b>' + pct(s.rollover, 0) + '</b><span>keys overlapped (rollover)</span></div>' +
       '</div>';
     if (cmp) html += '<p class="notice info">' + esc(cmp.message) + '</p>';
+    if (s.timeline && s.timeline.length > 1) {
+      html += '<section class="stack"><h3>Speed through the exercise</h3>' +
+        '<div class="legend"><span><i class="k1"></i>Running average</span><span><i class="k2"></i>Each word</span>' +
+        '<span><i class="kx">×</i>Word with a first-attempt error</span></div>' +
+        '<div class="chart" id="chart"></div>' +
+        '<details class="tableview"><summary>Show as table</summary><div class="tablewrap"><table><thead><tr><th>#</th><th>Word</th><th>WPM (word)</th><th>WPM (running)</th><th>Error</th></tr></thead><tbody>' +
+        s.timeline.map(function (p) {
+          return '<tr><td class="num">' + p.i + '</td><td>' + esc(p.word) + '</td><td class="num">' + fix(p.burst) + '</td><td class="num">' + fix(p.running) + '</td><td>' + (p.error ? '×' : '') + '</td></tr>';
+        }).join('') + '</tbody></table></div></details></section>';
+    }
     var notes = [];
     if (s.difficulty) {
       var d = s.difficulty;
@@ -410,9 +420,84 @@
     html += '<div class="row"><button class="btn primary" type="button" id="again">Practise again <kbd>Enter</kbd></button>' +
       '<button class="btn" type="button" id="seqs">See sequences <kbd>q</kbd></button></div>';
     setView(html);
+    if (s.timeline && s.timeline.length > 1) drawTimeline(document.getElementById('chart'), s.timeline);
     document.getElementById('again').onclick = function () { startExercise(info.type, info.opts); };
     document.getElementById('seqs').onclick = function () { go('sequences'); };
     app.again = function () { startExercise(info.type, info.opts); };
+  }
+
+  // ---------- timeline chart (one WPM axis; error marks are annotations) ----------
+  function niceStep(range) {
+    var raw = range / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
+  }
+  function drawTimeline(el, tl) {
+    var W = Math.max(300, el.clientWidth || 600), H = 230, L = 36, R = 54, T = 22, B = 26;
+    var bursts = tl.map(function (p) { return p.burst; }).filter(function (x) { return x != null; }).sort(function (a, b) { return a - b; });
+    var p98 = bursts[Math.floor(0.98 * (bursts.length - 1))] || 0;
+    var top = Math.max(p98, Math.max.apply(null, tl.map(function (p) { return p.running || 0; }))) * 1.1 || 10;
+    var step = niceStep(top), yMax = Math.ceil(top / step) * step;
+    var n = tl.length;
+    var x = function (i) { return L + (W - L - R) * (n === 1 ? 0.5 : (i - 1) / (n - 1)); };
+    var y = function (v) { return T + (H - T - B) * (1 - Math.min(v, yMax) / yMax); };
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Words per minute for each word and as a running average across the exercise">';
+    svg += '<g class="axis">';
+    for (var v = 0; v <= yMax + 1e-9; v += step) {
+      svg += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>' +
+        '<text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + Math.round(v) + '</text>';
+    }
+    var xs = niceStep(Math.max(n - 1, 1) * 0.8);
+    xs = Math.max(1, Math.round(xs));
+    for (var i = 1; i <= n; i += (i === 1 && xs > 1 ? xs - 1 : xs)) {
+      svg += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + i + '</text>';
+    }
+    svg += '<text x="' + L + '" y="10" text-anchor="start">WPM</text></g>';
+    var path = function (key) {
+      var d = '', pen = false;
+      tl.forEach(function (p) {
+        if (p[key] == null) { pen = false; return; }
+        d += (pen ? 'L' : 'M') + x(p.i).toFixed(1) + ' ' + y(p[key]).toFixed(1);
+        pen = true;
+      });
+      return d;
+    };
+    svg += '<path class="burst" d="' + path('burst') + '"/>';
+    svg += '<path class="run" d="' + path('running') + '"/>';
+    tl.forEach(function (p) {
+      if (!p.error) return;
+      var cx = x(p.i), cy = T - 11;
+      svg += '<path class="errmark" d="M' + (cx - 3) + ' ' + (cy - 3) + 'L' + (cx + 3) + ' ' + (cy + 3) + 'M' + (cx + 3) + ' ' + (cy - 3) + 'L' + (cx - 3) + ' ' + (cy + 3) + '"/>';
+    });
+    var last = tl[n - 1];
+    if (last.running != null) svg += '<text class="endlabel" x="' + (x(n) + 8) + '" y="' + (y(last.running) + 4) + '">' + Math.round(last.running) + '</text>';
+    svg += '<g id="hover" visibility="hidden"><line class="cross" id="cross" y1="' + T + '" y2="' + (H - B) + '"/>' +
+      '<circle class="dot2" id="d2" r="4"/><circle class="dot1" id="d1" r="4"/></g>' +
+      '<rect id="hit" x="' + L + '" y="0" width="' + (W - L - R) + '" height="' + H + '" fill="transparent"/></svg>';
+    el.innerHTML = svg + '<div class="tip" id="tip" hidden></div>';
+    var root = el.querySelector('svg'), hit = el.querySelector('#hit'), g = el.querySelector('#hover'), tip = el.querySelector('#tip');
+    function at(evt) {
+      var r = root.getBoundingClientRect(), sx = (evt.clientX - r.left) * (W / r.width);
+      var i = Math.round(1 + (sx - L) / (W - L - R) * (n - 1));
+      return tl[Math.min(n, Math.max(1, i)) - 1];
+    }
+    function showPoint(p) {
+      var cx = x(p.i);
+      el.querySelector('#cross').setAttribute('x1', cx); el.querySelector('#cross').setAttribute('x2', cx);
+      var d1 = el.querySelector('#d1'), d2 = el.querySelector('#d2');
+      d1.setAttribute('cx', cx); d1.setAttribute('cy', y(p.running || 0));
+      d2.setAttribute('cx', cx); d2.setAttribute('cy', y(p.burst || 0));
+      g.setAttribute('visibility', 'visible');
+      tip.hidden = false;
+      tip.innerHTML = '<b>' + esc(p.word) + '</b> <span class="muted">word ' + p.i + '</span><br>' +
+        fix(p.burst) + ' WPM this word · ' + fix(p.running) + ' average' + (p.error ? '<br><span style="color:var(--err)">× first-attempt error</span>' : '');
+      var r = root.getBoundingClientRect(), px = cx * r.width / W;
+      var left = px + 14, w = tip.offsetWidth;
+      if (left + w > r.width) left = px - 14 - w;
+      tip.style.left = Math.max(0, left) + 'px';
+      tip.style.top = '24px';
+    }
+    hit.addEventListener('pointermove', function (e) { showPoint(at(e)); });
+    hit.addEventListener('pointerleave', function () { g.setAttribute('visibility', 'hidden'); tip.hidden = true; });
   }
 
   // ---------- sequences ----------

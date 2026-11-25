@@ -60,6 +60,11 @@ await step('typing an exercise with a corrected error, stopping and rating effor
   const tiles = await page.$$eval('.tile b', (b) => b.map((x) => x.textContent));
   assert.ok(+tiles[0] > 0, 'wpm ' + tiles[0]);
   assert.ok(/9\d\.\d%|100\.0%/.test(tiles[1]), 'accuracy ' + tiles[1]);
+  // the speed chart is drawn and responds to hover
+  await page.locator('#chart svg path.run').waitFor();
+  const box = await page.locator('#chart svg').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.locator('#tip:not([hidden])').waitFor();
   if (shots) await page.screenshot({ path: shots + '/summary.png', fullPage: true });
 });
 

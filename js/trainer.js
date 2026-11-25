@@ -88,6 +88,7 @@
         hesitationRate: clean.length ? hes / clean.length : null,
         rhythmCv: cv(within),
         rollover: FT.timing.rollover(raw.keys),
+        timeline: FT.progress.timeline(words),
         baseline: tm.baseline,
         sources: {},
         stageChanges: [],

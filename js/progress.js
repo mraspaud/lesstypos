@@ -30,5 +30,33 @@
     return null;
   }
 
-  FT.progress = { compare: compare };
+  // Per-word timeline: speed of each word (its characters including the
+  // following space, from the previous word's last keystroke to its own last
+  // keystroke; the first word from its first keystroke), running speed (correct
+  // characters so far / 5 per minute since the first keystroke), and whether
+  // the word's first attempt contained an error.
+  function timeline(words) {
+    var out = [], t0 = null, prevEnd = null, correct = 0;
+    for (var i = 0; i < words.length; i++) {
+      var w = words[i];
+      if (!w.stream.length) continue;
+      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream);
+      var first = w.stream[0].t, end = w.stream[w.stream.length - 1].t;
+      if (t0 === null) t0 = first;
+      var start = prevEnd === null ? first : prevEnd;
+      var chars = Array.from(w.target).length + 1;
+      correct += an.counts.C;
+      var dur = end - start, el = end - t0;
+      out.push({
+        i: out.length + 1, word: w.target, t: end - t0,
+        burst: dur > 0 ? chars / 5 / (dur / 60000) : null,
+        running: el > 0 ? correct / 5 / (el / 60000) : null,
+        error: an.targets.some(function (x) { return x.err > 0; }),
+      });
+      prevEnd = end;
+    }
+    return out;
+  }
+
+  FT.progress = { compare: compare, timeline: timeline };
 })(globalThis.FT);
