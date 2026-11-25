@@ -66,3 +66,18 @@ test('log ticks resolve a range that is narrow relative to its decade', () => {
   const tk = FT.chart.logTicks(95, 110);
   assert.ok(tk.length >= 3 && tk[0] >= 80 && tk[tk.length - 1] <= 120, JSON.stringify(tk));
 });
+
+test('heatmap shading merges capitals, needs 10 presses, and never stretches tiny rates', () => {
+  const grid = { cells: [{ key: 'a', label: 'a' }, { key: 'b', label: 'b' }, { key: 'th', label: 'th' }], width: 3, height: 1 };
+  const stats = { keys: { a: [8, 1], A: [4, 1], b: [5, 0], th: [40, 1] }, land: { b: 3, B: 1 } };
+  const v = plain(FT.chart.heatValues(grid, stats, 'err'));
+  assert.deepEqual([v[0].n, v[0].err], [12, 2]);        // a + A
+  assert.equal(v[1].rated, false);                       // 5 presses: too few
+  assert.ok(Math.abs(v[0].shade - 1) < 1e-9);            // highest rate gets full shade
+  assert.ok(Math.abs(v[2].shade - 0.025 / (2 / 12)) < 1e-9);
+  const tiny = plain(FT.chart.heatValues({ cells: [grid.cells[2]] }, { keys: { th: [100, 1] } }, 'err'));
+  assert.ok(Math.abs(tiny[0].shade - 0.01 / 0.05) < 1e-9); // 1% against the 5% floor
+  const land = plain(FT.chart.heatValues(grid, stats, 'land'));
+  assert.equal(land[1].value, 4);
+  assert.equal(land[1].shade, 1);
+});

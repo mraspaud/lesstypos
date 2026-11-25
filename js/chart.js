@@ -198,62 +198,79 @@
   // Two views: first-attempt error rate on the intended key, or where wrong
   // presses landed. One hue (the error colour), light to dark; keys with too
   // few presses stay neutral.
-  var MIN_PRESSES = 10;
-  function keyValue(stats, key, mode) {
-    var up = key.toUpperCase(), k = stats.keys || {}, l = stats.land || {};
-    if (mode === 'land') return { v: (l[key] || 0) + (up !== key ? l[up] || 0 : 0), n: null };
-    var a = k[key] || [0, 0], b = up !== key && k[up] ? k[up] : [0, 0], n = a[0] + b[0];
-    return { v: n >= MIN_PRESSES ? (a[1] + b[1]) / n : null, n: n, err: a[1] + b[1] };
+  var MIN_PRESSES = 10, MIN_SCALE = 0.05;
+  // Per-cell values and shades (pure). Capitals count towards their key.
+  //   err:  first-attempt error rate; keys with < MIN_PRESSES presses are not
+  //         rated; shade = rate / max rate, the max never below 5%;
+  //   land: wrong presses that landed on the key; shade = count / max count.
+  function heatValues(grid, stats, mode) {
+    var k = stats.keys || {}, l = stats.land || {};
+    var both = function (map, key, add) {
+      var up = key.toUpperCase();
+      return add(map[key], up !== key ? map[up] : undefined);
+    };
+    var vals = grid.cells.map(function (c) {
+      var p = both(k, c.key, function (a, b) { a = a || [0, 0]; b = b || [0, 0]; return [a[0] + b[0], a[1] + b[1]]; });
+      var landed = both(l, c.key, function (a, b) { return (a || 0) + (b || 0); });
+      var rated = p[0] >= MIN_PRESSES;
+      return { key: c.key, label: c.label, n: p[0], err: p[1], rate: rated ? p[1] / p[0] : null, landed: landed,
+        rated: mode === 'land' || rated, value: mode === 'land' ? landed : rated ? p[1] / p[0] : null };
+    });
+    var max = vals.reduce(function (a, v) { return v.value != null ? Math.max(a, v.value) : a; }, 0);
+    if (mode === 'err') max = Math.max(max, MIN_SCALE);
+    vals.forEach(function (v) { v.shade = v.value == null || !max ? 0 : v.value / max; });
+    vals.max = max;
+    return vals;
   }
   function heatmap(el, grid, stats, opts) {
-    opts = opts || {};
-    var mode = opts.mode || 'err';
+    var mode = (opts && opts.mode) || 'err';
     function render() {
       var U = 42, G = 4, W = grid.width * U, H = grid.height * U;
-      var vals = grid.cells.map(function (c) { return keyValue(stats, c.key, mode); });
-      var max = vals.reduce(function (a, x) { return x.v != null ? Math.max(a, x.v) : a; }, 0);
-      if (mode === 'err') max = Math.max(max, 0.05);       // never stretch tiny rates to full colour
+      var vals = heatValues(grid, stats, mode), max = vals.max;
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Keyboard heatmap: ' +
         (mode === 'err' ? 'first-attempt error rate per key' : 'where wrong presses landed') + '">';
       grid.cells.forEach(function (c, i) {
-        var v = vals[i], w = c.w * U - G, few = mode === 'err' && v.v == null;
-        var a = few || !max ? 0 : v.v / max;
-        svg += '<g data-i="' + i + '"><rect class="key' + (few ? ' few' : '') + '" x="' + (c.x * U) + '" y="' + (c.y * U) + '" width="' + w + '" height="' + (U - G) + '" rx="6" ' +
-          'style="fill-opacity:' + (few ? 1 : 0.06 + 0.94 * a) + '"/>' +
-          '<text x="' + (c.x * U + w / 2) + '" y="' + (c.y * U + (U - G) / 2 + 5) + '" text-anchor="middle" class="' + (a > 0.55 ? 'on-dark' : '') + '">' + esc(c.label) + '</text></g>';
+        var v = vals[i], w = c.w * U - G;
+        svg += '<g data-i="' + i + '"><rect class="key' + (v.rated ? '' : ' few') + '" x="' + (c.x * U) + '" y="' + (c.y * U) + '" width="' + w + '" height="' + (U - G) + '" rx="6" ' +
+          'style="fill-opacity:' + (v.rated ? 0.06 + 0.94 * v.shade : 1) + '"/>' +
+          '<text x="' + (c.x * U + w / 2) + '" y="' + (c.y * U + (U - G) / 2 + 5) + '" text-anchor="middle" class="' + (v.shade > 0.55 ? 'on-dark' : '') + '">' + esc(c.label) + '</text></g>';
       });
       svg += '</svg>';
       var legend = mode === 'err'
-        ? 'Shade: first-attempt error rate, from 0% (lightest) to ' + (100 * max).toFixed(1) + '% (darkest). Dashed keys: fewer than ' + MIN_PRESSES + ' presses so far.'
+        ? 'Shade: first-attempt error rate, from 0% (lightest) to ' + (100 * max).toFixed(1) + '% (darkest). Dashed keys: fewer than ' + MIN_PRESSES + ' presses so far. Characters not on your layout are not shown.'
         : 'Shade: how many wrong presses landed on each key (darkest: ' + Math.round(max) + ').';
       el.innerHTML = '<div class="tabs" role="group">' +
         '<button type="button" data-mode="err" aria-pressed="' + (mode === 'err') + '">Errors on the intended key</button>' +
         '<button type="button" data-mode="land" aria-pressed="' + (mode === 'land') + '">Where wrong presses land</button></div>' +
-        '<div class="hm-wrap">' + svg + '<div class="tip" hidden></div></div><p class="muted">' + esc(legend) + '</p>' +
-        '<details class="tableview"><summary>Show as table</summary><div class="tablewrap"><table><thead><tr><th>Key</th><th>Presses</th><th>First-attempt errors</th><th>Rate</th><th>Wrong presses landed here</th></tr></thead><tbody>' +
-        grid.cells.map(function (c) {
-          var e = keyValue(stats, c.key, 'err'), l = keyValue(stats, c.key, 'land');
-          return '<tr><td>' + esc(c.label) + '</td><td class="num">' + e.n + '</td><td class="num">' + fix(e.err, 0) + '</td><td class="num">' +
-            (e.v == null ? '–' : (100 * e.v).toFixed(1) + '%') + '</td><td class="num">' + fix(l.v, 0) + '</td></tr>';
-        }).join('') + '</tbody></table></div></details>';
+        '<div class="hm-wrap">' + svg + '<div class="tip" hidden></div></div><p class="muted">' + esc(legend) + '</p>' + heatTable(vals);
       el.querySelectorAll('[data-mode]').forEach(function (b) { b.onclick = function () { mode = b.dataset.mode; render(); }; });
-      var tip = el.querySelector('.tip'), wrap = el.querySelector('.hm-wrap');
-      el.querySelectorAll('svg g[data-i]').forEach(function (g) {
-        g.addEventListener('pointerenter', function () {
-          var c = grid.cells[+g.dataset.i], e = keyValue(stats, c.key, 'err'), l = keyValue(stats, c.key, 'land');
-          tip.hidden = false;
-          tip.innerHTML = '<b>' + esc(c.label) + '</b><br>' + (e.n ? (e.v == null ? e.n + ' presses (too few to rate)' : (100 * e.v).toFixed(1) + '% wrong first attempts (' + fix(e.err, 0) + ' of ' + e.n + ')') : 'not typed yet') +
-            '<br>' + fix(l.v, 0) + ' wrong presses landed here';
-          var r = g.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
-          tip.style.left = Math.max(0, Math.min(wr.width - tip.offsetWidth, r.left - wr.left)) + 'px';
-          tip.style.top = (r.bottom - wr.top + 6) + 'px';
-        });
-        g.addEventListener('pointerleave', function () { tip.hidden = true; });
-      });
+      bindHeatTips(el, vals);
     }
     render();
   }
+  function heatTable(vals) {
+    return '<details class="tableview"><summary>Show as table</summary><div class="tablewrap"><table><thead><tr><th>Key</th><th>Presses</th><th>First-attempt errors</th><th>Rate</th><th>Wrong presses landed here</th></tr></thead><tbody>' +
+      vals.map(function (v) {
+        return '<tr><td>' + esc(v.label) + '</td><td class="num">' + v.n + '</td><td class="num">' + fix(v.err, 0) + '</td><td class="num">' +
+          (v.rate == null ? '–' : (100 * v.rate).toFixed(1) + '%') + '</td><td class="num">' + fix(v.landed, 0) + '</td></tr>';
+      }).join('') + '</tbody></table></div></details>';
+  }
+  function bindHeatTips(el, vals) {
+    var tip = el.querySelector('.tip'), wrap = el.querySelector('.hm-wrap');
+    el.querySelectorAll('svg g[data-i]').forEach(function (g) {
+      g.addEventListener('pointerenter', function () {
+        var v = vals[+g.dataset.i];
+        tip.hidden = false;
+        tip.innerHTML = '<b>' + esc(v.label) + '</b><br>' + (v.n ? (v.rate == null ? v.n + ' presses (too few to rate)' : (100 * v.rate).toFixed(1) + '% wrong first attempts (' + fix(v.err, 0) + ' of ' + v.n + ')') : 'not typed yet') +
+          '<br>' + fix(v.landed, 0) + ' wrong presses landed here';
+        var r = g.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+        tip.style.left = Math.max(0, Math.min(wr.width - tip.offsetWidth, r.left - wr.left)) + 'px';
+        tip.style.top = (r.bottom - wr.top + 6) + 'px';
+      });
+      g.addEventListener('pointerleave', function () { tip.hidden = true; });
+    });
+  }
 
-  FT.chart = { dayLabel: dayLabel, heatmap: heatmap, progress: progress, niceStep: niceStep, monotonePath: monotonePath, timeline: timeline,
+  FT.chart = { heatValues: heatValues, dayLabel: dayLabel, heatmap: heatmap, progress: progress, niceStep: niceStep, monotonePath: monotonePath, timeline: timeline,
     scale: scale, ticks: ticks, logTicks: logTicks, dayTicks: dayTicks };
 })(globalThis.FT);

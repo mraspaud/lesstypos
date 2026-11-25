@@ -184,7 +184,7 @@ test('replaying a mixed programme rebuilds exactly the same profile', () => {
   const raws = [];
   let t0 = Date.UTC(2026, 0, 1);
   for (const run of ['r1', 'r2']) {
-    for (const type of ['warmup', 'relaxed', 'bursts', 'prose', 'targeted']) {
+    for (const type of ['warmup', 'relaxed', 'bursts', 'prose', 'targeted', 'benchmark']) {
       const ex = tr.newExercise({ type, run, text });
       const s = FT.session.create(ex.words.slice(0, 60));
       let t = t0;
@@ -198,6 +198,7 @@ test('replaying a mixed programme rebuilds exactly the same profile', () => {
       const input = { type, run, startedAt: t0, durationMs: t - t0, words, effort: 2 };
       if (type === 'bursts') input.rounds = [{ start: t0, end: t0 + (t - t0) / 2 }, { start: t0 + (t - t0) / 2, end: t }];
       if (type === 'prose') { input.text = { id: 'book', from: text.pos }; }
+      if (type === 'benchmark') { input.set = 'set-' + run; input.planMs = t - t0; }
       const { raw } = tr.finish(input);
       if (type === 'prose') text.pos = raw.text.to;
       raws.push(JSON.parse(JSON.stringify(raw)));
