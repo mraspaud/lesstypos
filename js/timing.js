@@ -135,33 +135,45 @@
   // the input carries no hold information). keys: [{k, c, t}]; words carry
   // streams; macros as for FT.text.pressIds.
   var MATCH_MS = 5, INSTANT_MS = 3, LATE_MIN_N = 10, LATE_SHARE = 0.8, HOLD_INFO_MS = 20;
-  function lateKeys(keys, words, macros) {
+  // Each character typed, in time order, and whether it was a press of its own
+  // (not part of a multi-letter key's press).
+  function typedChars(words, macros) {
     var chars = [];
     (words || []).forEach(function (w) {
       var ids = FT.text.pressIds(w.stream, macros), size = {};
       ids.forEach(function (p) { if (p != null) size[p] = (size[p] || 0) + 1; });
       w.stream.forEach(function (e, i) { if (e.k === 'c') chars.push({ ch: e.ch, t: e.t, single: size[ids[i]] === 1 }); });
     });
-    chars.sort(function (a, b) { return a.t - b.t; });
+    return chars.sort(function (a, b) { return a.t - b.t; });
+  }
+
+  // Every completed key press (keydown to keyup, modifiers left out), with the
+  // character it produced: the earliest unclaimed one within MATCH_MS.
+  function keyHolds(keys, chars) {
     var ev = (keys || []).filter(function (e) { return !MODS.test(e.c); })
       .sort(function (a, b) { return a.t - b.t || (a.k === 'u' ? -1 : 1); });
-    var j = 0, down = {}, holds = {}, all = [], codeOf = {};
+    var j = 0, down = {}, out = [];
     ev.forEach(function (e) {
       if (e.k === 'd') {
         while (j < chars.length && chars[j].t < e.t - MATCH_MS) j++;
-        var m = j < chars.length && chars[j].t <= e.t + MATCH_MS ? chars[j++] : null;
-        down[e.c] = { t: e.t, m: m };
+        down[e.c] = { t: e.t, m: j < chars.length && chars[j].t <= e.t + MATCH_MS ? chars[j++] : null };
       } else if (down[e.c]) {
-        var d = down[e.c], hold = e.t - d.t;
+        out.push({ code: e.c, hold: e.t - down[e.c].t, ch: down[e.c].m });
         delete down[e.c];
-        all.push(hold);
-        if (!d.m || !d.m.single) return;
-        var h = holds[d.m.ch] || (holds[d.m.ch] = { n: 0, instant: 0 });
-        h.n++; if (hold < INSTANT_MS) h.instant++;
-        codeOf[d.m.ch] = e.c;
       }
     });
-    var info = all.length && median(all) >= HOLD_INFO_MS;
+    return out;
+  }
+
+  function lateKeys(keys, words, macros) {
+    var presses = keyHolds(keys, typedChars(words, macros)), holds = {}, codeOf = {};
+    presses.forEach(function (p) {
+      if (!p.ch || !p.ch.single) return;
+      var h = holds[p.ch.ch] || (holds[p.ch.ch] = { n: 0, instant: 0 });
+      h.n++; if (p.hold < INSTANT_MS) h.instant++;
+      codeOf[p.ch.ch] = p.code;
+    });
+    var info = presses.length && median(presses.map(function (p) { return p.hold; })) >= HOLD_INFO_MS;
     // judged: keys with enough presses (and hold information) for a verdict
     var judged = !info ? [] : Object.keys(holds).filter(function (ch) { return holds[ch].n >= LATE_MIN_N; });
     var late = judged.filter(function (ch) { return holds[ch].instant / holds[ch].n >= LATE_SHARE; });
