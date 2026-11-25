@@ -172,7 +172,7 @@
         rhythmCv: FT.timing.rhythmCv(m.tm.records),
         rollover: FT.timing.rollover(raw.keys),
         timeline: FT.progress.timeline(m.words),
-        keyStats: FT.progress.keyStats(m.analyses, raw.macros),
+        keyStats: FT.progress.keyStats(m.words, raw.macros),
         baseline: m.tm.baseline,
         sources: sources, stageChanges: [], difficulty: null,
       };
@@ -199,7 +199,7 @@
         wpm: m.metrics.wpm, faa: m.metrics.firstAttemptAccuracy, randomFaa: m.random.firstAttemptAccuracy,
         hes: summary.hesitationRate, cv: summary.rhythmCv, roll: summary.rollover, frontier: summary.frontier,
         pairMs: FT.timing.commonPairMs(m.tm.records), startMs: FT.timing.wordStartMs(m.tm.records),
-        keys: summary.keyStats.keys, land: summary.keyStats.land,
+        keys: summary.keyStats.keys, land: Object.keys(summary.keyStats.land).length ? summary.keyStats.land : undefined,
         words: m.metrics.words,
       };
     }

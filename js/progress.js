@@ -139,18 +139,23 @@
 
   // Per-key error statistics for the keyboard heatmap (layout-free: keyed by
   // the characters a key types). The target text is split into presses, a
-  // declared multi-letter key (e.g. "th") being one press. keys[press] =
-  // [presses, first-attempt errors]; land[char] = wrong presses typing char.
-  function keyStats(analyses, macros) {
-    var ms = (macros || []).slice().sort(function (a, b) { return b.length - a.length; });
+  // declared multi-letter key (e.g. "th", matched regardless of capitals) being
+  // one press, stored under its lowercase name. keys[press] = [presses,
+  // first-attempt errors]; land[press] = wrong presses that typed it, a
+  // multi-character input event landing on its multi-letter key.
+  // words: committed words with their stream (and analysis).
+  function keyStats(words, macros) {
+    var ms = (macros || []).map(function (m) { return m.toLowerCase(); })
+      .sort(function (a, b) { return b.length - a.length; });
     var keys = {}, land = {};
-    analyses.forEach(function (an) {
+    words.forEach(function (w) {
+      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream);
       var P = an.targets.map(function (x) { return x.ch; });
       for (var i = 0; i < P.length;) {
         var tok = P[i], len = 1;
         for (var m = 0; m < ms.length; m++) {
-          var mm = Array.from(ms[m]);
-          if (P.slice(i, i + mm.length).join('') === ms[m]) { tok = ms[m]; len = mm.length; break; }
+          var n = Array.from(ms[m]).length;
+          if (P.slice(i, i + n).join('').toLowerCase() === ms[m]) { tok = ms[m]; len = n; break; }
         }
         var err = 0;
         for (var j = i; j < i + len; j++) err = Math.max(err, an.targets[j].err);
@@ -158,8 +163,15 @@
         k[0] += 1; k[1] += err;
         i += len;
       }
+      var groups = {};
       an.events.forEach(function (e) {
         if (e.type !== 'sub' && e.type !== 'transpose') return;
+        var entry = w.stream[e.idx], g = entry && entry.g;
+        var whole = g != null ? w.stream.filter(function (x) { return x.g === g && x.k === 'c'; }).map(function (x) { return x.ch; }).join('').toLowerCase() : '';
+        if (whole.length > 1 && ms.indexOf(whole) >= 0) {
+          if (!groups[g]) { groups[g] = true; land[whole] = (land[whole] || 0) + e.w; }
+          return;
+        }
         var a = FT.text.canon(e.actual);
         land[a] = (land[a] || 0) + e.w;
       });

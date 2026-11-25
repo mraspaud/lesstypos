@@ -99,9 +99,18 @@ test('common-pair timing leaves out speed bursts', () => {
 
 // Functionality: per-key error statistics for the heatmap. A multi-letter key
 // (th) is one press; where wrong presses land is counted too.
+// Words as typed: [target, typed], where [..] in typed is one multi-character input event.
 function analysed(pairs) {
-  return pairs.map(([p, typed]) => FT.align.analyzeWord(p + ' ',
-    Array.from(typed + ' ').map((ch, i) => (ch === '<' ? { k: 'b', t: i * 100 } : { k: 'c', ch, t: i * 100, g: i }))));
+  return pairs.map(([p, typed]) => {
+    const stream = [];
+    let g = 0, t = 0;
+    for (const part of (typed + ' ').match(/\[[^\]]+\]|./g)) {
+      g++; t += 100;
+      if (part === '<') { stream.push({ k: 'b', t }); continue; }
+      for (const ch of part.replace(/^\[|\]$/g, '')) stream.push({ k: 'c', ch, t, g });
+    }
+    return { target: p, stream, analysis: FT.align.analyzeWord(p + ' ', stream) };
+  });
 }
 
 test('key statistics count presses, with multi-letter keys as one press', () => {
@@ -144,4 +153,14 @@ test('benchmark status uses complete sets and calendar days', () => {
 test('the previous benchmark is the last complete set before this one', () => {
   const h = [trial('a', 1, 60), trial('a', 1, 62), trial('a', 1, 64), trial('x', 3, 90), trial('c', 5, 70), trial('c', 5, 70), trial('c', 5, 70)];
   assert.equal(FT.progress.previousSet(h, 'c').set, 'a');
+});
+
+test('a wrong press of a multi-letter key lands on that key', () => {
+  const ks = plain(FT.progress.keyStats(analysed([['to', '[th]<<to']]), ['th']));
+  assert.deepEqual(ks.land, { th: 1 });
+});
+
+test('multi-letter keys match regardless of capitals', () => {
+  const ks = plain(FT.progress.keyStats(analysed([['The', 'The']]), ['th']));
+  assert.deepEqual(ks.keys.th, [1, 0]);
 });
