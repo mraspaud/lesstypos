@@ -321,6 +321,40 @@ await step('the last words of a text can be finished, and the place moves to the
   await page.waitForFunction((i) => window.FT.app.store.getText(i).then((t) => t.pos === 12), id, { timeout: 3000 });
 });
 
+await step('keys typed just after an exercise times out do not jump to other pages', async () => {
+  await page.locator('[data-go="home"]').click();
+  await page.evaluate(() => { window.FT.app.benchMinutes = 0.05; });
+  await page.getByRole('button', { name: /Benchmark/ }).click();
+  await page.locator('.w').first().waitFor();
+  const t0 = Date.now();
+  while (await page.locator('#window').isVisible() && Date.now() - t0 < 15000) await page.keyboard.type('the ', { delay: 10 });
+  await page.keyboard.type('qehsd', { delay: 20 });   // all of these are page shortcuts
+  await page.getByText(/Trial 1 of 3 done/).waitFor({ timeout: 3000 });
+  await page.locator('[data-go="home"]').click();
+});
+
+await step('a benchmark set runs three trials and shows the median', async () => {
+  await page.locator('[data-go="home"]').click();
+  await page.evaluate(() => { window.FT.app.benchMinutes = 0.08; });
+  await page.getByRole('button', { name: /Benchmark/ }).click();
+  for (let trial = 1; trial <= 3; trial++) {
+    await page.locator('.w').first().waitFor();
+    const t0 = Date.now();
+    while (!(await page.getByText(trial < 3 ? /Trial \d of 3 done/ : 'Benchmark result').isVisible()) && Date.now() - t0 < 30000) {
+      const w = await page.evaluate(() => { const el = [...document.querySelectorAll('.w')].find((e) => !e.querySelector('.ok,.bad,.extra')); return el && el.textContent; });
+      if (w) await page.keyboard.type(w + ' ', { delay: 8 }); else await page.waitForTimeout(100);
+    }
+    if (trial < 3) await page.keyboard.press('Enter');
+  }
+  await page.getByText('Benchmark result').waitFor();
+  await page.getByText('WPM (median of 3 trials)').waitFor();
+  if (shots) await page.screenshot({ path: shots + '/benchmark.png', fullPage: true });
+  const n = await page.evaluate(() => { const b = window.FT.app.trainer.history().filter((h) => h.type === 'benchmark'); const last = b[b.length - 1].set; return b.filter((h) => h.set === last).length; });
+  assert.equal(n, 3);
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: /Benchmark/ }).waitFor();
+});
+
 await step('phone width has no horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   for (const k of ['p', 't', 'q', 'h', 's', 'd']) {

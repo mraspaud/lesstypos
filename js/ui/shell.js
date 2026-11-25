@@ -76,7 +76,7 @@
   // without one, and screen-specific key handlers are dropped.
   function leaveScreen() {
     var pending = app.leaveEffort;
-    app.leaveEffort = null; app.progKeys = null; app.again = null;
+    app.leaveEffort = null;
     if (pending) pending();
   }
   function renderNav() {
@@ -91,31 +91,28 @@
     el.hidden = !app.notice;
     el.textContent = app.notice || '';
   }
+  // Renders a screen. Its keys (app.keys: { Enter: fn, n: fn, ... }) are set by
+  // the screen after rendering; rendering any screen clears the previous ones,
+  // so no key handler can outlive its screen.
   function setView(html) {
+    app.keys = {};
     app.$view.innerHTML = '<div id="notice" class="notice" hidden></div>' + html;
     renderNotice();
   }
 
   // ---------- global keys ----------
+  // Letters typed past the end of an exercise must not act as shortcuts.
+  function typedJustNow() { return Date.now() - (app.typingEndedAt || 0) < 1500; }
   function onGlobalKey(e) {
     if (app.current === 'typing' || app.current === 'effort') return;
     var tag = (e.target && e.target.tagName) || '';
     if (/INPUT|TEXTAREA|SELECT/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
-    if (app.current === 'summary' && app.progKeys) {
-      var k = { Enter: 'next', n: 'skip', r: 'repeat', Escape: 'end' }[e.key];
-      if (k && !(k === 'next' && /BUTTON|A/.test(tag))) {
-        if (k === 'skip' && !document.getElementById('pskip')) return;
-        e.preventDefault(); var f = app.progKeys[k]; app.progKeys = null; f(); return;
-      }
+    var f = app.keys && app.keys[e.key];
+    if (f && !(e.key === 'Enter' && /BUTTON|A/.test(tag))) {   // a focused button handles its own Enter
+      if (e.key.length === 1 && typedJustNow()) return;
+      e.preventDefault(); app.keys = {}; f(); return;
     }
-    if (e.key === 'Enter' && (app.current === 'home' || app.current === 'summary') && !/BUTTON|A/.test(tag)) {
-      e.preventDefault();
-      if (app.current === 'summary' && app.again) app.again();
-      else if (app.current === 'summary' && document.getElementById('home')) go('home');
-      else if (app.current === 'home' && app.homeEnter) app.homeEnter();
-      else startExercise('relaxed');
-      return;
-    }
+    if (typedJustNow()) return;
     var n = NAV.filter(function (x) { return x[2] === e.key; })[0];
     if (n) { e.preventDefault(); go(n[0]); }
   }

@@ -12,6 +12,7 @@
   function setView() { return U.setView.apply(null, arguments); }
   function show() { return U.show.apply(null, arguments); }
   function viewBetween() { return U.viewBetween.apply(null, arguments); }
+  function complete() { return U.complete.apply(null, arguments); }
   function viewEffort() { return U.viewEffort.apply(null, arguments); }
 
   // ---------- typing ----------
@@ -273,6 +274,7 @@
       durationMs: words.length ? words[words.length - 1].tEnd - ty.first : 0,
       text: ty.ex.text || null, rounds: ty.burst ? ty.burst.rounds : null };
     var textDone = ty.exhausted && ty.session.state().wordIndex >= ty.session.state().words.length;
+    app.typingEndedAt = Date.now(); // keys still in flight must not trigger page shortcuts
     stopTyping();
     document.body.classList.remove('typing-mode');
     if ((words.length < 10 && !textDone) || (info.rounds && !info.rounds.length)) {
@@ -282,7 +284,7 @@
       app.notice = null;
       return;
     }
-    viewEffort(info);
+    if (info.opts.bench) complete(info); else viewEffort(info);
   }
 
   Object.assign(U, { stopTyping: stopTyping, startExercise: startExercise, focusCapture: focusCapture, hint: hint, clock: clock, renderWords: renderWords, paintWord: paintWord, placeCaret: placeCaret, trimAbove: trimAbove, beginIfNeeded: beginIfNeeded, tick: tick, burstTick: burstTick, paintPace: paintPace, correctSoFar: correctSoFar, onText: onText, onBack: onBack, blocked: blocked, onBackWord: onBackWord, onEscape: onEscape, finishExercise: finishExercise });

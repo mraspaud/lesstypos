@@ -12,6 +12,7 @@
     relaxed: { name: 'Relaxed practice', goal: 'Type calmly and look ahead. Accuracy and an even rhythm matter more than speed.' },
     bursts: { name: 'Speed bursts', goal: 'Short sprints just above your comfortable pace, with a rest between rounds. Start each round when you are ready.' },
     prose: { name: 'Prose', goal: 'Read and type naturally. Capitals and punctuation count; plain quotes and dashes are accepted.' },
+    benchmark: { name: 'Benchmark', goal: 'Type at a comfortable, steady pace. The same kind of text every time keeps results comparable from week to week.' },
     targeted: { name: 'Targeted practice', goal: 'The sequences you are training appear in many different words. Keep the rhythm relaxed.' },
   };
   var BURST_RUN = 15000, BURST_REST = 10000;

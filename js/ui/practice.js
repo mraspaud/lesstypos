@@ -35,7 +35,8 @@
         '<button class="btn" type="button" id="prog">Start over</button>'
         : '<button class="btn primary" type="button" id="prog">Start daily training · ' + FT.programme.totalMinutes(def) + ' min</button>') +
       '<span class="muted">or press <kbd>Enter</kbd></span></div>' +
-      '<div class="row"><button class="btn" type="button" id="start">Relaxed practice only · ' + app.settings.durationMin + ' min</button></div>' +
+      '<div class="row"><button class="btn" type="button" id="start">Relaxed practice only · ' + app.settings.durationMin + ' min</button>' +
+      '<button class="btn" type="button" id="bench">Benchmark · 3 × 1 min</button><span class="muted">' + benchmarkDue(h) + '</span></div>' +
       '</section>' +
       '<section class="stack"><h3>Where you are</h3><div class="status">' +
       '<div><b class="num">' + Math.round(d.frontier) + '</b><span>most common words in use' + (d.manual ? ' (manual)' : '') + '</span></div>' +
@@ -56,10 +57,59 @@
     }
     setView(html);
     document.getElementById('start').onclick = function () { startExercise('relaxed'); };
+    document.getElementById('bench').onclick = startBenchmark;
     document.getElementById('prog').onclick = function () { startProgramme(null); };
     var r = document.getElementById('resume');
     if (r) r.onclick = function () { startProgramme(run); };
-    app.homeEnter = function () { startProgramme(run); };
+    app.keys = { Enter: function () { startProgramme(run); } };
+  }
+
+  // ---------- benchmark ----------
+  // A weekly yardstick: 3 trials on unbiased common words, scored by the median.
+  var BENCH_TRIALS = 3, BENCH_DUE_DAYS = 7;
+  function benchmarkDue(h) {
+    var last = h.filter(function (x) { return x.type === 'benchmark'; }).pop();
+    if (!last) return 'not taken yet';
+    var days = Math.floor((Date.now() - last.t) / 864e5);
+    return days >= BENCH_DUE_DAYS ? 'due (last ' + days + ' days ago)' : 'last ' + (days ? days + ' day' + (days > 1 ? 's' : '') + ' ago' : 'today');
+  }
+  function startBenchmark() {
+    app.bench = { set: 'set-' + Date.now().toString(36), trial: 1 };
+    benchTrial();
+  }
+  function benchTrial() { startExercise('benchmark', { minutes: app.benchMinutes || 1, bench: true }); }
+  function viewBenchStep(s) {
+    app.current = 'summary';
+    renderNav();
+    var b = app.bench;
+    if (b.trial < BENCH_TRIALS) {
+      setView('<section class="stack"><h1>Trial ' + b.trial + ' of ' + BENCH_TRIALS + ' done</h1>' +
+        '<p>' + fix(s.metrics.wpm) + ' WPM at ' + pct(s.metrics.firstAttemptAccuracy) + ' first-attempt accuracy.</p>' +
+        '<p class="muted">Rest your hands for a moment. Keep the same comfortable pace in the next trial.</p>' +
+        '<div class="row"><button class="btn primary" type="button" id="nexttrial">Next trial <kbd>Enter</kbd></button></div></section>');
+      b.trial++;
+      app.keys = { Enter: benchTrial };
+      document.getElementById('nexttrial').onclick = benchTrial;
+      return;
+    }
+    viewBenchResult(b.set);
+  }
+  function viewBenchResult(set) {
+    var h = app.trainer.history(), r = FT.progress.benchmarkResult(h, set);
+    var sets = [];
+    h.forEach(function (x) { if (x.type === 'benchmark' && x.set && x.set !== set && sets.indexOf(x.set) < 0) sets.push(x.set); });
+    var prev = sets.length ? FT.progress.benchmarkResult(h, sets[sets.length - 1]) : null;
+    var html = '<section class="stack"><h1>Benchmark result</h1><p class="muted">The median of ' + r.trials + ' trials, so one unusual trial does not move it.</p></section>' +
+      '<div class="tiles"><div class="tile"><b>' + fix(r.wpm) + '</b><span>WPM (median of ' + r.trials + ' trials)</span></div>' +
+      '<div class="tile"><b>' + pct(r.faa) + '</b><span>first-attempt accuracy</span></div>' +
+      '<div class="tile"><b>' + fix(r.min) + '–' + fix(r.max) + '</b><span>range across trials</span></div></div>';
+    if (prev) html += '<p class="notice info">' + (r.wpm - prev.wpm >= 0 ? '+' : '') + fix(r.wpm - prev.wpm, 1) + ' WPM compared with your previous benchmark (' + fix(prev.wpm) + ' WPM on ' + esc(new Date(prev.t).toLocaleDateString()) + ').</p>';
+    html += '<p class="muted">Benchmarks never change your vocabulary level, sequence statistics or training. See them over time on the History page.</p>' +
+      '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button></div>';
+    app.bench = null;
+    setView(html);
+    document.getElementById('home').onclick = function () { go('home'); };
+    app.keys = { Enter: function () { go('home'); } };
   }
 
   // ---------- programme ----------
@@ -105,7 +155,8 @@
     var sk = document.getElementById('pskip'); if (sk) sk.onclick = act.skip;
     document.getElementById('prep').onclick = act.repeat;
     document.getElementById('pend').onclick = act.end;
-    app.progKeys = act;
+    app.keys = { Enter: act.next, r: act.repeat, Escape: act.end };
+    if (sk) app.keys.n = act.skip;
   }
   function viewBetween() {
     app.current = 'summary';
@@ -137,11 +188,10 @@
       '<p class="muted">Speeds from different exercises are not comparable: warm-up and bursts use easier words, prose has capitals and punctuation.</p>' +
       '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button><a href="#history">See history</a></div>';
     app.run = null;
-    app.progKeys = null; app.again = null;
     saveRun();
     setView(html);
     document.getElementById('home').onclick = function () { go('home'); };
-    app.homeEnter = null;
+    app.keys = { Enter: function () { go('home'); } };
   }
 
   // ---------- effort ----------
@@ -176,7 +226,8 @@
 
   function complete(info, render) {
     var res = app.trainer.finish({ type: info.type, startedAt: info.startedAt, durationMs: info.durationMs,
-      words: info.words, keys: info.keys, effort: info.effort, text: info.text, rounds: info.rounds, run: info.opts.run });
+      words: info.words, keys: info.keys, effort: info.effort, text: info.text, rounds: info.rounds, run: info.opts.run,
+      set: info.opts.bench ? app.bench.set : null });
     var writes = [app.store.saveSession(res.raw).then(saveProfile)];
     if (res.raw.text) {
       var t = info.opts.text;
@@ -191,6 +242,7 @@
         note: res.summary.rounds ? 'target ' + Math.round(app.trainer.bursts.target()) + ' WPM' : res.summary.textProgress ? proseProgress(res.summary.textProgress, res.summary.textProgress.pos) : '' });
       saveRun();
     }
+    if (info.opts.bench) { viewBenchStep(res.summary); return; }
     if (render !== false) viewSummary(res.summary, info);
   }
 
@@ -253,15 +305,13 @@
     if (inProg) {
       bindProgrammeBar();
       if (s.timeline && s.timeline.length > 1) FT.chart.timeline(document.getElementById('chart'), s.timeline);
-      app.again = null;
       return;
     }
-    app.progKeys = null;
     if (s.timeline && s.timeline.length > 1) FT.chart.timeline(document.getElementById('chart'), s.timeline);
     document.getElementById('again').onclick = function () { startExercise(info.type, info.opts); };
     document.getElementById('seqs').onclick = function () { go('sequences'); };
-    app.again = function () { startExercise(info.type, info.opts); };
+    app.keys = { Enter: function () { startExercise(info.type, info.opts); }, q: function () { go('sequences'); } };
   }
 
-  Object.assign(U, { viewHome: viewHome, saveRun: saveRun, startProgramme: startProgramme, runStep: runStep, nextLine: nextLine, programmeBar: programmeBar, bindProgrammeBar: bindProgrammeBar, viewBetween: viewBetween, viewNeedText: viewNeedText, viewProgrammeSummary: viewProgrammeSummary, viewEffort: viewEffort, complete: complete, viewSummary: viewSummary });
+  Object.assign(U, { startBenchmark: startBenchmark, viewBenchResult: viewBenchResult, viewHome: viewHome, saveRun: saveRun, startProgramme: startProgramme, runStep: runStep, nextLine: nextLine, programmeBar: programmeBar, bindProgrammeBar: bindProgrammeBar, viewBetween: viewBetween, viewNeedText: viewNeedText, viewProgrammeSummary: viewProgrammeSummary, viewEffort: viewEffort, complete: complete, viewSummary: viewSummary });
 })(globalThis.FT);
