@@ -59,6 +59,8 @@ await step('typing an exercise with a corrected error, stopping and rating effor
   await page.getByRole('button', { name: /Finish and save/ }).waitFor();
   await page.keyboard.press('Enter');
   await page.getByText('How much effort did that take?').waitFor();
+  await page.getByText('No effort', { exact: true }).waitFor();          // labelled end points of the scale
+  await page.getByText('Maximum effort', { exact: true }).waitFor();
   await page.keyboard.press('2');
   await page.getByText(/finished/).waitFor();
   const tiles = await page.$$eval('.tile b', (b) => b.map((x) => x.textContent));

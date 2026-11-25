@@ -17,11 +17,11 @@
   };
   var BURST_RUN = 15000, BURST_REST = 10000;
   var EFFORT = [
-    [1, 'Effortless', 'Typing ran on its own'],
+    [1, 'No effort', 'Typing ran on its own'],
     [2, 'Comfortable', 'Little attention needed'],
     [3, 'Moderate', 'Some concentration'],
     [4, 'Demanding', 'Constant concentration'],
-    [5, 'Maximum', 'Pushing hard'],
+    [5, 'Maximum effort', 'Pushing as hard as I could'],
   ];
 
   var app = { store: null, settings: null, trainer: null, storageOk: true, notice: null, layout: null };

@@ -2,7 +2,7 @@
 (function (FT) {
   'use strict';
   if (typeof document === 'undefined') return;
-  var U = FT.ui, app = U.app, EXERCISES = U.EXERCISES;
+  var U = FT.ui, app = U.app, EXERCISES = U.EXERCISES, EFFORT = U.EFFORT;
   var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, fix = FT.fmt.fix, pill = FT.fmt.pill;
   // defined in other ui files
   function setView() { return U.setView.apply(null, arguments); }
@@ -167,14 +167,13 @@
   // ---------- history ----------
   // Progress over time: one small chart per measure, each on its own axis,
   // comparing only comparable sessions (FT.progress.series).
-  var EFFORT_NAMES = ['', 'no effort', 'comfortable', 'moderate', 'demanding', 'maximum effort'];
   function progressCharts(h) {
     var s = FT.progress.series(h), date = function (t) { return new Date(t).toLocaleDateString(); };
     var charts = [
       { title: 'Relaxed speed', note: 'Median WPM per day of relaxed practice. Fill shows rated effort: hollow = not rated, light = little effort, solid = maximum.',
         label: 'Relaxed WPM', color: '--series-1', min: 1, rows: s.relaxed,
         point: function (p) { return { t: p.t, y: p.wpm, fill: p.effort == null ? null : (p.effort - 1) / 4,
-          tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.t)) + '<br>' + p.n + ' session' + (p.n > 1 ? 's' : '') + ', effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1) + ' (' + EFFORT_NAMES[Math.round(p.effort)] + ')') }; },
+          tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.t)) + '<br>' + p.n + ' session' + (p.n > 1 ? 's' : '') + ', effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1) + ' (' + EFFORT[Math.round(p.effort) - 1][1].toLowerCase() + ')') }; },
         cols: ['Day', 'WPM', 'Accuracy', 'Effort'], cells: function (p) { return [esc(date(p.t)), fix(p.wpm), pct(p.faa), p.effort == null ? '–' : fix(p.effort, 1)]; } },
       { title: 'Benchmark', note: 'Median of each complete set of 3 one-minute trials; the line shows the range of the trials.',
         label: 'Benchmark WPM', color: '--series-2', min: 1, rows: s.benchmark,

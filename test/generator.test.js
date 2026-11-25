@@ -87,3 +87,10 @@ test('the bundled English list loads with ranks', () => {
   assert.equal(c.words[0], 'the');
   assert.equal(c.rankOf('the'), 0);
 });
+
+test('with several targets, consecutive target words carry different sequences (interleaving)', () => {
+  const g = FT.generator.create({ corpus: corpus(), seed: 8, shares: { random: 0, target: 1, maintenance: 0 } });
+  const tg = [{ key: 'str', priority: 5, stage: 'weak' }, { key: 'nd', priority: 1, stage: 'weak' }, { key: 'old', priority: 1, stage: 'weak' }];
+  const out = g.next(200, { frontier: 100, targets: tg }).filter((w) => w.source === 'target');
+  for (let i = 1; i < out.length; i++) assert.notEqual(out[i].target, out[i - 1].target, 'at ' + i);
+});

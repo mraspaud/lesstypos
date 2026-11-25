@@ -57,12 +57,18 @@
       used.push(w); if (used.length > 4) used.shift();
       return w;
     }
+    // Priority-weighted choice. With several targets, the one used for the
+    // previous target word is skipped, so sequences are interleaved rather
+    // than practised in runs (contextual interference: Shea & Morgan 1979).
+    var lastTarget = null;
     function chooseTarget(list) {
+      var pool = list.length > 1 ? list.filter(function (t) { return t.key !== lastTarget; }) : list;
       var total = 0;
-      list.forEach(function (t) { total += t.priority; });
-      var r = pickRng() * total;
-      for (var i = 0; i < list.length; i++) { r -= list[i].priority; if (r <= 0) return list[i]; }
-      return list[list.length - 1];
+      pool.forEach(function (t) { total += t.priority; });
+      var r = pickRng() * total, pick = pool[pool.length - 1];
+      for (var i = 0; i < pool.length; i++) { r -= pool[i].priority; if (r <= 0) { pick = pool[i]; break; } }
+      lastTarget = pick.key;
+      return pick;
     }
     // Words for one target context (one word, or a pair across a word boundary).
     function carrierFor(t, R) {
