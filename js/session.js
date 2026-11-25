@@ -11,7 +11,11 @@
 
     function add(list) {
       for (var i = 0; i < list.length; i++) {
-        words.push({ target: list[i], typed: '', stream: [], committed: false, meta: null });
+        var it = list[i];
+        var obj = typeof it === 'object' && it !== null;
+        var meta = obj ? { source: it.source || null } : null;
+        if (obj && it.target) meta.target = it.target;
+        words.push({ target: obj ? it.word : it, typed: '', stream: [], committed: false, meta: meta });
       }
     }
     add(targets || []);

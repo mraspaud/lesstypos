@@ -102,14 +102,15 @@
     }
 
     // Judge one context's aggregate g against a parent aggregate (excluding g).
-    function judge(g, parentRate, parentMu, hyper) {
+    function judge(g, parentRate, parentMu, hyper, meansOnly) {
       var kappa = hyper.kappa, m = Math.min(Math.max(parentRate, 1e-4), 0.5);
       var a = kappa * m + g.e, b = kappa * (1 - m) + (g.n - g.e);
       var rate = a / (a + b);
-      var pWorse = 1 - S.betaCdf(m, a, b);
       var sigma2 = hyper.sigma2, tau2 = hyper.tau2;
       var prec = 1 / tau2 + g.ln / sigma2;
       var mu = (parentMu / tau2 + g.ls / sigma2) / prec;
+      if (meansOnly) return { errorRate: rate, mu: mu };
+      var pWorse = 1 - S.betaCdf(m, a, b);
       var sd = Math.sqrt(1 / prec);
       var pSlower = g.ln > 0 ? S.normCdf((mu - parentMu) / sd) : 0.5;
       var insufficient = g.n < cfg.minN;
@@ -178,7 +179,7 @@
               var pg = minus(agg[pk], agg[k]);
               redundant = pg.n < cfg.minN;
               var hp = hypers[order - 1];
-              var pj = judge(pg, pe.parentErrorRate, pe.parentMu, hp);
+              var pj = judge(pg, pe.parentErrorRate, pe.parentMu, hp, true);
               pRate = pj.errorRate; pMu = pj.mu;
             }
           }

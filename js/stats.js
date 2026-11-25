@@ -40,30 +40,26 @@
   function betaCdf(x, a, b) {
     if (x <= 0) return 0;
     if (x >= 1) return 1;
+    if (a > 500 && b > 500) {
+      // normal approximation, accurate when both parameters are large
+      var mean = a / (a + b), v = a * b / ((a + b) * (a + b) * (a + b + 1));
+      return normCdf((x - mean) / Math.sqrt(v));
+    }
     var bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x));
     if (x < (a + 1) / (a + b + 2)) return bt * betacf(x, a, b) / a;
     return 1 - bt * betacf(1 - x, b, a) / b;
   }
 
-  // erf: Maclaurin series for |x| < 3, erfc continued fraction beyond.
-  function erf(x) {
-    var s = x < 0 ? -1 : 1; x = Math.abs(x);
-    if (x < 3) {
-      var sum = x, term = x, x2 = x * x;
-      for (var n = 1; n < 200; n++) {
-        term *= -x2 / n;
-        var add = term / (2 * n + 1);
-        sum += add;
-        if (Math.abs(add) < 1e-16 * Math.abs(sum)) break;
-      }
-      return s * (2 / Math.sqrt(Math.PI)) * sum;
-    }
-    // erfc continued fraction for large x
-    var f = 0;
-    for (var k = 60; k >= 1; k--) f = k / 2 / (x + f);
-    var erfc = Math.exp(-x * x) / Math.sqrt(Math.PI) / (x + f);
-    return s * (1 - erfc);
+  // erfc with fractional error < 1.2e-7 everywhere (Numerical Recipes erfcc,
+  // Chebyshev fit).
+  function erfc(x) {
+    var z = Math.abs(x), t = 1 / (1 + 0.5 * z);
+    var r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 +
+      t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 +
+      t * (-0.82215223 + t * 0.17087277)))))))));
+    return x >= 0 ? r : 2 - r;
   }
+  function erf(x) { return 1 - erfc(x); }
   function normCdf(z) { return 0.5 * (1 + erf(z / Math.SQRT2)); }
 
   // Van Selst & Jolicoeur (1994) non-recursive procedure with moving criterion.

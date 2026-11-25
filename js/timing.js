@@ -90,5 +90,23 @@
       .sort(function (a, b) { return b.confidence - a.confidence; });
   }
 
-  FT.timing = { extract: extract, macroCandidates: macroCandidates, median: median };
+  // Rollover ratio (Dhakal et al. 2018): share of keydowns made while another
+  // (non-modifier) key is still held. keys: [{k:'d'|'u', c: code, t}].
+  var MODS = /^(Shift|Control|Alt|Meta|CapsLock|OS)/;
+  function rollover(keys) {
+    var held = {}, nHeld = 0, total = 0, rolled = 0;
+    var ev = (keys || []).slice().sort(function (a, b) { return a.t - b.t || (a.k === 'u' ? -1 : 1); });
+    for (var i = 0; i < ev.length; i++) {
+      var e = ev[i];
+      if (MODS.test(e.c)) continue;
+      if (e.k === 'd') {
+        total++;
+        if (nHeld > 0) rolled++;
+        if (!held[e.c]) { held[e.c] = true; nHeld++; }
+      } else if (held[e.c]) { delete held[e.c]; nHeld--; }
+    }
+    return total ? rolled / total : null;
+  }
+
+  FT.timing = { extract: extract, macroCandidates: macroCandidates, median: median, rollover: rollover };
 })(globalThis.FT);

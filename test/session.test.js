@@ -84,3 +84,12 @@ test('words can be appended while typing and onCommit fires', () => {
   typeString(s, 'a b ');
   assert.deepEqual(plain(committed), [['a', 0], ['b', 1]]);
 });
+
+test('words can carry generator metadata', () => {
+  const FT = load();
+  const s = FT.session.create([{ word: 'strong', source: 'target', target: 'str' }, 'cat']);
+  const w = s.state().words;
+  assert.equal(w[0].target, 'strong');
+  assert.deepEqual(plain(w[0].meta), { source: 'target', target: 'str' });
+  assert.equal(w[1].meta, null);
+});
