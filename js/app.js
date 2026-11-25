@@ -454,7 +454,7 @@
     return out;
   }
   function drawTimeline(el, tl) {
-    var W = Math.max(300, el.clientWidth || 600), H = 230, L = 36, R = 54, T = 22, B = 26;
+    var W = Math.max(300, el.clientWidth || 600), H = 230, L = 44, R = 54, T = 22, B = 26;
     var bursts = tl.map(function (p) { return p.burst; }).filter(function (x) { return x != null; }).sort(function (a, b) { return a - b; });
     var p98 = bursts[Math.floor(0.98 * (bursts.length - 1))] || 0;
     var top = Math.max(p98, Math.max.apply(null, tl.map(function (p) { return p.running || 0; }))) * 1.1 || 10;
@@ -473,7 +473,7 @@
     for (var i = 1; i <= n; i += (i === 1 && xs > 1 ? xs - 1 : xs)) {
       svg += '<text x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + i + '</text>';
     }
-    svg += '<text x="' + L + '" y="10" text-anchor="start">WPM</text></g>';
+    svg += '<text transform="translate(10 ' + ((T + H - B) / 2) + ') rotate(-90)" text-anchor="middle">WPM</text></g>';
     // Per-word speed is lightly smoothed ([1 2 1] / 4 over neighbouring words);
     // the tooltip and table keep the raw values. Lines are monotone cubic
     // curves (Fritsch-Carlson), which never overshoot the data.
@@ -577,10 +577,15 @@
     if (seqSel && all[seqSel]) showWhy(seqSel);
   }
   function markSel() { $view.querySelectorAll('tr[data-key]').forEach(function (r) { r.classList.toggle('selected', r.dataset.key === seqSel); }); }
+  // Movement type of the last two or three key presses of a sequence, on the
+  // declared layout. Across spaces only when the layout declares a space key.
   function movement(k) {
-    var s = k.replace(/^.*\s/, '');
-    if (Array.from(s).length < 2) return '';
-    var c = FT.layout.classify(app.layout, Array.from(s).slice(-3).join('')) || FT.layout.classify(app.layout, Array.from(s).slice(-2).join(''));
+    var L = app.layout;
+    if (!L) return '';
+    var s = L.keys[' '] ? k : k.replace(/^.*\s/, '');
+    var toks = FT.layout.presses(L, s);
+    if (!toks || toks.length < 2 && !(toks.length === 1 && Array.from(toks[0]).length > 1)) return '';
+    var c = FT.layout.classify(L, toks.slice(-3).join('')) || FT.layout.classify(L, toks.slice(-2).join(''));
     return c ? c.type + (c.tags.length ? ' (' + c.tags.join(', ') + ')' : '') : '';
   }
   function showWhy(k) {
@@ -669,19 +674,22 @@
       '<option value="subtle"' + (s.errorStyle === 'subtle' ? ' selected' : '') + '>Subtle (colour only)</option></select></div>' +
       '<label for="showTimer">Remaining time</label><div><select id="showTimer"><option value="1"' + (s.showTimer ? ' selected' : '') + '>Show</option><option value="0"' + (!s.showTimer ? ' selected' : '') + '>Hide</option></select></div>' +
       '<label for="macros">Multi-letter keys</label><div><input type="text" id="macros" value="' + esc((s.macros || []).join(' ')) + '" placeholder="th qu">' +
-      '<p class="help">Keys that type several letters at once, separated by spaces. They count fully towards speed and are timed as one movement.</p>' +
+      '<p class="help">Keys that type several letters at once, separated by spaces. They count fully towards speed and are timed as one movement. Keys in your layout below are included automatically.</p>' +
+      '<p class="help" id="layoutMacros"></p>' +
       '<label class="row"><input type="checkbox" id="autoMacros"' + (s.autoMacros ? ' checked' : '') + '> Suggest pairs that always arrive almost simultaneously</label><div id="cands" class="help"></div></div>' +
       '<label for="frontier">Vocabulary</label><div class="row"><select id="vocabMode"><option value="auto"' + (!d.manual ? ' selected' : '') + '>Adapt automatically</option><option value="manual"' + (d.manual ? ' selected' : '') + '>Fixed</option></select>' +
       '<input type="number" id="frontier" min="100" max="' + app.trainer.corpus.size + '" step="50" value="' + Math.round(d.frontier) + '" style="max-width:8rem"' + (d.manual ? '' : ' disabled') + '> <span class="muted">most common words</span></div>' +
       '<label for="fontSize">Text size</label><div><input type="number" id="fontSize" min="1" max="3" step="0.1" value="' + s.fontSize + '" style="max-width:6rem"> <span class="muted">rem</span></div>' +
       '<label for="theme">Theme</label><div><select id="theme">' + ['system', 'light', 'dark'].map(function (v) { return '<option' + (s.theme === v ? ' selected' : '') + '>' + v + '</option>'; }).join('') + '</select></div>' +
-      '<label for="layoutText">Keyboard layout (optional)</label><div><textarea id="layoutText" class="mono" placeholder="q w e r t   y u i o p&#10;a s d f g   h j k l ;&#10;z x c v b   n m , . /&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9">' + esc(s.layoutText || '') + '</textarea>' +
-      '<p class="help">Rows of keys, then the same rows as finger numbers (0 = left pinky … 3 = left index, 4/5 = thumbs, 6 = right index … 9 = right pinky). ' +
-      'Only used to describe sequences (same-finger, rolls, scissors); training never depends on it. Keys with several letters are added to multi-letter keys.</p><p class="help" id="layoutStatus"></p></div>' +
+      '<label for="layoutText">Keyboard layout (optional)</label><div><textarea id="layoutText" class="mono" placeholder="q w e r t   y u i o p&#10;a s d f g   h j k l ;&#10;z x c v b   n m , . /&#10;space&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;5">' + esc(s.layoutText || '') + '</textarea>' +
+      '<p class="help">Rows of keys, then the same rows again as finger numbers (0 = left pinky … 3 = left index, 4 = left thumb, 5 = right thumb, 6 = right index … 9 = right pinky). ' +
+      'Write a key that types several letters as one token (<span class="seq">th</span>, <span class="seq">qu</span>) and the space bar as <span class="seq">space</span>. ' +
+      'The layout is only used to describe sequences (same finger, rolls, scissors); training never depends on it. Multi-letter keys are added to the multi-letter keys above.</p><p class="help" id="layoutStatus"></p></div>' +
       '</form>';
     setView(html);
     function layoutStatus() {
-      var el = document.getElementById('layoutStatus');
+      var el = document.getElementById('layoutStatus'), lm = document.getElementById('layoutMacros');
+      lm.textContent = app.layout && app.layout.macros.length ? 'From your layout: ' + app.layout.macros.join(' ') : '';
       if (!s.layoutText.trim()) { el.textContent = ''; return; }
       try { var L = FT.layout.parse(s.layoutText); el.textContent = 'Layout read: ' + Object.keys(L.keys).length + ' keys' + (L.macros.length ? ', multi-letter: ' + L.macros.join(' ') : '') + '.'; }
       catch (e) { el.textContent = e.message; }
@@ -699,7 +707,7 @@
       else if (id === 'autoMacros') { s.autoMacros = e.target.checked; candidates(); }
       else if (id === 'fontSize') s.fontSize = Math.min(3, Math.max(1, +v || 1.6));
       else if (id === 'theme') s.theme = v;
-      else if (id === 'layoutText') { s.layoutText = v; layoutStatus(); }
+      else if (id === 'layoutText') { s.layoutText = v; applySettings(); layoutStatus(); }
       else if (id === 'vocabMode' || id === 'frontier') {
         var manual = document.getElementById('vocabMode').value === 'manual';
         document.getElementById('frontier').disabled = !manual;

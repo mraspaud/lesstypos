@@ -161,9 +161,12 @@ await step('settings accept a layout and multi-letter keys', async () => {
   await page.keyboard.press('s');
   await page.fill('#macros', 'th qu');
   await page.locator('#macros').dispatchEvent('change');
-  await page.fill('#layoutText', 'q w e\na s d\n0 1 2\n0 1 2');
+  const thornium = 'z b w h g " : . / j x @\n( s c n t k , a e i m )\n[ f p l d v = u o y th ]\nqu r space \'\n' +
+    '0 0 1 2 3 3 6 6 7 8 9 9\n0 0 1 2 3 3 6 6 7 8 9 9\n0 0 1 2 3 3 6 6 7 8 9 9\n4 4 5 5';
+  await page.fill('#layoutText', thornium);
   await page.locator('#layoutText').dispatchEvent('change');
-  await page.getByText(/Layout read: 6 keys/).waitFor();
+  await page.getByText(/Layout read: 40 keys, multi-letter: th qu/).waitFor();
+  await page.getByText('From your layout: th qu').waitFor();
   assert.deepEqual(await page.evaluate(() => window.FT.app.settings.macros), ['th', 'qu']);
 });
 

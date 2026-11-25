@@ -201,5 +201,6 @@ textarea.mono { font-family: var(--font-text); font-size: 0.9rem; min-height: 8r
 .legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px; border-radius: 1px; }
 .legend .k1 { background: var(--series-1); }
 .legend .k2 { background: repeating-linear-gradient(90deg, var(--series-2) 0 5px, transparent 5px 8px); }
-.legend .kx { color: var(--err); font-style: normal; font-weight: 700; margin-right: 4px; }
+.legend span { display: inline-flex; align-items: center; }
+.legend .kx { color: var(--err); font-style: normal; font-weight: 700; margin-right: 6px; width: auto; height: auto; background: none; line-height: 1; }
 details.tableview summary { cursor: pointer; color: var(--muted); }
