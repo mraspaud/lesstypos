@@ -6,11 +6,18 @@
   var DEFAULT_SETTINGS = {
     durationMin: 5, errorMode: 'continue', errorStyle: 'clear', macros: [], autoMacros: false,
     layoutText: '', fontSize: 1.6, theme: 'system', showTimer: true,
+    accents: true, programme: null, programmeRun: null, currentText: null,
   };
   var EXERCISES = {
+    warmup: { name: 'Warm-up', goal: 'Familiar words to settle your hands into a comfortable rhythm. No need to push.' },
     relaxed: { name: 'Relaxed practice', goal: 'Type calmly and look ahead. Accuracy and an even rhythm matter more than speed.' },
-    targeted: { name: 'Sequence practice', goal: 'The chosen sequence appears in many different words. Keep the rhythm relaxed.' },
+    bursts: { name: 'Speed bursts', goal: 'Short sprints just above your comfortable pace, with a rest between rounds. Start each round when you are ready.' },
+    prose: { name: 'Prose', goal: 'Read and type naturally. Capitals and punctuation count; plain quotes and dashes are accepted.' },
+    targeted: { name: 'Targeted practice', goal: 'The sequences you are training appear in many different words. Keep the rhythm relaxed.' },
   };
+  var BURST_RUN = 15000, BURST_REST = 10000;
+  function burstRun() { return app.burstRun || BURST_RUN; }   // overridable for tests
+  function burstRest() { return app.burstRest || BURST_REST; }
   var EFFORT = [
     [1, 'Effortless', 'Typing ran on its own'],
     [2, 'Comfortable', 'Little attention needed'],
@@ -46,7 +53,10 @@
     app.layout = null;
     if (s.layoutText && s.layoutText.trim()) { try { app.layout = FT.layout.parse(s.layoutText); } catch (e) { app.layout = null; } }
     if (app.trainerSettings) app.trainerSettings.macros = macros();
+    FT.text.setOptions({ accents: s.accents !== false });
   }
+  function programmeDef() { return app.settings.programme || FT.programme.DEFAULT; }
+  function today() { return FT.trainer.dayOf(Date.now()); }
   function saveSettings() {
     applySettings();
     return app.store.saveSettings(app.settings).catch(storageError);
@@ -66,8 +76,8 @@
   }
 
   // ---------- routing ----------
-  var ROUTES = ['home', 'sequences', 'errors', 'history', 'preferences', 'data'];
-  var NAV = [['home', 'Practice', 'p'], ['sequences', 'Sequences', 'q'], ['errors', 'Errors', 'e'],
+  var ROUTES = ['home', 'texts', 'sequences', 'errors', 'history', 'preferences', 'data'];
+  var NAV = [['home', 'Practice', 'p'], ['texts', 'Texts', 't'], ['sequences', 'Sequences', 'q'], ['errors', 'Errors', 'e'],
     ['history', 'History', 'h'], ['preferences', 'Settings', 's'], ['data', 'Data', 'd']];
   var current = 'home';
   function go(name) {
@@ -80,7 +90,7 @@
     current = name;
     document.body.classList.remove('typing-mode');
     renderNav();
-    ({ home: viewHome, sequences: viewSequences, errors: viewErrors, history: viewHistory,
+    ({ home: viewHome, texts: viewTexts, sequences: viewSequences, errors: viewErrors, history: viewHistory,
       preferences: viewSettings, data: viewData })[name]();
   }
   function renderNav() {
@@ -106,13 +116,17 @@
     var targets = t.targets().slice(0, 6);
     var relaxed = h.filter(function (x) { return x.type === 'relaxed'; });
     var last = relaxed[relaxed.length - 1];
-    var mins = app.settings.durationMin;
+    var def = programmeDef(), run = FT.programme.resume(app.settings.programmeRun, today());
+    var steps = def.steps.filter(function (x) { return x.enabled; });
     var html = '<section class="home-start">' +
-      '<h1>Relaxed practice</h1>' +
-      '<p class="lead">' + mins + ' minutes of everyday words, adapted to what you type well and what still needs practice. ' +
-      'Speed stays hidden while you type.</p>' +
-      '<div class="row"><button class="btn primary" type="button" id="start">Start practice</button>' +
+      '<h1>Daily training</h1>' +
+      '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + x.minutes + ' min'; }).join(' · ') + '.</p>' +
+      '<div class="row">' +
+      (run ? '<button class="btn primary" type="button" id="resume">Resume: ' + esc(EXERCISES[run.current().type].name.toLowerCase()) + ' (' + (run.results().length + 1) + ' of ' + (run.results().length + run.upcoming().length) + ')</button>' +
+        '<button class="btn" type="button" id="prog">Start over</button>'
+        : '<button class="btn primary" type="button" id="prog">Start daily training · ' + FT.programme.totalMinutes(def) + ' min</button>') +
       '<span class="muted">or press <kbd>Enter</kbd></span></div>' +
+      '<div class="row"><button class="btn" type="button" id="start">Relaxed practice only · ' + app.settings.durationMin + ' min</button></div>' +
       '</section>' +
       '<section class="stack"><h3>Where you are</h3><div class="status">' +
       '<div><b class="num">' + Math.round(d.frontier) + '</b><span>most common words in use' + (d.manual ? ' (manual)' : '') + '</span></div>' +
@@ -129,10 +143,95 @@
         '<p>LessTypos watches every keystroke and learns which letter sequences, including those across spaces, cost you errors or hesitation. ' +
         'Later exercises weave those sequences into everyday words, while about a fifth of the words stay random so progress can be measured fairly.</p>' +
         '<p>Vocabulary grows when your first-attempt accuracy stays above 99.5% and typing feels comfortable. It never asks for a minimum speed.</p>' +
-        '<p class="muted">If your keyboard has keys that type several letters at once (such as <span class="seq">th</span>), declare them in Settings.</p></section>';
+        '<p class="muted">For the prose exercise, add a text you would like to read on the <a href="#texts">Texts</a> page. If your keyboard has keys that type several letters at once (such as <span class="seq">th</span>), declare them in Settings.</p></section>';
     }
     setView(html);
     document.getElementById('start').onclick = function () { startExercise('relaxed'); };
+    document.getElementById('prog').onclick = function () { startProgramme(null); };
+    var r = document.getElementById('resume');
+    if (r) r.onclick = function () { startProgramme(run); };
+    app.homeEnter = function () { startProgramme(run); };
+  }
+
+  // ---------- programme ----------
+  function saveRun() { app.settings.programmeRun = app.run ? app.run.toJSON() : null; return saveSettings(); }
+  function startProgramme(run) {
+    app.run = run || FT.programme.runner(programmeDef(), { day: today() });
+    saveRun();
+    runStep();
+  }
+  function runStep() {
+    var c = app.run && app.run.current();
+    if (!c) { viewProgrammeSummary(); return; }
+    if (c.type === 'prose') {
+      currentText().then(function (text) {
+        if (text && text.pos < text.words.length) startExercise('prose', { minutes: c.minutes, programme: true, text: text });
+        else viewNeedText(c);
+      });
+      return;
+    }
+    startExercise(c.type, { minutes: c.minutes, programme: true });
+  }
+  function nextLine() {
+    var c = app.run.current();
+    if (!c) return '<p>That was the last exercise.</p>';
+    return '<p><b>Next: ' + esc(EXERCISES[c.type].name) + '</b>, ' + c.minutes + ' min. <span class="muted">' + esc(EXERCISES[c.type].goal) + '</span></p>';
+  }
+  function programmeBar() {
+    var r = app.run, done = r.results().length, total = done + r.upcoming().length;
+    return '<section class="panel stack" id="progbar"><h3>Daily training · ' + Math.min(done, total) + ' of ' + total + ' done</h3>' + nextLine() +
+      '<div class="row">' + (r.current() ? '<button class="btn primary" type="button" id="pnext">Continue <kbd>Enter</kbd></button>' +
+        '<button class="btn" type="button" id="pskip">Skip next <kbd>n</kbd></button>' : '<button class="btn primary" type="button" id="pnext">See the session summary <kbd>Enter</kbd></button>') +
+      '<button class="btn" type="button" id="prep">Repeat this one <kbd>r</kbd></button>' +
+      '<button class="btn" type="button" id="pend">End training <kbd>Esc</kbd></button></div></section>';
+  }
+  function bindProgrammeBar() {
+    var act = {
+      next: function () { runStep(); },
+      skip: function () { app.run.skip(); saveRun(); viewBetween(); },
+      repeat: function () { app.run.repeat(); saveRun(); runStep(); },
+      end: function () { app.run.finishEarly(); saveRun(); viewProgrammeSummary(); },
+    };
+    document.getElementById('pnext').onclick = act.next;
+    var sk = document.getElementById('pskip'); if (sk) sk.onclick = act.skip;
+    document.getElementById('prep').onclick = act.repeat;
+    document.getElementById('pend').onclick = act.end;
+    app.progKeys = act;
+  }
+  function viewBetween() {
+    current = 'summary';
+    renderNav();
+    setView(programmeBar());
+    bindProgrammeBar();
+  }
+  function viewNeedText(c) {
+    current = 'needtext';
+    renderNav();
+    setView('<section class="stack"><h1>Prose needs a text</h1><p>Paste something you would enjoy reading: a chapter, an article, a public-domain book from Project Gutenberg. ' +
+      'LessTypos remembers where you stop.</p>' + textForm() +
+      '<div class="row"><button class="btn" type="button" id="skipprose">Skip prose today</button></div></section>');
+    bindTextForm(function () { runStep(); });
+    document.getElementById('skipprose').onclick = function () { app.run.skip(); saveRun(); viewBetween(); };
+  }
+  function viewProgrammeSummary() {
+    current = 'summary';
+    renderNav();
+    var res = app.run ? app.run.results() : [];
+    var mins = res.reduce(function (a, r) { return a + (r.ms || 0); }, 0) / 60000;
+    var html = '<section class="stack"><h1>Daily training finished</h1><p class="muted">' + fix(mins, 1) + ' minutes of typing across ' +
+      res.filter(function (r) { return !r.skipped; }).length + ' exercises.</p></section>' +
+      '<div class="tablewrap"><table><thead><tr><th>Exercise</th><th>Min</th><th>WPM</th><th>Accuracy</th><th>Effort</th><th>Note</th></tr></thead><tbody>' +
+      res.map(function (r) {
+        return '<tr><td>' + esc(EXERCISES[r.type].name) + '</td>' + (r.skipped ? '<td colspan="4" class="muted">skipped</td><td></td>'
+          : '<td class="num">' + fix(r.ms / 60000, 1) + '</td><td class="num">' + fix(r.wpm) + '</td><td class="num">' + pct(r.faa) + '</td><td class="num">' + (r.effort || '–') + '</td><td>' + esc(r.note || '') + '</td>') + '</tr>';
+      }).join('') + '</tbody></table></div>' +
+      '<p class="muted">Speeds from different exercises are not comparable: warm-up and bursts use easier words, prose has capitals and punctuation.</p>' +
+      '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button><a href="#history">See history</a></div>';
+    app.run = null;
+    saveRun();
+    setView(html);
+    document.getElementById('home').onclick = function () { go('home'); };
+    app.homeEnter = null;
   }
 
   // ---------- typing ----------
@@ -147,12 +246,16 @@
     document.body.classList.add('typing-mode');
     renderNav();
     var exDef = EXERCISES[type];
-    var ex = app.trainer.newExercise({ type: type, pinned: opts.pinned });
+    var ex = app.trainer.newExercise({ type: type, pinned: opts.pinned, text: opts.text });
     var durationMs = (opts.minutes || app.settings.durationMin) * 60000;
+    var nRounds = Math.max(1, Math.floor(durationMs / (2 * burstRun())));
     setView('<section class="typing">' +
       '<div class="ex-head"><span class="name">' + esc(exDef.name) + (opts.pinned ? ' ' + opts.pinned.map(seq).join(' ') : '') + '</span>' +
       '<span>' + esc(exDef.goal) + '</span>' +
-      '<span class="timer num" id="timer"' + (app.settings.showTimer ? '' : ' hidden') + '>' + clock(durationMs) + '</span></div>' +
+      (type === 'prose' ? '<span class="muted">' + esc(opts.text.title) + ', ' + proseProgress(opts.text, opts.text.pos) + '</span>' : '') +
+      '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' ? '' : ' hidden') + '>' + (type === 'bursts' ? 'Round 1 of ' + nRounds : clock(durationMs)) + '</span></div>' +
+      (type === 'bursts' ? '<div class="pace" id="pace" aria-hidden="true"><div class="pace-fill" id="pacefill"></div><div class="pace-target" id="pacetarget"></div></div>' +
+        '<div class="pace-label muted num" id="pacelabel">Target ' + Math.round(app.trainer.bursts.target()) + ' WPM</div>' : '') +
       '<div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div></div>' +
       '<div class="focus-hint" id="hint">Start typing when ready. <kbd>Esc</kbd> stops, <kbd>Tab</kbd> restarts.</div>' +
       '<div id="stopbar" class="stopbar" hidden></div>' +
@@ -163,6 +266,7 @@
     ty = { type: type, ex: ex, session: session, fed: fed, durationMs: durationMs, keys: [], first: null, startedAt: null,
       els: [], inner: document.getElementById('inner'), caret: document.getElementById('caret'),
       win: document.getElementById('window'), capture: document.getElementById('capture'), stopped: false, opts: opts, offset: 0 };
+    if (type === 'bursts') ty.burst = { total: nRounds, rounds: [], phase: 'ready', target: app.trainer.bursts.target(), ref: app.trainer.bursts.reference() };
     renderWords(0);
     ty.detach = FT.input.attach(ty.capture, {
       onText: onText, onBack: onBack, onBackWord: onBackWord,
@@ -237,6 +341,7 @@
     // Drop committed words more than one line above the view to keep the DOM small.
     // Measure everything first: removing a word reflows the following ones.
     var st = ty.session.state(), cur = ty.els[st.wordIndex];
+    if (!cur) return;
     var lh = cur.getBoundingClientRect().height, top = ty.inner.getBoundingClientRect().top, drop = [];
     for (var i = 0; i < st.wordIndex; i++) {
       var el = ty.els[i];
@@ -247,6 +352,12 @@
     if (drop.length) { ty.offset = -1; placeCaret(); }
   }
   function beginIfNeeded(t) {
+    if (ty.burst && ty.burst.phase === 'ready') {
+      ty.burst.phase = 'run'; ty.burst.start = t; ty.burst.startNow = performance.now();
+      if (ty.first == null) { ty.first = t; ty.startedAt = Date.now(); ty.t0 = performance.now(); ty.timer = setInterval(tick, 200); }
+      hint('');
+      return;
+    }
     if (ty.first != null) return;
     ty.first = t; ty.startedAt = Date.now(); ty.t0 = performance.now();
     hint('');
@@ -254,10 +365,48 @@
   }
   function tick() {
     if (!ty || ty.stopped) return;
+    if (ty.burst) { burstTick(); return; }
     var left = ty.durationMs - (performance.now() - ty.t0);
     var el = document.getElementById('timer');
     if (el) el.textContent = clock(left);
     if (left <= 0) finishExercise();
+  }
+  // Speed bursts: rounds of BURST_RUN ms, each started by the first keystroke
+  // after a BURST_REST ms rest. A live pace bar compares the round's speed
+  // with the adaptive target (FT.bursts).
+  function burstTick() {
+    var b = ty.burst, now = performance.now(), timer = document.getElementById('timer');
+    if (b.phase === 'run') {
+      var elapsed = now - b.startNow, end = b.start + burstRun();
+      var words = ty.session.state().words.filter(function (w) { return w.committed; });
+      var st = FT.bursts.roundStats(words, b.start, b.start + Math.min(elapsed, burstRun()));
+      paintPace(st.wpm, b.target);
+      timer.textContent = 'Round ' + (b.rounds.length + 1) + ' of ' + b.total + ' · ' + clock(burstRun() - elapsed);
+      if (elapsed >= burstRun()) {
+        b.rounds.push({ start: b.start, end: end });
+        var full = FT.bursts.roundStats(words, b.start, end);
+        var res = FT.bursts.step(b.target, full, b.ref);
+        b.last = { stats: full, res: res };
+        b.target = res.after;
+        if (b.rounds.length >= b.total) { finishExercise(); return; }
+        b.phase = 'rest'; b.restEnd = now + burstRest();
+      }
+    } else if (b.phase === 'rest') {
+      var left = b.restEnd - now, l = b.last;
+      timer.textContent = 'Rest · ' + clock(left);
+      hint('Round ' + b.rounds.length + ': ' + fix(l.stats.wpm) + ' WPM at ' + pct(l.stats.accuracy, 0) + ' — ' + esc(l.res.reason) +
+        '. Target now ' + Math.round(b.target) + ' WPM. Relax your hands; next round in ' + Math.ceil(left / 1000) + ' s.');
+      paintPace(null, b.target);
+      if (left <= 0) { b.phase = 'ready'; hint('Round ' + (b.rounds.length + 1) + ' of ' + b.total + ': start typing when ready.'); timer.textContent = 'Round ' + (b.rounds.length + 1) + ' of ' + b.total; }
+    }
+  }
+  function paintPace(wpm, target) {
+    var max = target * 1.5, fill = document.getElementById('pacefill'), mark = document.getElementById('pacetarget');
+    if (!fill) return;
+    fill.style.width = Math.min(100, ((wpm || 0) / max) * 100) + '%';
+    fill.classList.toggle('over', wpm != null && wpm >= target);
+    mark.style.left = (100 / 1.5) + '%';
+    document.getElementById('pacelabel').textContent = (wpm != null ? fix(wpm) + ' WPM · ' : '') + 'target ' + Math.round(target) + ' WPM';
   }
   function correctSoFar() {
     var w = ty.session.current();
@@ -265,6 +414,7 @@
   }
   function onText(data, t) {
     if (!ty || ty.stopped) return;
+    if (ty.burst && ty.burst.phase === 'rest') return;
     if (app.settings.errorMode === 'stop' && !correctSoFar()) return;
     beginIfNeeded(t);
     if (ty.hinted) { hint(''); ty.hinted = false; }
@@ -272,12 +422,14 @@
     ty.session.input({ kind: 'text', data: data, t: t });
     var st = ty.session.state();
     for (var i = before; i <= Math.min(st.wordIndex, st.words.length - 1); i++) paintWord(i);
-    if (st.words.length - st.wordIndex < 60) {
+    if (st.words.length - st.wordIndex < 60 && !ty.exhausted) {
       var more = ty.ex.more(100);
+      if (!more.length) ty.exhausted = true;
       var from = st.words.length;
       ty.session.append(more);
       renderWords(from);
     }
+    if (st.wordIndex >= st.words.length) { finishExercise(); return; } // end of a prose text
     placeCaret();
     if (st.wordIndex !== before) trimAbove();
   }
@@ -327,11 +479,13 @@
     if (!ty) return;
     var words = ty.session.state().words.filter(function (w) { return w.committed; });
     var info = { type: ty.type, startedAt: ty.startedAt, words: words, keys: ty.keys, opts: ty.opts,
-      durationMs: words.length ? words[words.length - 1].tEnd - ty.first : 0 };
+      durationMs: words.length ? words[words.length - 1].tEnd - ty.first : 0,
+      text: ty.ex.text || null, rounds: ty.burst ? ty.burst.rounds : null };
     stopTyping();
     document.body.classList.remove('typing-mode');
-    if (words.length < 10) {
+    if (words.length < 10 || (info.rounds && !info.rounds.length)) {
       app.notice = 'That exercise was too short to analyse (fewer than 10 words), so nothing was saved.';
+      if (info.opts.programme && app.run) { viewBetween(); renderNotice(); app.notice = null; return; }
       go('home');
       app.notice = null;
       return;
@@ -369,8 +523,21 @@
 
   function complete(info) {
     var res = app.trainer.finish({ type: info.type, startedAt: info.startedAt, durationMs: info.durationMs,
-      words: info.words, keys: info.keys, effort: info.effort });
-    app.store.saveSession(res.raw).then(saveProfile).catch(storageError);
+      words: info.words, keys: info.keys, effort: info.effort, text: info.text, rounds: info.rounds });
+    var saving = app.store.saveSession(res.raw).then(saveProfile);
+    if (res.raw.text) {
+      var t = info.opts.text;
+      t.pos = res.raw.text.to;
+      res.summary.textProgress = { title: t.title, pos: t.pos, total: t.words.length };
+      saving = saving.then(function () { return app.store.saveText(t); });
+    }
+    saving.catch(storageError);
+    if (info.opts.programme && app.run) {
+      var m = res.summary.metrics;
+      app.run.complete({ ms: res.summary.durationMs, wpm: m.wpm, faa: m.firstAttemptAccuracy, effort: info.effort,
+        note: res.summary.rounds ? 'target ' + Math.round(app.trainer.bursts.target()) + ' WPM' : res.summary.textProgress ? proseProgress(res.summary.textProgress, res.summary.textProgress.pos) : '' });
+      saveRun();
+    }
     viewSummary(res.summary, info);
   }
 
@@ -393,6 +560,14 @@
       '<div class="tile"><b>' + pct(s.rollover, 0) + '</b><span>keys overlapped (rollover)</span></div>' +
       '</div>';
     if (cmp) html += '<p class="notice info">' + esc(cmp.message) + '</p>';
+    if (s.textProgress) html += '<p>' + esc(s.textProgress.title) + ': ' + proseProgress(s.textProgress, s.textProgress.pos) + '. Your place is saved.</p>';
+    if (s.rounds) {
+      html += '<section class="stack"><h3>Rounds</h3><div class="tablewrap"><table><thead><tr><th>Round</th><th>WPM</th><th>Accuracy</th><th>Target</th><th>Result</th></tr></thead><tbody>' +
+        s.rounds.map(function (r) {
+          return '<tr><td class="num">' + r.round + '</td><td class="num">' + fix(r.wpm) + '</td><td class="num">' + pct(r.accuracy) + '</td><td class="num">' +
+            Math.round(r.before) + ' → ' + Math.round(r.after) + '</td><td>' + esc(r.reason) + '</td></tr>';
+        }).join('') + '</tbody></table></div><p class="muted">The target rises a little after each round that meets it with at least 95% accuracy and eases otherwise, so it settles where you reach it about half the time. Bursts never change your vocabulary level or the sequence statistics.</p></section>';
+    }
     if (s.timeline && s.timeline.length > 1) {
       html += '<section class="stack"><h3>Speed through the exercise</h3>' +
         '<div class="legend"><span><i class="k1"></i>Running average</span><span><i class="k2"></i>Each word</span>' +
@@ -417,13 +592,91 @@
     html += '<section class="stack"><h3>What happened</h3><ul class="list">' + notes.join('') + '</ul></section>';
     var tg = app.trainer.targets().slice(0, 6);
     if (tg.length) html += '<section class="stack"><h3>Next focus</h3><div class="row">' + tg.map(function (x) { return seq(x.key) + ' ' + pill(x.stage); }).join('&nbsp;&nbsp;') + '</div></section>';
-    html += '<div class="row"><button class="btn primary" type="button" id="again">Practise again <kbd>Enter</kbd></button>' +
+    var inProg = info.opts && info.opts.programme && app.run;
+    if (inProg) html = programmeBar() + html;
+    else html += '<div class="row"><button class="btn primary" type="button" id="again">Practise again <kbd>Enter</kbd></button>' +
       '<button class="btn" type="button" id="seqs">See sequences <kbd>q</kbd></button></div>';
     setView(html);
+    if (inProg) {
+      bindProgrammeBar();
+      if (s.timeline && s.timeline.length > 1) drawTimeline(document.getElementById('chart'), s.timeline);
+      app.again = null;
+      return;
+    }
+    app.progKeys = null;
     if (s.timeline && s.timeline.length > 1) drawTimeline(document.getElementById('chart'), s.timeline);
     document.getElementById('again').onclick = function () { startExercise(info.type, info.opts); };
     document.getElementById('seqs').onclick = function () { go('sequences'); };
     app.again = function () { startExercise(info.type, info.opts); };
+  }
+
+  // ---------- texts ----------
+  function proseProgress(t, pos) {
+    var total = t.words ? t.words.length : t.total;
+    return pct(total ? pos / total : 0, 0) + ' (word ' + pos.toLocaleString() + ' of ' + total.toLocaleString() + ')';
+  }
+  function currentText() {
+    return app.store.listTexts().then(function (list) {
+      var t = list.filter(function (x) { return x.id === app.settings.currentText; })[0];
+      return t || list.filter(function (x) { return x.pos < x.words.length; })[0] || null;
+    });
+  }
+  function textForm() {
+    return '<form class="stack" id="tform"><label for="ttitle">Title</label><input type="text" id="ttitle" placeholder="Moby-Dick, chapter 1">' +
+      '<label for="tbody">Text</label><textarea id="tbody" class="mono" placeholder="Paste the text here"></textarea>' +
+      '<div class="row"><input type="file" id="tfile" accept=".txt,text/plain"><button class="btn primary" type="submit" id="tsave">Add text</button></div><p class="muted" id="tmsg"></p></form>';
+  }
+  function bindTextForm(after) {
+    var f = document.getElementById('tform');
+    document.getElementById('tfile').onchange = function (e) {
+      var file = e.target.files[0]; if (!file) return;
+      var r = new FileReader();
+      r.onload = function () {
+        document.getElementById('tbody').value = String(r.result);
+        if (!document.getElementById('ttitle').value) document.getElementById('ttitle').value = file.name.replace(/\.txt$/i, '');
+      };
+      r.readAsText(file);
+    };
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var words = FT.text.prepare(document.getElementById('tbody').value), msg = document.getElementById('tmsg');
+      if (words.length < 20) { msg.textContent = 'That text is too short: paste at least a paragraph.'; return; }
+      var t = { id: 'x' + Date.now().toString(36), title: document.getElementById('ttitle').value.trim() || words.slice(0, 5).join(' '),
+        words: words, pos: 0, addedAt: Date.now() };
+      app.store.saveText(t).then(function () {
+        app.settings.currentText = t.id;
+        return saveSettings();
+      }).then(function () { after(t); }).catch(storageError);
+    });
+  }
+  function viewTexts() {
+    app.store.listTexts().then(function (list) {
+      var html = '<section class="stack"><h1>Texts</h1><p class="muted">Prose exercises continue the current text from where you stopped. Texts stay in this browser and are included in backups.</p></section>';
+      if (list.length) {
+        html += '<div class="tablewrap"><table><thead><tr><th>Title</th><th>Words</th><th>Progress</th><th></th></tr></thead><tbody>' +
+          list.map(function (t) {
+            var cur = t.id === app.settings.currentText;
+            return '<tr><td>' + esc(t.title) + (cur ? ' ' + pill('current') : '') + '</td><td class="num">' + t.words.length.toLocaleString() + '</td><td class="num">' +
+              proseProgress(t, t.pos) + '</td><td><div class="row">' +
+              (cur ? '' : '<button class="btn" type="button" data-use="' + esc(t.id) + '">Make current</button>') +
+              '<button class="btn" type="button" data-type="' + esc(t.id) + '">Type now</button>' +
+              '<button class="btn danger" type="button" data-del="' + esc(t.id) + '">Delete</button></div></td></tr>';
+          }).join('') + '</tbody></table></div>';
+      }
+      html += '<section class="panel stack"><h2>Add a text</h2>' + textForm() + '</section>';
+      setView(html);
+      bindTextForm(function () { viewTexts(); });
+      $view.querySelectorAll('[data-use]').forEach(function (b) { b.onclick = function () { app.settings.currentText = b.dataset.use; saveSettings().then(viewTexts); }; });
+      $view.querySelectorAll('[data-type]').forEach(function (b) {
+        b.onclick = function () { app.store.getText(b.dataset.type).then(function (t) { startExercise('prose', { text: t }); }); };
+      });
+      $view.querySelectorAll('[data-del]').forEach(function (b) {
+        b.onclick = function () {
+          if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Click again to delete'; return; }
+          app.store.deleteText(b.dataset.del).then(viewTexts);
+        };
+      });
+    });
   }
 
   // ---------- timeline chart (one WPM axis; error marks are annotations) ----------
@@ -680,6 +933,9 @@
       '<label for="frontier">Vocabulary</label><div class="row"><select id="vocabMode"><option value="auto"' + (!d.manual ? ' selected' : '') + '>Adapt automatically</option><option value="manual"' + (d.manual ? ' selected' : '') + '>Fixed</option></select>' +
       '<input type="number" id="frontier" min="100" max="' + app.trainer.corpus.size + '" step="50" value="' + Math.round(d.frontier) + '" style="max-width:8rem"' + (d.manual ? '' : ' disabled') + '> <span class="muted">most common words</span></div>' +
       '<label for="fontSize">Text size</label><div><input type="number" id="fontSize" min="1" max="3" step="0.1" value="' + s.fontSize + '" style="max-width:6rem"> <span class="muted">rem</span></div>' +
+      '<label>Daily training</label><div class="stack" id="progedit"></div>' +
+      '<label for="accents">Prose characters</label><div><label class="row"><input type="checkbox" id="accents"' + (s.accents !== false ? ' checked' : '') + '> Accept letters without accents (e for é)</label>' +
+      '<p class="help">Curly quotes and long dashes always accept their plain keyboard versions.</p></div>' +
       '<label for="theme">Theme</label><div><select id="theme">' + ['system', 'light', 'dark'].map(function (v) { return '<option' + (s.theme === v ? ' selected' : '') + '>' + v + '</option>'; }).join('') + '</select></div>' +
       '<label for="layoutText">Keyboard layout (optional)</label><div><textarea id="layoutText" class="mono" placeholder="q w e r t   y u i o p&#10;a s d f g   h j k l ;&#10;z x c v b   n m , . /&#10;space&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;5">' + esc(s.layoutText || '') + '</textarea>' +
       '<p class="help">Rows of keys, then the same rows again as finger numbers (0 = left pinky … 3 = left index, 4 = left thumb, 5 = right thumb, 6 = right index … 9 = right pinky). ' +
@@ -695,6 +951,7 @@
       catch (e) { el.textContent = e.message; }
     }
     layoutStatus();
+    renderProgEdit();
     var f = document.getElementById('sform');
     f.addEventListener('submit', function (e) { e.preventDefault(); });
     f.addEventListener('change', function (e) {
@@ -707,6 +964,13 @@
       else if (id === 'autoMacros') { s.autoMacros = e.target.checked; candidates(); }
       else if (id === 'fontSize') s.fontSize = Math.min(3, Math.max(1, +v || 1.6));
       else if (id === 'theme') s.theme = v;
+      else if (id === 'accents') s.accents = e.target.checked;
+      else if (e.target.dataset.step != null) {
+        var def = JSON.parse(JSON.stringify(programmeDef())), st = def.steps[+e.target.dataset.step];
+        if (e.target.type === 'checkbox') st.enabled = e.target.checked; else st.minutes = Math.max(0.5, Math.min(30, +v || st.minutes));
+        s.programme = def; saveSettings(); renderProgEdit();
+        return;
+      }
       else if (id === 'layoutText') { s.layoutText = v; applySettings(); layoutStatus(); }
       else if (id === 'vocabMode' || id === 'frontier') {
         var manual = document.getElementById('vocabMode').value === 'manual';
@@ -718,6 +982,24 @@
       saveSettings();
     });
     candidates();
+  }
+  function renderProgEdit() {
+    var el = document.getElementById('progedit'), def = programmeDef();
+    if (!el) return;
+    el.innerHTML = def.steps.map(function (st, i) {
+      return '<div class="row progstep"><input type="checkbox" data-step="' + i + '" aria-label="Include ' + esc(EXERCISES[st.type].name) + '"' + (st.enabled ? ' checked' : '') + '>' +
+        '<span style="min-width:9rem">' + esc(EXERCISES[st.type].name) + '</span>' +
+        '<input type="number" data-step="' + i + '" min="0.5" max="30" step="0.5" value="' + st.minutes + '" style="max-width:5rem" aria-label="Minutes"> <span class="muted">min</span>' +
+        '<button class="btn" type="button" data-up="' + i + '"' + (i ? '' : ' disabled') + ' aria-label="Move up">↑</button>' +
+        '<button class="btn" type="button" data-down="' + i + '"' + (i < def.steps.length - 1 ? '' : ' disabled') + ' aria-label="Move down">↓</button></div>';
+    }).join('') + '<p class="help">' + FT.programme.totalMinutes(def) + ' minutes in total. <button class="btn" type="button" id="progreset">Restore default</button></p>';
+    function move(i, d) {
+      var def2 = JSON.parse(JSON.stringify(programmeDef())), x = def2.steps.splice(i, 1)[0];
+      def2.steps.splice(i + d, 0, x); app.settings.programme = def2; saveSettings(); renderProgEdit();
+    }
+    el.querySelectorAll('[data-up]').forEach(function (b) { b.onclick = function () { move(+b.dataset.up, -1); }; });
+    el.querySelectorAll('[data-down]').forEach(function (b) { b.onclick = function () { move(+b.dataset.down, 1); }; });
+    document.getElementById('progreset').onclick = function () { app.settings.programme = null; saveSettings(); renderProgEdit(); };
   }
   function candidates() {
     var el = document.getElementById('cands');
@@ -820,9 +1102,19 @@
     if (current === 'typing' || current === 'effort') return;
     var tag = (e.target && e.target.tagName) || '';
     if (/INPUT|TEXTAREA|SELECT/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (current === 'summary' && app.progKeys) {
+      var k = { Enter: 'next', n: 'skip', r: 'repeat', Escape: 'end' }[e.key];
+      if (k && !(k === 'next' && /BUTTON|A/.test(tag))) {
+        if (k === 'skip' && !document.getElementById('pskip')) return;
+        e.preventDefault(); var f = app.progKeys[k]; app.progKeys = null; f(); return;
+      }
+    }
     if (e.key === 'Enter' && (current === 'home' || current === 'summary') && !/BUTTON|A/.test(tag)) {
       e.preventDefault();
-      if (current === 'summary' && app.again) app.again(); else startExercise('relaxed');
+      if (current === 'summary' && app.again) app.again();
+      else if (current === 'summary' && document.getElementById('home')) go('home');
+      else if (current === 'home' && app.homeEnter) app.homeEnter();
+      else startExercise('relaxed');
       return;
     }
     var n = NAV.filter(function (x) { return x[2] === e.key; })[0];

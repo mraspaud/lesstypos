@@ -65,3 +65,17 @@ test('finishing a burst exercise replays its rounds and persists the target', ()
   assert.equal(rebuilt.bursts.target(), tr.bursts.target());
   assert.equal(FT.trainer.create({ seed: 9, profile: JSON.parse(JSON.stringify(tr.profile())) }).bursts.target(), tr.bursts.target());
 });
+
+test('a burst exercise reports speed over its rounds, not the rests between them', () => {
+  const tr = FT.trainer.create({ seed: 10 });
+  const s = FT.session.create(['abcd', 'efgh', 'ijkl', 'mnop']);
+  let t = 0;
+  for (const w of ['abcd ', 'efgh ']) for (const ch of w) s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const r1 = { start: 0, end: t };
+  t += 10000;
+  const start2 = t;
+  for (const w of ['ijkl ', 'mnop ']) for (const ch of w) s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const r2 = { start: start2, end: t };
+  const { summary } = tr.finish({ type: 'bursts', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed), rounds: [r1, r2] });
+  assert.ok(Math.abs(summary.metrics.wpm - 120) < 1, String(summary.metrics.wpm)); // 20 chars in 2 s
+});

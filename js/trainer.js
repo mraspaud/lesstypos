@@ -91,7 +91,9 @@
       var words = raw.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta }; });
       var tm = FT.timing.extract(words, { macros: raw.macros });
       var analyses = words.map(function (w) { return w.analysis; });
-      var metrics = FT.metrics.summarize(analyses, { durationMs: raw.durationMs });
+      // Speed bursts: speed over the typing rounds only, not the rests between them.
+      var activeMs = raw.rounds ? raw.rounds.reduce(function (a, r) { return a + (r.end - r.start); }, 0) : raw.durationMs;
+      var metrics = FT.metrics.summarize(analyses, { durationMs: activeMs });
       var rnd = words.filter(function (w) { return w.meta && w.meta.source === 'random'; });
       var random = FT.metrics.summarize(rnd.map(function (w) { return w.analysis; }), { durationMs: 0 });
 

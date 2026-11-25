@@ -26,13 +26,14 @@ async function step(name, fn) {
 await page.goto(url);
 await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
 
-await step('home shows the practice start', async () => {
-  await page.getByRole('button', { name: 'Start practice' }).waitFor();
+await step('home offers daily training and relaxed practice', async () => {
+  await page.getByRole('button', { name: /Start daily training · 20 min/ }).waitFor();
+  await page.getByRole('button', { name: /Relaxed practice only/ }).waitFor();
   if (shots) await page.screenshot({ path: shots + '/home.png' });
 });
 
 await step('typing an exercise with a corrected error, stopping and rating effort', async () => {
-  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: /Relaxed practice only/ }).click();
   await page.locator('.w').first().waitFor();
   const words = await page.$$eval('.w', (els) => els.slice(0, 41).map((e) => e.textContent));
   for (let i = 0; i < 40; i++) {
@@ -69,7 +70,7 @@ await step('typing an exercise with a corrected error, stopping and rating effor
 });
 
 await step('the current line stays in the middle while typing many lines', async () => {
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter'); // "Practise again" from the summary
   await page.locator('.w').first().waitFor();
   const words = await page.$$eval('.w', (els) => els.slice(0, 110).map((e) => e.textContent));
   const lines = [];
@@ -170,9 +171,71 @@ await step('settings accept a layout and multi-letter keys', async () => {
   assert.deepEqual(await page.evaluate(() => window.FT.app.settings.macros), ['th', 'qu']);
 });
 
+// Type the next untyped words until the effort question appears.
+async function typeUntilEffort(limitMs = 60000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < limitMs) {
+    if (await page.getByText('How much effort did that take?').isVisible()) return;
+    const w = await page.evaluate(() => {
+      const el = [...document.querySelectorAll('.w')].find((e) => !e.querySelector('.ok,.bad,.extra'));
+      return el ? el.textContent : null;
+    });
+    if (w == null) { await page.waitForTimeout(100); continue; }
+    await page.keyboard.type(w.replace(/[\u2018\u2019]/g, "'") + ' ', { delay: 8 });
+  }
+  throw new Error('exercise did not end');
+}
+
+await step('a text can be added for prose', async () => {
+  await page.locator('[data-go="texts"]').click();
+  await page.fill('#ttitle', 'Test text');
+  const body = Array.from({ length: 30 }, (_, i) => (i % 5 === 0 ? 'Don\u2019t' : 'word' + i)).join(' ');
+  await page.fill('#tbody', body);
+  await page.getByRole('button', { name: 'Add text' }).click();
+  await page.getByText('Test text').first().waitFor();
+});
+
+await step('the daily programme runs every exercise with effort ratings and ends with a summary', async () => {
+  await page.evaluate(() => {
+    const app = window.FT.app;
+    app.burstRun = 2500; app.burstRest = 1200;
+    app.settings.programme = { name: 'Daily training', steps: ['warmup', 'relaxed', 'bursts', 'prose', 'targeted'].map((type) => ({ type, minutes: 0.1, enabled: true })) };
+  });
+  await page.locator('[data-go="home"]').click();
+  await page.getByRole('button', { name: /Start daily training/ }).click();
+  for (let i = 0; i < 5; i++) {
+    await page.locator('.w').first().waitFor();
+    await typeUntilEffort();
+    await page.keyboard.press('2');
+    await page.locator('#progbar').waitFor();
+    if (i === 2) assert.ok(await page.getByText(/^Rounds$/).isVisible(), 'burst rounds table');
+    if (i === 3) assert.ok(await page.getByText(/Your place is saved/).isVisible(), 'prose position');
+    if (shots && i === 2) await page.screenshot({ path: shots + '/bursts-summary.png', fullPage: true });
+    await page.keyboard.press('Enter');
+  }
+  await page.getByText('Daily training finished').waitFor();
+  assert.equal(await page.locator('tbody tr').count(), 5);
+  if (shots) await page.screenshot({ path: shots + '/programme-summary.png', fullPage: true });
+  const t = await page.evaluate(() => window.FT.app.store.listTexts().then((l) => l[0]));
+  assert.ok(t.pos > 0, 'prose position advanced');
+  await page.keyboard.press('Enter');
+});
+
+await step('an interrupted programme can be resumed after a reload', async () => {
+  await page.keyboard.press('Enter'); // start a new programme
+  await page.locator('.w').first().waitFor();
+  await typeUntilEffort();
+  await page.keyboard.press('2');
+  await page.locator('#progbar').waitFor();
+  await page.waitForTimeout(300);
+  await page.reload();
+  await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  await page.getByRole('button', { name: /Resume: relaxed practice \(2 of 5\)/ }).waitFor();
+});
+
 await step('phone width has no horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 800 });
-  for (const k of ['p', 'q', 'h', 's', 'd']) {
+  for (const k of ['p', 't', 'q', 'h', 's', 'd']) {
     await page.keyboard.press(k);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     assert.ok(over <= 0, 'overflow on ' + k + ': ' + over);
