@@ -34,7 +34,7 @@
     var prev = null; // previous record
     for (var wi = 0; wi < words.length; wi++) {
       var w = words[wi];
-      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream);
+      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream, { macros: opts.macros });
       w.analysis = an;
       for (var p = 0; p < an.targets.length; p++) {
         var tg = an.targets[p];

@@ -242,3 +242,15 @@ test('profiles from before the progress fields are rebuilt (model version 4)', (
   assert.ok(FT.MODEL_VERSION >= 4);
   assert.equal(FT.trainer.needsRebuild({ modelVersion: 3 }), true);
 });
+
+test('an exercise counts a wrong th press as one error (multi-letter keys of the session)', () => {
+  const tr = FT.trainer.create({ seed: 23, settings: { macros: ['th'] } });
+  const s = FT.session.create(['you', 'are']);
+  let t = 0;
+  s.input({ kind: 'text', data: 'th', t: (t += 100) });            // the th key, where y was meant
+  for (const ch of 'ou are ') s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const { summary } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
+  const m = summary.metrics;
+  assert.ok(Math.abs(m.chars * (1 - m.firstAttemptAccuracy) - 1) < 1e-9, String(m.firstAttemptAccuracy));
+  assert.ok(FT.MODEL_VERSION >= 5);
+});
