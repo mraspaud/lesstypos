@@ -30,6 +30,7 @@
     if (s.layoutText && s.layoutText.trim()) { try { app.layout = FT.layout.parse(s.layoutText); } catch (e) { app.layout = null; } }
     if (app.trainerSettings) app.trainerSettings.macros = macros();
     FT.text.setOptions({ accents: s.accents !== false });
+    if (app.trainerSettings) app.trainerSettings.accents = s.accents !== false;
   }
   function programmeDef() { return app.settings.programme || FT.programme.DEFAULT; }
   function today() { return FT.trainer.dayOf(Date.now()); }
@@ -44,7 +45,7 @@
   }
 
   function makeTrainer(profile, sessions) {
-    app.trainerSettings = { macros: macros() };
+    app.trainerSettings = { macros: macros(), accents: app.settings.accents !== false };
     var opts = { settings: app.trainerSettings, seed: (Date.now() % 1e6) + 1 };
     if (profile) return FT.trainer.create(Object.assign({ profile: profile }, opts));
     if (sessions && sessions.length) return FT.trainer.rebuild(sessions, opts);

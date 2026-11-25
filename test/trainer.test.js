@@ -108,3 +108,21 @@ test('profiles built by an older model version are rebuilt from raw sessions', (
   assert.equal(FT.trainer.needsRebuild(Object.assign({}, fresh, { modelVersion: FT.MODEL_VERSION - 1 })), true);
   assert.equal(FT.trainer.needsRebuild(null), false);
 });
+
+test('rebuild does not depend on the current accent setting: each raw session keeps its own', () => {
+  FT.text.setOptions({ accents: true });
+  const tr = FT.trainer.create({ seed: 12 });
+  const text = { id: 't', words: Array.from({ length: 40 }, (_, i) => (i % 2 ? 'café' : 'word')), pos: 0 };
+  const ex = tr.newExercise({ type: 'prose', text });
+  const s = FT.session.create(ex.words.slice(0, 30));
+  let t = 0;
+  for (const w of s.state().words.slice(0, 30)) for (const ch of w.target.replace('é', 'e') + ' ') s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const { raw, summary } = tr.finish({ type: 'prose', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed), text: { id: 't', from: 0 } });
+  assert.equal(summary.metrics.firstAttemptAccuracy, 1);
+  assert.equal(raw.accents, true);
+  FT.text.setOptions({ accents: false });
+  try {
+    const rebuilt = FT.trainer.rebuild([JSON.parse(JSON.stringify(raw))], { seed: 12 });
+    assert.equal(rebuilt.history()[0].faa, 1);
+  } finally { FT.text.setOptions({ accents: true }); }
+});

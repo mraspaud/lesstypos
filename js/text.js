@@ -41,6 +41,13 @@
     return true;
   }
   function setOptions(o) { Object.assign(opts, o); cache = {}; }
+  // Runs fn with the given options, restoring the previous ones afterwards
+  // (processing a raw session uses the options it was typed with).
+  function withOptions(o, fn) {
+    var saved = Object.assign({}, opts);
+    setOptions(o);
+    try { return fn(); } finally { setOptions(saved); }
+  }
 
   // Pasted prose -> list of words (whitespace-separated tokens, punctuation
   // and capitals kept). The ellipsis becomes "..." (it has no one-character
@@ -55,5 +62,5 @@
     return t.split(/[\s\u00A0\u2009\u202F]+/).filter(Boolean);
   }
 
-  FT.text = { canon: canon, same: same, sameStr: sameStr, isPrefix: isPrefix, setOptions: setOptions, prepare: prepare };
+  FT.text = { canon: canon, same: same, sameStr: sameStr, isPrefix: isPrefix, setOptions: setOptions, withOptions: withOptions, prepare: prepare };
 })(globalThis.FT);

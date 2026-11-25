@@ -72,6 +72,7 @@
         startedAt: input.startedAt, day: dayOf(input.startedAt), durationMs: input.durationMs,
         effort: input.effort == null ? null : input.effort,
         macros: (settings.macros || []).slice(),
+        accents: settings.accents !== false,
         words: input.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta || null }; }),
         keys: input.keys || [],
       };
@@ -85,13 +86,15 @@
     // record a history entry. Deterministic, so replaying raw sessions
     // rebuilds the same profile.
     function process(raw) {
-      var session = ++sessionCount;
-      var m = measure(raw);
-      var summary = describe(raw, m);
-      learn(raw, session, m, summary);
-      summary.frontier = difficulty.state().frontier;
-      history.push(historyEntry(raw, m, summary));
-      return summary;
+      return FT.text.withOptions({ accents: raw.accents !== false }, function () {
+        var session = ++sessionCount;
+        var m = measure(raw);
+        var summary = describe(raw, m);
+        learn(raw, session, m, summary);
+        summary.frontier = difficulty.state().frontier;
+        history.push(historyEntry(raw, m, summary));
+        return summary;
+      });
     }
 
     function measure(raw) {
