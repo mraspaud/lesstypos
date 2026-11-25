@@ -101,12 +101,20 @@
       var words = raw.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta }; });
       var tm = FT.timing.extract(words, { macros: raw.macros });
       var analyses = words.map(function (w) { return w.analysis; });
-      // Speed bursts: speed over the typing rounds only, not the rests between them.
-      var activeMs = raw.rounds ? raw.rounds.reduce(function (a, r) { return a + (r.end - r.start); }, 0) : raw.durationMs;
+      // Speed bursts: speed over the words finished inside the typing rounds,
+      // over the rounds' duration (not the rests, not a partial last round).
+      var activeMs = raw.durationMs, scored = analyses;
+      if (raw.rounds) {
+        activeMs = raw.rounds.reduce(function (a, r) { return a + (r.end - r.start); }, 0);
+        scored = words.filter(function (w) {
+          var end = w.stream.length ? w.stream[w.stream.length - 1].t : -Infinity;
+          return raw.rounds.some(function (r) { return end >= r.start && end <= r.end; });
+        }).map(function (w) { return w.analysis; });
+      }
       var rnd = words.filter(function (w) { return w.meta && w.meta.source === 'random'; });
       return {
         words: words, tm: tm, analyses: analyses,
-        metrics: FT.metrics.summarize(analyses, { durationMs: activeMs }),
+        metrics: FT.metrics.summarize(scored, { durationMs: activeMs }),
         random: FT.metrics.summarize(rnd.map(function (w) { return w.analysis; }), { durationMs: 0 }),
       };
     }

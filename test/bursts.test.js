@@ -94,3 +94,17 @@ test('reading the burst target does not fix it before any burst is finished', ()
   assert.ok(tr.bursts.target() > 100);                   // follows relaxed speed (~120 WPM x 1.1)
   assert.equal(tr.profile().bursts.target, null);        // nothing was stored by reading it
 });
+
+test('burst metrics count only the words finished inside the rounds', () => {
+  const tr = FT.trainer.create({ seed: 13 });
+  const s = FT.session.create(['abcd', 'efgh', 'ijkl', 'mnop', 'qrst', 'uvwx']);
+  let t = 0;
+  for (const w of ['abcd ', 'efgh ']) for (const ch of w) s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const r1 = { start: 0, end: t };
+  t += 10000;
+  // words typed after the last completed round (e.g. a partial round before Finish)
+  for (const w of ['ijkl ', 'mnop ', 'qrst ', 'uvwx ']) for (const ch of w) s.input({ kind: 'text', data: ch, t: (t += 50) });
+  const { summary } = tr.finish({ type: 'bursts', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed), rounds: [r1] });
+  assert.equal(summary.metrics.words, 2);
+  assert.ok(Math.abs(summary.metrics.wpm - 120) < 1, String(summary.metrics.wpm));
+});
