@@ -125,6 +125,47 @@
     return total ? rolled / total : null;
   }
 
+  // Keys the keyboard sends late (see the header of test/latekeys.test.js):
+  // a tap-hold key not settled on press arrives as a synthetic tap at the
+  // firmware's decision time, its keyup within a millisecond of its keydown.
+  // Design choice: >= LATE_MIN_N single-key presses, >= LATE_SHARE of them held
+  // < INSTANT_MS, and a normal median hold overall (>= HOLD_INFO_MS; otherwise
+  // the input carries no hold information). keys: [{k, c, t}]; words carry
+  // streams; macros as for FT.text.pressIds.
+  var MATCH_MS = 5, INSTANT_MS = 3, LATE_MIN_N = 10, LATE_SHARE = 0.8, HOLD_INFO_MS = 20;
+  function lateKeys(keys, words, macros) {
+    var chars = [];
+    (words || []).forEach(function (w) {
+      var ids = FT.text.pressIds(w.stream, macros), size = {};
+      ids.forEach(function (p) { if (p != null) size[p] = (size[p] || 0) + 1; });
+      w.stream.forEach(function (e, i) { if (e.k === 'c') chars.push({ ch: e.ch, t: e.t, single: size[ids[i]] === 1 }); });
+    });
+    chars.sort(function (a, b) { return a.t - b.t; });
+    var ev = (keys || []).filter(function (e) { return !MODS.test(e.c); })
+      .sort(function (a, b) { return a.t - b.t || (a.k === 'u' ? -1 : 1); });
+    var j = 0, down = {}, holds = {}, all = [], codeOf = {};
+    ev.forEach(function (e) {
+      if (e.k === 'd') {
+        while (j < chars.length && chars[j].t < e.t - MATCH_MS) j++;
+        var m = j < chars.length && chars[j].t <= e.t + MATCH_MS ? chars[j++] : null;
+        down[e.c] = { t: e.t, m: m };
+      } else if (down[e.c]) {
+        var d = down[e.c], hold = e.t - d.t;
+        delete down[e.c];
+        all.push(hold);
+        if (!d.m || !d.m.single) return;
+        var h = holds[d.m.ch] || (holds[d.m.ch] = { n: 0, instant: 0 });
+        h.n++; if (hold < INSTANT_MS) h.instant++;
+        codeOf[d.m.ch] = e.c;
+      }
+    });
+    var info = all.length && median(all) >= HOLD_INFO_MS;
+    var late = !info ? [] : Object.keys(holds).filter(function (ch) {
+      return holds[ch].n >= LATE_MIN_N && holds[ch].instant / holds[ch].n >= LATE_SHARE;
+    });
+    return { chars: late, codes: late.map(function (ch) { return codeOf[ch]; }), holds: holds };
+  }
+
   // Share of clean keystrokes slower than twice the ratio expected for them
   // (expectedFn(record) -> expected ratio, e.g. from the sequence model).
   function hesitationRate(records, expectedFn) {
@@ -168,6 +209,6 @@
     return init.length >= 10 && within.length >= MIN_PAIRS ? median(init) - median(within) : null;
   }
 
-  FT.timing = { wordStartMs: wordStartMs, extract: extract, macroCandidates: macroCandidates, median: median, rollover: rollover,
+  FT.timing = { lateKeys: lateKeys, SIMULTANEOUS_MS: SIMULTANEOUS_MS, wordStartMs: wordStartMs, extract: extract, macroCandidates: macroCandidates, median: median, rollover: rollover,
     hesitationRate: hesitationRate, rhythmCv: rhythmCv, COMMON_PAIRS: COMMON_PAIRS, commonPairMs: commonPairMs, commonPairStats: commonPairStats };
 })(globalThis.FT);
