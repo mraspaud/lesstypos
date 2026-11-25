@@ -56,3 +56,11 @@ test('step durations come from the definition', () => {
   def.steps[0].minutes = 0.1;
   assert.equal(FT.programme.runner(def, { day: 1 }).current().minutes, 0.1);
 });
+
+test('a run has an id that survives resuming', () => {
+  const r = FT.programme.runner(FT.programme.DEFAULT, { day: 3 });
+  assert.ok(r.id());
+  r.complete({});
+  assert.equal(FT.programme.resume(JSON.parse(JSON.stringify(r.toJSON())), 3).id(), r.id());
+  assert.notEqual(FT.programme.runner(FT.programme.DEFAULT, { day: 3 }).id(), r.id());
+});

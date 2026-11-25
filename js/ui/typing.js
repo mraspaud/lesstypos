@@ -29,7 +29,7 @@
     document.body.classList.add('typing-mode');
     renderNav();
     var exDef = EXERCISES[type];
-    var ex = app.trainer.newExercise({ type: type, pinned: opts.pinned, text: opts.text });
+    var ex = app.trainer.newExercise({ type: type, pinned: opts.pinned, text: opts.text, run: opts.run });
     var durationMs = (opts.minutes || app.settings.durationMin) * 60000;
     var nRounds = Math.max(1, Math.floor(durationMs / (2 * burstRun())));
     setView('<section class="typing">' +

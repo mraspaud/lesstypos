@@ -15,14 +15,18 @@
     return def.steps.reduce(function (a, s) { return a + (s.enabled ? s.minutes : 0); }, 0);
   }
 
+  var counter = 0;
+  function newId() { return 'run-' + Date.now().toString(36) + '-' + (++counter).toString(36); }
+
   function runner(def, opts, state) {
-    var st = state || { def: JSON.parse(JSON.stringify(def)), day: opts.day, index: -1, results: [], finished: false };
+    var st = state || { id: newId(), def: JSON.parse(JSON.stringify(def)), day: opts.day, index: -1, results: [], finished: false };
     function nextEnabled(from) {
       for (var i = from; i < st.def.steps.length; i++) if (st.def.steps[i].enabled) return i;
       return -1;
     }
     if (st.index === -1) st.index = nextEnabled(0);
     var api = {
+      id: function () { return st.id; },
       current: function () { return st.finished || st.index < 0 ? null : Object.assign({ index: st.index }, st.def.steps[st.index]); },
       complete: function (result) {
         var c = api.current();

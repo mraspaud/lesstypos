@@ -139,3 +139,72 @@ test('a fixed vocabulary level survives a rebuild', () => {
   assert.equal(rebuilt.difficulty.state().manual, true);
   assert.equal(rebuilt.difficulty.state().frontier, 2000);
 });
+
+// A programme run (or a standalone exercise) is one session for the
+// sequence statistics: replication needs two runs, not two exercises.
+function sloppyTh(tr, type, run, t0) {
+  const ex = tr.newExercise({ type, run });
+  const s = FT.session.create(ex.words.slice(0, 220));
+  let t = t0;
+  for (const w of s.state().words.slice(0, 220)) {
+    let prev = '';
+    for (const ch of w.target + ' ') {
+      if (ch === 'h' && prev === 't') { s.input({ kind: 'text', data: 'n', t: (t += 120) }); s.input({ kind: 'back', t: (t += 150) }); }
+      s.input({ kind: 'text', data: ch, t: (t += 120) }); prev = ch;
+    }
+  }
+  return tr.finish({ type, run, startedAt: t0, durationMs: t - t0, words: s.state().words.filter((w) => w.committed) });
+}
+
+test('exercises of one programme run count as one session', () => {
+  const tr = FT.trainer.create({ seed: 15 });
+  const day = Date.UTC(2026, 0, 1);
+  sloppyTh(tr, 'warmup', 'run1', day);
+  sloppyTh(tr, 'relaxed', 'run1', day + 6e5);
+  const th = tr.evaluate().get('th');
+  assert.equal(th.state, 'emerging');          // one run is one session: not yet confirmed
+  const { raw } = sloppyTh(tr, 'relaxed', 'run2', day + 864e5);
+  assert.equal(raw.run, 'run2');
+  assert.equal(tr.evaluate().get('th').state, 'weak');
+});
+
+test('speed bursts do not advance the session clock', () => {
+  const tr = FT.trainer.create({ seed: 16 });
+  const before = tr.profile().sessionCount;
+  const s = FT.session.create(tr.newExercise({ type: 'bursts' }).words.slice(0, 30));
+  let t = 0;
+  for (const w of s.state().words.slice(0, 30)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 80) });
+  tr.finish({ type: 'bursts', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed), rounds: [{ start: 0, end: t }] });
+  assert.equal(tr.profile().sessionCount, before);
+});
+
+test('replaying a mixed programme rebuilds exactly the same profile', () => {
+  const tr = FT.trainer.create({ seed: 17 });
+  const text = { id: 'book', words: Array.from({ length: 400 }, (_, i) => ['The', 'cat’s', 'well—known', 'café.'][i % 4]), pos: 0 };
+  const raws = [];
+  let t0 = Date.UTC(2026, 0, 1);
+  for (const run of ['r1', 'r2']) {
+    for (const type of ['warmup', 'relaxed', 'bursts', 'prose', 'targeted']) {
+      const ex = tr.newExercise({ type, run, text });
+      const s = FT.session.create(ex.words.slice(0, 60));
+      let t = t0;
+      for (const w of s.state().words.slice(0, 60)) {
+        for (const ch of w.target + ' ') {
+          if (ch === 'e' && t % 7 === 0) { s.input({ kind: 'text', data: 'r', t: (t += 90) }); s.input({ kind: 'back', t: (t += 90) }); }
+          s.input({ kind: 'text', data: ch, t: (t += 110 + (t % 37)) });
+        }
+      }
+      const words = s.state().words.filter((w) => w.committed);
+      const input = { type, run, startedAt: t0, durationMs: t - t0, words, effort: 2 };
+      if (type === 'bursts') input.rounds = [{ start: t0, end: t0 + (t - t0) / 2 }, { start: t0 + (t - t0) / 2, end: t }];
+      if (type === 'prose') { input.text = { id: 'book', from: text.pos }; }
+      const { raw } = tr.finish(input);
+      if (type === 'prose') text.pos = raw.text.to;
+      raws.push(JSON.parse(JSON.stringify(raw)));
+      t0 += 3600e3;
+    }
+    t0 += 864e5;
+  }
+  const rebuilt = FT.trainer.rebuild(raws, { seed: 17 });
+  assert.deepEqual(plain(rebuilt.profile()), plain(tr.profile()));
+});

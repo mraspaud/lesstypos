@@ -74,12 +74,12 @@
     if (!c) { viewProgrammeSummary(); return; }
     if (c.type === 'prose') {
       currentText().then(function (text) {
-        if (text && text.pos < text.words.length) startExercise('prose', { minutes: c.minutes, programme: true, text: text });
+        if (text && text.pos < text.words.length) startExercise('prose', { minutes: c.minutes, programme: true, text: text, run: app.run.id() });
         else viewNeedText(c);
       });
       return;
     }
-    startExercise(c.type, { minutes: c.minutes, programme: true });
+    startExercise(c.type, { minutes: c.minutes, programme: true, run: app.run.id() });
   }
   function nextLine() {
     var c = app.run.current();
@@ -173,7 +173,7 @@
 
   function complete(info) {
     var res = app.trainer.finish({ type: info.type, startedAt: info.startedAt, durationMs: info.durationMs,
-      words: info.words, keys: info.keys, effort: info.effort, text: info.text, rounds: info.rounds });
+      words: info.words, keys: info.keys, effort: info.effort, text: info.text, rounds: info.rounds, run: info.opts.run });
     var saving = app.store.saveSession(res.raw).then(saveProfile);
     if (res.raw.text) {
       var t = info.opts.text;

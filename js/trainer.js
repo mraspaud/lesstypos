@@ -19,13 +19,18 @@
     var subs = FT.subs.create(p.subs || null);
     var difficulty = FT.difficulty.create(p.difficulty || { frontier: 200, max: corpus.size });
     var bursts = FT.bursts.create(p.bursts || null);
+    // A session, for the sequence statistics, is one programme run or one
+    // standalone exercise (user decision). Only exercises that feed the
+    // model advance it.
     var sessionCount = p.sessionCount || 0;
+    var lastRun = p.lastRun || null;
+    function sessionFor(run) { return run && run === lastRun ? sessionCount : sessionCount + 1; }
     var seed = opts.seed || 1;
     var history = p.history || []; // compact per-exercise summaries
     var now = opts.now || function () { return Date.now(); };
 
-    function targets() {
-      return model.trainingTargets({ session: sessionCount + 1, day: dayOf(now()), freq: corpus.freqWeight });
+    function targets(run) {
+      return model.trainingTargets({ session: sessionFor(run), day: dayOf(now()), freq: corpus.freqWeight });
     }
 
     // o.pinned: contexts chosen by the user; they replace the model's targets
@@ -48,7 +53,7 @@
         tg = o.pinned.map(function (k) { return { key: k, priority: 1, stage: 'weak' }; });
         shares = { random: 0.2, target: 0.5, maintenance: 0 };
       } else {
-        tg = targets().slice(0, 10);
+        tg = targets(o.run).slice(0, 10);
         if (type === 'targeted') shares = { random: 0.2, target: 0.5, maintenance: 0.15 };
       }
       var gen = FT.generator.create({ corpus: corpus, seed: seed + sessionCount * 31 + 7, shares: shares });
@@ -73,6 +78,7 @@
         effort: input.effort == null ? null : input.effort,
         macros: (settings.macros || []).slice(),
         accents: settings.accents !== false,
+        run: input.run || null,
         words: input.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta || null }; }),
         keys: input.keys || [],
       };
@@ -87,7 +93,12 @@
     // rebuilds the same profile.
     function process(raw) {
       return FT.text.withOptions({ accents: raw.accents !== false }, function () {
-        var session = ++sessionCount;
+        var session = sessionCount;
+        if (MODEL_TYPES[raw.type]) {
+          session = sessionFor(raw.run || raw.id);
+          sessionCount = session;
+          lastRun = raw.run || raw.id;
+        }
         var m = measure(raw);
         var summary = describe(raw, m);
         learn(raw, session, m, summary);
@@ -182,7 +193,7 @@
         reference: function () { return FT.bursts.relaxedMedian(history); } },
       history: function () { return history; },
       profile: function () {
-        return { lang: lang, modelVersion: FT.MODEL_VERSION, sessionCount: sessionCount, model: model.toJSON(), subs: subs.toJSON(),
+        return { lang: lang, modelVersion: FT.MODEL_VERSION, sessionCount: sessionCount, lastRun: lastRun, model: model.toJSON(), subs: subs.toJSON(),
           difficulty: difficulty.toJSON(), bursts: bursts.toJSON(), history: history };
       },
     };

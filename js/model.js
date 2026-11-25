@@ -77,7 +77,14 @@
         for (var q = 0; q < lat.length; q++) { ls += lat[q]; lss += lat[q] * lat[q]; }
         var c = ctxOf(key);
         var words = Object.keys(a.words);
-        c.b.push({ s: session, d: day, n: a.n, e: a.e, ln: lat.length, ls: ls, lss: lss, wd: words.length });
+        var last = c.b[c.b.length - 1];
+        if (last && last.s === session && last.blk == null) {
+          // another exercise of the same session (programme run): one bucket
+          last.d = day; last.n += a.n; last.e += a.e; last.ln += lat.length; last.ls += ls; last.lss += lss;
+          last.wd = Math.max(last.wd, words.length);
+        } else {
+          c.b.push({ s: session, d: day, n: a.n, e: a.e, ln: lat.length, ls: ls, lss: lss, wd: words.length });
+        }
         for (var x = 0; x < words.length; x++) {
           var idx = c.ex.indexOf(words[x]);
           if (idx >= 0) c.ex.splice(idx, 1);
