@@ -214,7 +214,7 @@
 
   function analyzeWord(P, stream, opts) {
     var macros = (opts && opts.macros) || [];
-    var presses = { typed: FT.text.pressIds(stream, macros), target: FT.text.targetPresses(P, macros) };
+    var presses = { typed: FT.text.pressIds(stream, macros, opts && opts.gapMs), target: FT.text.targetPresses(P, macros) };
     var flags = flagStream(stream);
     var flaggedIdx = [];
     var T = '';

@@ -174,3 +174,8 @@ test('common-pair timing comes from relaxed practice only, weighted by intervals
   ];
   assert.deepEqual(plain(FT.progress.series(h).pairMs.map((p) => p.ms)), [100]);
 });
+
+test('a missed multi-letter press counts as one full error on its key', () => {
+  const words = analysed([['the', 'xe']]).map((w) => Object.assign(w, { analysis: FT.align.analyzeWord('the ', w.stream, { macros: ['th'] }) }));
+  assert.deepEqual(plain(FT.progress.keyStats(words, ['th']).keys.th), [1, 1]);
+});

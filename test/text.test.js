@@ -81,3 +81,8 @@ test('typed presses: one input event, or a declared key typed as fast separate k
   assert.deepEqual(plain(FT.text.pressIds(S([['t', 0, 1], ['h', 120, 2]]), ['th'])), [0, 1]);       // declared but slow
   assert.deepEqual(plain(FT.text.pressIds(S([['x', 0, 1], ['<', 50], ['e', 100, 2]]), [])), [0, null, 1]);
 });
+
+test('a declared key of three letters typed as fast separate keystrokes is one press', () => {
+  const st = [['t', 0], ['h', 4], ['e', 8], ['n', 200]].map(([ch, t], i) => ({ k: 'c', ch, t, g: i + 1 }));
+  assert.deepEqual(plain(FT.text.pressIds(st, ['the'])), [0, 0, 0, 1]);
+});

@@ -28,13 +28,13 @@
   function wordEnd(w) { return w.tEnd != null ? w.tEnd : w.stream[w.stream.length - 1].t; }
 
   // Statistics of the words finished within [start, end].
-  function roundStats(words, start, end) {
+  function roundStats(words, start, end, macros) {
     var C = 0, n = 0, targets = 0, err = 0;
     words.forEach(function (w) {
       if (!w.stream.length) return;
       var t = wordEnd(w);
       if (t < start || t > end) return;
-      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream);
+      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream, { macros: macros });
       n++; C += an.counts.C;
       an.targets.forEach(function (x) { targets++; err += x.err; });
     });

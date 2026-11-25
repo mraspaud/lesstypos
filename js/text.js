@@ -84,8 +84,9 @@
   }
   // Press id per stream entry (null for backspaces). Characters of one input
   // event share a press; so do consecutive characters that form a declared
-  // multi-letter key and arrive less than gapMs apart (a keyboard macro sending
-  // separate keystrokes). Undeclared fast pairs are never merged.
+  // multi-letter key (or the start of one) and arrive less than gapMs apart (a
+  // keyboard macro sending separate keystrokes). Undeclared fast pairs are
+  // never merged.
   var MACRO_GAP_MS = 30;
   function pressIds(stream, macros, gapMs) {
     var ms = lowerMacros(macros), gap = gapMs || MACRO_GAP_MS, out = [], p = -1;
@@ -99,7 +100,7 @@
         var start = i - 1;
         while (start > 0 && out[start - 1] === out[i - 1]) start--;
         var chunk = stream.slice(start, i + 1).map(function (x) { return x.ch; }).join('').toLowerCase();
-        same = e.t - prev.t < gap && ms.some(function (m) { return m === chunk; });
+        same = e.t - prev.t < gap && ms.some(function (m) { return m.indexOf(chunk) === 0; });
       }
       if (!same) p++;
       out.push(p);

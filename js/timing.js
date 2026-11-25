@@ -32,7 +32,7 @@
     var prev = null; // previous record
     for (var wi = 0; wi < words.length; wi++) {
       var w = words[wi];
-      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream, { macros: opts.macros });
+      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream, { macros: opts.macros, gapMs: macroGapMs });
       w.analysis = an;
       var presses = FT.text.pressIds(w.stream, opts.macros, macroGapMs);
       for (var p = 0; p < an.targets.length; p++) {

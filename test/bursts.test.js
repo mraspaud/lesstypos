@@ -108,3 +108,14 @@ test('burst metrics count only the words finished inside the rounds', () => {
   assert.equal(summary.metrics.words, 2);
   assert.ok(Math.abs(summary.metrics.wpm - 120) < 1, String(summary.metrics.wpm));
 });
+
+test('live round statistics use the multi-letter keys', () => {
+  const s = FT.session.create(['you', 'are', 'we']);
+  s.input({ kind: 'text', data: 't', t: 100 });   // the th key, sending two fast keystrokes
+  s.input({ kind: 'text', data: 'h', t: 104 });
+  let t = 104;
+  for (const ch of 'ou are we ') s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const words = s.state().words.filter((w) => w.committed);
+  const chars = 4 + 4 + 3;
+  assert.ok(Math.abs(FT.bursts.roundStats(words, 0, t, ['th']).accuracy - (1 - 1 / chars)) < 1e-9);
+});

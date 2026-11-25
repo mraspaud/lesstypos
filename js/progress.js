@@ -153,24 +153,21 @@
   // multi-character input event landing on its multi-letter key.
   // words: committed words with their stream (and analysis).
   function keyStats(words, macros) {
-    var ms = (macros || []).map(function (m) { return m.toLowerCase(); })
-      .sort(function (a, b) { return b.length - a.length; });
+    var ms = (macros || []).map(function (m) { return m.toLowerCase(); });
     var keys = {}, land = {};
     words.forEach(function (w) {
-      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream);
+      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream, { macros: macros });
       var P = an.targets.map(function (x) { return x.ch; });
-      for (var i = 0; i < P.length;) {
-        var tok = P[i], len = 1;
-        for (var m = 0; m < ms.length; m++) {
-          var n = Array.from(ms[m]).length;
-          if (P.slice(i, i + n).join('').toLowerCase() === ms[m]) { tok = ms[m]; len = n; break; }
-        }
-        var err = 0;
-        for (var j = i; j < i + len; j++) err = Math.max(err, an.targets[j].err);
+      var tp = FT.text.targetPresses(P.join(''), macros), byPress = {};
+      P.forEach(function (ch, i) {
+        var b = byPress[tp[i]] || (byPress[tp[i]] = { chars: '', err: 0 });
+        b.chars += ch; b.err += an.targets[i].err;
+      });
+      Object.keys(byPress).forEach(function (p) {
+        var b = byPress[p], tok = Array.from(b.chars).length > 1 ? b.chars.toLowerCase() : b.chars;
         var k = keys[tok] || (keys[tok] = [0, 0]);
-        k[0] += 1; k[1] += err;
-        i += len;
-      }
+        k[0] += 1; k[1] += Math.min(1, b.err); // one press: at most one error
+      });
       var groups = {}, presses = FT.text.pressIds(w.stream, macros);
       an.events.forEach(function (e) {
         if (e.type !== 'sub' && e.type !== 'transpose') return;
