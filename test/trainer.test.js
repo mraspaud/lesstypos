@@ -100,3 +100,11 @@ test('a pinned-sequence exercise focuses on that sequence and does not move diff
   assert.equal(summary.difficulty, null);
   assert.equal(tr.difficulty.state().frontier, 200);
 });
+
+test('profiles built by an older model version are rebuilt from raw sessions', () => {
+  const fresh = FT.trainer.create({ seed: 8 }).profile();
+  assert.equal(FT.trainer.needsRebuild(fresh), false);
+  assert.equal(FT.trainer.needsRebuild(Object.assign({}, fresh, { modelVersion: undefined })), true);
+  assert.equal(FT.trainer.needsRebuild(Object.assign({}, fresh, { modelVersion: FT.MODEL_VERSION - 1 })), true);
+  assert.equal(FT.trainer.needsRebuild(null), false);
+});

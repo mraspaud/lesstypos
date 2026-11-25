@@ -711,8 +711,10 @@
       }).then(function (d) {
         app.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
         applySettings();
-        return (d.profile ? Promise.resolve([]) : app.store.listSessions()).then(function (sessions) {
-          app.trainer = makeTrainer(d.profile, sessions);
+        var rebuild = !d.profile || FT.trainer.needsRebuild(d.profile);
+        return (rebuild ? app.store.listSessions() : Promise.resolve([])).then(function (sessions) {
+          app.trainer = makeTrainer(rebuild ? null : d.profile, sessions);
+          if (rebuild && sessions.length) return saveProfile();
         });
       }).then(function () {
         if (!app.storageOk) app.notice = 'This browser does not allow storage for this page, so progress will be lost when you close it. Use Data → Export to keep it.';

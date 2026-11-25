@@ -4,6 +4,9 @@
   var FT = (g.FT = g.FT || {});
   FT.version = '0.1.0';
   FT.SCHEMA = 1;
+  // Bump when derived statistics change meaning; profiles are then rebuilt
+  // from the raw sessions (the source of truth).
+  FT.MODEL_VERSION = 2;
   // Seedable PRNG (mulberry32) so generators are reproducible in tests.
   FT.rng = function (seed) {
     var a = (seed >>> 0) || 1;

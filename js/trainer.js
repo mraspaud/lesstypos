@@ -124,7 +124,7 @@
       difficulty: difficulty, model: model, corpus: corpus,
       history: function () { return history; },
       profile: function () {
-        return { lang: lang, sessionCount: sessionCount, model: model.toJSON(), subs: subs.toJSON(),
+        return { lang: lang, modelVersion: FT.MODEL_VERSION, sessionCount: sessionCount, model: model.toJSON(), subs: subs.toJSON(),
           difficulty: difficulty.toJSON(), history: history };
       },
     };
@@ -136,5 +136,7 @@
     return t;
   }
 
-  FT.trainer = { create: create, rebuild: rebuild, dayOf: dayOf };
+  function needsRebuild(profile) { return !!profile && profile.modelVersion !== FT.MODEL_VERSION; }
+
+  FT.trainer = { create: create, rebuild: rebuild, dayOf: dayOf, needsRebuild: needsRebuild };
 })(globalThis.FT);
