@@ -83,10 +83,12 @@ test('endSession applies stages using this session\'s own observations', () => {
       ctx += ch;
     }
   }
-  m.ingest(recs, { session: 1, day: 0 });
-  const changes = m.endSession({ session: 1, day: 0 });
+  m.ingest(recs.slice(0, recs.length / 2), { session: 1, day: 0 });
+  m.endSession({ session: 1, day: 0 });
+  m.ingest(recs.slice(recs.length / 2), { session: 2, day: 0 });
+  const changes = m.endSession({ session: 2, day: 0 });
   assert.equal(m.state().contexts.rn.stage.name, 'weak');
   assert.ok(changes.some((c) => c.key === 'rn' && c.to === 'weak'));
-  const targets = m.trainingTargets({ session: 2, day: 1 });
+  const targets = m.trainingTargets({ session: 3, day: 1 });
   assert.equal(targets[0].key, 'rn');
 });

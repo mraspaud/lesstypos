@@ -84,9 +84,10 @@ test('consistently easy contexts are reported as ok', () => {
 
 test('old weakness fades when recent practice is good (recency weighting)', () => {
   const m = FT.model.create();
-  m.ingest(makeRecords([...FILLER, ...RN, ...N_WORDS], 1500, errRn, 7), { session: 1, day: 0 });
+  m.ingest(makeRecords([...FILLER, ...RN, ...N_WORDS], 750, errRn, 7), { session: 1, day: 0 });
+  m.ingest(makeRecords([...FILLER, ...RN, ...N_WORDS], 750, errRn, 17), { session: 2, day: 0 });
   assert.equal(m.evaluate({ day: 0 }).get('rn').weak, true);
-  for (let s = 0; s < 6; s++) {
+  for (let s = 1; s < 7; s++) {
     m.ingest(makeRecords([...FILLER, ...RN, ...N_WORDS], 300, () => null, 70 + s), { session: s + 2, day: 30 + s });
   }
   assert.equal(m.evaluate({ day: 36 }).get('rn').weak, false);
@@ -94,11 +95,12 @@ test('old weakness fades when recent practice is good (recency weighting)', () =
 
 test('explain exposes the evidence behind a judgement', () => {
   const m = FT.model.create();
-  m.ingest(makeRecords([...FILLER, ...RN, ...N_WORDS], 1500, errRn, 8), { session: 1, day: 0 });
+  m.ingest(makeRecords([...FILLER, ...RN, ...N_WORDS], 750, errRn, 8), { session: 1, day: 0 });
+  m.ingest(makeRecords([...FILLER, ...RN, ...N_WORDS], 750, errRn, 18), { session: 2, day: 0 });
   const x = plain(m.explain('rn', { day: 0 }));
   assert.equal(x.key, 'rn');
   assert.equal(x.parent, 'n');
-  for (const f of ['n', 'errors', 'errorRate', 'parentErrorRate', 'pWorse', 'latency', 'state', 'examples']) {
+  for (const f of ['n', 'errors', 'errorRate', 'parentErrorRate', 'pWorse', 'latency', 'state', 'examples', 'sessionsWithDeficit']) {
     assert.ok(f in x, f);
   }
   assert.ok(x.examples.includes('turn') || x.examples.includes('learn') || x.examples.length > 0);
@@ -141,4 +143,25 @@ test('long histories are compacted without changing judgements materially', () =
   assert.equal(a.state, b.state);
   assert.ok(Math.abs(a.errorRate - b.errorRate) < 0.01);
   assert.equal(a.sessions >= 1, true);
+});
+
+test('a deficit seen in only one session is emerging, and is confirmed by a second session', () => {
+  const m = FT.model.create();
+  const words = [...FILLER, ...RN, ...N_WORDS];
+  m.ingest(makeRecords(words, 1500, errRn, 300), { session: 1, day: 0 });
+  const one = m.evaluate({ day: 0 }).get('rn');
+  assert.equal(one.state, 'emerging');
+  assert.equal(one.weak, false);
+  m.ingest(makeRecords(words, 400, errRn, 301), { session: 2, day: 1 });
+  const two = m.evaluate({ day: 1 }).get('rn');
+  assert.equal(two.weak, true);
+  assert.ok(two.errSessions >= 2);
+});
+
+test('a deficit in one session that is absent in the next is never confirmed', () => {
+  const m = FT.model.create();
+  const words = [...FILLER, ...RN, ...N_WORDS];
+  m.ingest(makeRecords(words, 1500, errRn, 310), { session: 1, day: 0 });
+  m.ingest(makeRecords(words, 300, (ctx, ch) => (ch === 'n' && ctx.endsWith('r') ? { p: 0 } : null), 311), { session: 2, day: 1 });
+  assert.equal(m.evaluate({ day: 1 }).get('rn').weak, false);
 });

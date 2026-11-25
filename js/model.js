@@ -18,6 +18,10 @@
 //      performance dominates once enough new evidence exists, and a context
 //      that is not practised does not decay (time off does not erase mastery);
 //  (b) a mild FSRS-shaped power-law decay of age in days (stats.recencyWeight).
+// Replication (design choice, user decision): a context is flagged only when
+// the deficit also shows in at least `minSessions` separate sessions (each with
+// >= minSessionN observations, compared with the parent in the same session).
+// Credible but unreplicated deficits are reported as 'emerging'.
 // Redundancy (design choice): a child whose parent has (almost) no data
 // besides the child's own is not judged separately; it carries no information
 // beyond its parent and must not explain the parent away.
@@ -26,7 +30,7 @@
   var S = FT.stats;
   var MAX_ORDER = 4;
   var DEFAULTS = {
-    stabilityDays: 30, halfLifeObs: 60, minN: 8, pFlag: 0.95, minErrAbs: 0.005, minErrRel: 1.25,
+    stabilityDays: 30, halfLifeObs: 60, minN: 8, minSessions: 2, minSessionN: 3, pFlag: 0.95, minErrAbs: 0.005, minErrRel: 1.25,
     minLatRel: 1.10, maxExamples: 12, exactSessions: 24, block: 8,
   };
 
@@ -187,6 +191,24 @@
       return { kappa: kappa, sigma2: sigma2, tau2: tau2 };
     }
 
+    function bkey(b) { return b.blk != null ? 'B' + b.blk : 'S' + b.s; }
+    // Sessions in which the context did worse than its parent in that same
+    // session (parent without the context's own data).
+    function replication(k, pk, globalBy) {
+      var c = st.contexts[k], pmap = {};
+      if (pk) st.contexts[pk].b.forEach(function (b) { pmap[bkey(b)] = b; });
+      var err = 0, lat = 0;
+      c.b.forEach(function (b) {
+        if (b.n < cfg.minSessionN) return;
+        var p = pk ? (pmap[bkey(b)] || pmap['B' + Math.floor((b.s - 1) / cfg.block)]) : globalBy[bkey(b)];
+        if (!p) return;
+        var pn = p.n - b.n, pe = p.e - b.e, pln = p.ln - b.ln, pls = p.ls - b.ls;
+        if (pn > 0 && b.e / b.n > Math.max(pe, 0) / pn) err++;
+        if (b.ln >= cfg.minSessionN && pln > 0 && b.ls / b.ln > pls / pln) lat++;
+      });
+      return { err: err, lat: lat };
+    }
+
     function evaluate(when) {
       var day = when && when.day != null ? when.day : st.lastDay;
       var keys = Object.keys(st.contexts);
@@ -230,6 +252,24 @@
           out[x.k] = j;
         });
       }
+      // Replication across sessions.
+      var globalBy = {};
+      keys.forEach(function (k) {
+        if (k.length !== 1) return;
+        st.contexts[k].b.forEach(function (b) {
+          var g = globalBy[bkey(b)] || (globalBy[bkey(b)] = { n: 0, e: 0, ln: 0, ls: 0 });
+          g.n += b.n; g.e += b.e; g.ln += b.ln; g.ls += b.ls;
+        });
+      });
+      Object.keys(out).forEach(function (k) {
+        var c = out[k];
+        if (!(c.weak || c.hesitant)) { c.errSessions = c.latSessions = null; return; }
+        var r = replication(k, c.parent, globalBy);
+        c.errSessions = r.err; c.latSessions = r.lat;
+        var confirmedW = c.weak && r.err >= cfg.minSessions, confirmedH = c.hesitant && r.lat >= cfg.minSessions;
+        if ((c.weak && !confirmedW) || (c.hesitant && !confirmedH)) c.emerging = !(confirmedW || confirmedH);
+        c.weak = confirmedW; c.hesitant = confirmedH;
+      });
       // Explaining away, highest order first.
       for (order = MAX_ORDER; order >= 2; order--) {
         Object.keys(out).forEach(function (k) {
@@ -251,7 +291,7 @@
       Object.keys(out).forEach(function (k) {
         var c = out[k];
         c.state = c.insufficient ? 'insufficient' : c.redundant ? 'redundant'
-          : c.weak ? 'weak' : c.hesitant ? 'hesitant' : 'ok';
+          : c.weak ? 'weak' : c.hesitant ? 'hesitant' : c.emerging ? 'emerging' : 'ok';
         c.stage = st.contexts[k].stage ? st.contexts[k].stage.name : null;
       });
       return { get: function (k) { return out[k]; }, all: out, hyper: hypers, global: { rate: gRate, mu: gMu } };
@@ -267,6 +307,8 @@
         n: c.n, errors: c.errors, errorRate: c.errorRate, parentErrorRate: c.parentErrorRate, pWorse: c.pWorse,
         latency: { n: c.latN, ratio: Math.exp(c.mu), parentRatio: Math.exp(c.parentMu), relative: c.latRel, pSlower: c.pSlower },
         explainedBy: c.explainedBy || null, redundant: !!c.redundant,
+        sessionsWithDeficit: Math.max(c.errSessions || 0, c.latSessions || 0),
+        errorSessions: c.errSessions, latencySessions: c.latSessions, minSessions: cfg.minSessions,
         examples: ctx.ex.slice().reverse(),
         sessions: ctx.b.length,
       };
