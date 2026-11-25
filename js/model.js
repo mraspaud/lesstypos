@@ -235,8 +235,51 @@
       };
     }
 
+    // Update consolidation stages after a training session, using the overall
+    // judgement plus this session's own observations of each context.
+    function endSession(meta) {
+      var ev = evaluate({ day: meta.day });
+      var changes = [];
+      Object.keys(st.contexts).forEach(function (k) {
+        var c = st.contexts[k], j = ev.get(k);
+        if (!j) return;
+        var local = { n: 0, wd: 0 };
+        for (var i = 0; i < c.b.length; i++) if (c.b[i].s === meta.session) { local.n += c.b[i].n; local.wd += c.b[i].wd; }
+        if (!c.stage && !(j.weak || j.hesitant)) return;
+        var usable = !j.insufficient && !j.redundant;
+        var suspect = usable && (
+          (j.pWorse > 0.8 && j.errorRate - j.parentErrorRate >= cfg.minErrAbs / 2) ||
+          (j.pSlower > 0.8 && j.latRel >= 1 + (cfg.minLatRel - 1) / 2));
+        var nx = nextStage(c.stage, { flagged: j.weak || j.hesitant, suspect: suspect,
+          localN: local.n, localWords: local.wd, session: meta.session }, cfg);
+        var from = c.stage ? c.stage.name : null, to = nx ? nx.name : null;
+        if (from !== to) changes.push({ key: k, from: from, to: to, reason: j.state });
+        c.stage = nx;
+      });
+      return changes;
+    }
+
+    // Contexts to practise now, by priority = demand(stage) x (1 + excess cost) x frequency weight.
+    function trainingTargets(when) {
+      var ev = evaluate({ day: when.day });
+      var freq = when.freq || function () { return 1; };
+      var out = [];
+      Object.keys(st.contexts).forEach(function (k) {
+        var c = st.contexts[k];
+        var d = demand(c.stage, when.session);
+        if (!d) return;
+        var j = ev.get(k);
+        var excess = Math.max(0, j.errorRate / j.parentErrorRate - 1, j.latRel - 1);
+        out.push({ key: k, stage: c.stage.name, due: c.stage.name === 'consolidating' || c.stage.name === 'mastered',
+          state: j.state, priority: d * (1 + excess) * freq(k), excess: excess });
+      });
+      out.sort(function (a, b) { return b.priority - a.priority; });
+      return out;
+    }
+
     return {
       ingest: ingest, evaluate: evaluate, explain: explain, config: cfg,
+      endSession: endSession, trainingTargets: trainingTargets,
       state: function () { return st; },
       toJSON: function () { return { cfg: cfg, state: st }; },
     };
@@ -244,5 +287,43 @@
 
   function fromJSON(j) { return create(j.cfg, j.state); }
 
-  FT.model = { create: create, fromJSON: fromJSON, MAX_ORDER: MAX_ORDER };
+  // Stage machine (design choice, in the spirit of spaced repetition).
+  // obs: { flagged, suspect, localN, localWords, session }
+  var STAGE_CFG = { reviewN: 10, reviewWords: 3, masteredInterval: 8 };
+  function nextStage(stage, obs, cfg) {
+    var c = Object.assign({}, STAGE_CFG, cfg && cfg.stages);
+    var name = stage ? stage.name : null;
+    if (obs.flagged) {
+      if (name === 'weak') return stage;
+      var out = { name: 'weak' };
+      if (name === 'consolidating' || name === 'mastered' || (stage && stage.regressed)) out.regressed = true;
+      return out;
+    }
+    if (!stage) return null;
+    var reviewed = obs.localN >= c.reviewN && obs.localWords >= c.reviewWords;
+    if (name === 'weak') {
+      if (obs.suspect) return stage;
+      var imp = { name: 'improving' };
+      if (stage.regressed) imp.regressed = true;
+      return imp;
+    }
+    if (name === 'improving') {
+      if (!reviewed || obs.suspect) return stage;
+      return { name: 'consolidating', interval: 1, due: obs.session + 1 };
+    }
+    // consolidating / mastered
+    if (obs.session < stage.due || !reviewed) return stage;
+    if (obs.suspect) return { name: 'improving', regressed: true };
+    var interval = stage.interval * 2;
+    return { name: interval >= c.masteredInterval ? 'mastered' : 'consolidating', interval: interval, due: obs.session + interval };
+  }
+
+  var DEMAND = { weak: 1, improving: 0.6, consolidating: 0.3, mastered: 0.15 };
+  function demand(stage, session) {
+    if (!stage) return 0;
+    if ((stage.name === 'consolidating' || stage.name === 'mastered') && session < stage.due) return 0;
+    return DEMAND[stage.name] || 0;
+  }
+
+  FT.model = { create: create, fromJSON: fromJSON, MAX_ORDER: MAX_ORDER, nextStage: nextStage, demand: demand };
 })(globalThis.FT);
