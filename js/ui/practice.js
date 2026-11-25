@@ -137,6 +137,7 @@
       '<p class="muted">Speeds from different exercises are not comparable: warm-up and bursts use easier words, prose has capitals and punctuation.</p>' +
       '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button><a href="#history">See history</a></div>';
     app.run = null;
+    app.progKeys = null; app.again = null;
     saveRun();
     setView(html);
     document.getElementById('home').onclick = function () { go('home'); };
@@ -154,13 +155,15 @@
       }).join('') + '</div>' +
       '<div class="row"><button class="btn" type="button" data-effort="">Skip <kbd>Enter</kbd></button></div></section>');
     var done = false;
-    function pick(v) {
+    function pick(v, render) {
       if (done) return;
       done = true;
+      app.leaveEffort = null;
       document.removeEventListener('keydown', onKey, true);
       info.effort = v;
-      complete(info);
+      complete(info, render !== false);
     }
+    app.leaveEffort = function () { pick(null, false); };
     function onKey(e) {
       if (/^[1-5]$/.test(e.key)) { e.preventDefault(); pick(+e.key); }
       else if (e.key === 'Enter' || e.key === '0') { e.preventDefault(); pick(null); }
@@ -171,24 +174,24 @@
     });
   }
 
-  function complete(info) {
+  function complete(info, render) {
     var res = app.trainer.finish({ type: info.type, startedAt: info.startedAt, durationMs: info.durationMs,
       words: info.words, keys: info.keys, effort: info.effort, text: info.text, rounds: info.rounds, run: info.opts.run });
-    var saving = app.store.saveSession(res.raw).then(saveProfile);
+    var writes = [app.store.saveSession(res.raw).then(saveProfile)];
     if (res.raw.text) {
       var t = info.opts.text;
       t.pos = res.raw.text.to;
       res.summary.textProgress = { title: t.title, pos: t.pos, total: t.words.length };
-      saving = saving.then(function () { return app.store.saveText(t); });
+      writes.push(app.store.saveText(t));
     }
-    saving.catch(storageError);
+    Promise.all(writes).catch(storageError);
     if (info.opts.programme && app.run) {
       var m = res.summary.metrics;
       app.run.complete({ ms: res.summary.durationMs, wpm: m.wpm, faa: m.firstAttemptAccuracy, effort: info.effort,
         note: res.summary.rounds ? 'target ' + Math.round(app.trainer.bursts.target()) + ' WPM' : res.summary.textProgress ? proseProgress(res.summary.textProgress, res.summary.textProgress.pos) : '' });
       saveRun();
     }
-    viewSummary(res.summary, info);
+    if (render !== false) viewSummary(res.summary, info);
   }
 
   // ---------- summary ----------

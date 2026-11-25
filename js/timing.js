@@ -47,7 +47,9 @@
         var consecutive = prev && tg.idx != null && (
           p > 0 ? tg.idx === prev.idx + 1 : (tg.idx === 0 && prev.lastOfWord));
         var pair = prev ? prev.ch + tg.ch : '';
-        if (!prev) rec.reason = 'first';
+        var typedEntry = tg.idx != null ? w.stream[tg.idx] : null;
+        if (typedEntry && typedEntry.auto) rec.reason = 'auto';
+        else if (!prev) rec.reason = 'first';
         else if (tg.err > 0) rec.reason = 'error';
         else if (prev.err > 0 || !consecutive) rec.reason = 'after-error';
         else if (prev.g != null && prev.g === tg.g) { rec.reason = 'macro'; rec.macro = true; }

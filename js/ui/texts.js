@@ -51,14 +51,14 @@
   }
   function viewTexts() {
     app.store.listTexts().then(function (list) {
-      var html = '<section class="stack"><h1>Texts</h1><p class="muted">Prose exercises continue the app.current text from where you stopped. Texts stay in this browser and are included in backups.</p></section>';
+      var html = '<section class="stack"><h1>Texts</h1><p class="muted">Prose exercises continue the current text from where you stopped. Texts stay in this browser and are included in backups.</p></section>';
       if (list.length) {
         html += '<div class="tablewrap"><table><thead><tr><th>Title</th><th>Words</th><th>Progress</th><th></th></tr></thead><tbody>' +
           list.map(function (t) {
             var cur = t.id === app.settings.currentText;
             return '<tr><td>' + esc(t.title) + (cur ? ' ' + pill('current') : '') + '</td><td class="num">' + t.words.length.toLocaleString() + '</td><td class="num">' +
               proseProgress(t, t.pos) + '</td><td><div class="row">' +
-              (cur ? '' : '<button class="btn" type="button" data-use="' + esc(t.id) + '">Make app.current</button>') +
+              (cur ? '' : '<button class="btn" type="button" data-use="' + esc(t.id) + '">Make current</button>') +
               '<button class="btn" type="button" data-type="' + esc(t.id) + '">Type now</button>' +
               '<button class="btn danger" type="button" data-del="' + esc(t.id) + '">Delete</button></div></td></tr>';
           }).join('') + '</tbody></table></div>';

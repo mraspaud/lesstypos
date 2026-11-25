@@ -64,6 +64,7 @@
     show(name);
   }
   function show(name) {
+    leaveScreen();
     stopTyping();
     app.current = name;
     document.body.classList.remove('typing-mode');
@@ -71,9 +72,16 @@
     ({ home: viewHome, texts: viewTexts, sequences: viewSequences, errors: viewErrors, history: viewHistory,
       preferences: viewSettings, data: viewData })[name]();
   }
+  // Leaving a screen: an exercise waiting for its effort rating is saved
+  // without one, and screen-specific key handlers are dropped.
+  function leaveScreen() {
+    var pending = app.leaveEffort;
+    app.leaveEffort = null; app.progKeys = null; app.again = null;
+    if (pending) pending();
+  }
   function renderNav() {
     app.$nav.innerHTML = NAV.map(function (n) {
-      return '<button type="button" data-go="' + n[0] + '"' + (app.current === n[0] ? ' aria-app.current="page"' : '') + '>' +
+      return '<button type="button" data-go="' + n[0] + '"' + (app.current === n[0] ? ' aria-current="page"' : '') + '>' +
         esc(n[1]) + '<kbd>' + n[2] + '</kbd></button>';
     }).join('');
   }

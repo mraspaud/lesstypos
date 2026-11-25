@@ -125,8 +125,8 @@
       '<section class="panel stack"><h2>Export</h2><p>Save a complete backup: settings, statistics and every raw exercise.</p>' +
       '<div class="row"><button class="btn primary" type="button" id="exp">Download backup</button><button class="btn" type="button" id="copy">Copy backup to clipboard</button></div>' +
       '<p class="muted" id="expmsg"></p></section>' +
-      '<section class="panel stack"><h2>Import</h2><p>Restore a backup. Replacing removes the app.current data first; merging adds exercises that are not already here and then rebuilds the statistics.</p>' +
-      '<div class="row"><input type="file" id="file" accept="application/json,.json"><select id="impmode"><option value="replace">Replace app.current data</option><option value="merge">Merge with app.current data</option></select></div>' +
+      '<section class="panel stack"><h2>Import</h2><p>Restore a backup. Replacing removes the current data first. Merging adds exercises and texts that are not already here, keeps your settings and the furthest reading position, then rebuilds the statistics.</p>' +
+      '<div class="row"><input type="file" id="file" accept="application/json,.json"><select id="impmode"><option value="replace">Replace current data</option><option value="merge">Merge with current data</option></select></div>' +
       '<textarea id="paste" class="mono" placeholder="…or paste a backup here"></textarea><div class="row"><button class="btn" type="button" id="imp">Import pasted backup</button></div><p class="muted" id="impmsg"></p></section>' +
       '<section class="panel stack"><h2>Rebuild and reset</h2>' +
       '<div class="row"><button class="btn" type="button" id="rebuild">Rebuild statistics from raw exercises</button></div>' +

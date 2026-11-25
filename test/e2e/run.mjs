@@ -248,6 +248,79 @@ await step('an interrupted programme can be resumed after a reload', async () =>
   await page.getByRole('button', { name: /Resume: relaxed practice \(2 of 5\)/ }).waitFor();
 });
 
+
+// ---- regressions found by the review ----
+await step('the navigation marks the current page', async () => {
+  await page.locator('[data-go="history"]').click();
+  await page.locator('[data-go="history"][aria-current="page"]').waitFor({ timeout: 3000 });
+});
+
+await step('leaving the effort question saves the exercise and leaves no stray key handler', async () => {
+  await page.locator('[data-go="home"]').click();
+  const before = await page.evaluate(() => window.FT.app.trainer.history().length);
+  await page.getByRole('button', { name: /Relaxed practice only/ }).click();
+  await page.locator('.w').first().waitFor();
+  const ws = await page.$$eval('.w', (e) => e.slice(0, 14).map((x) => x.textContent));
+  await page.keyboard.type(ws.join(' ') + ' ', { delay: 5 });
+  await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
+  await page.getByText('How much effort did that take?').waitFor();
+  await page.locator('[data-go="history"]').click();
+  assert.equal(await page.evaluate(() => window.FT.app.trainer.history().length), before + 1);
+  // a "1" typed later inside a new exercise is just typing
+  await page.locator('[data-go="home"]').click();
+  await page.getByRole('button', { name: /Relaxed practice only/ }).click();
+  await page.locator('.w').first().waitFor();
+  await page.keyboard.type('1');
+  await page.waitForTimeout(200);
+  assert.equal(await page.evaluate(() => window.FT.app.trainer.history().length), before + 1);
+  assert.ok(await page.locator('#window').isVisible());
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+});
+
+await step('ending training with the mouse leaves no stale programme keys', async () => {
+  await page.evaluate(() => { const a = window.FT.app; a.settings.programme = { name: 'x', steps: [{ type: 'warmup', minutes: 0.1, enabled: true }, { type: 'relaxed', minutes: 0.1, enabled: true }] }; });
+  await page.locator('[data-go="home"]').click();
+  await page.getByRole('button', { name: /Start (daily training|over)/ }).first().click();
+  await typeUntilEffort();
+  await page.keyboard.press('2');
+  await page.getByRole('button', { name: /End training/ }).click();
+  await page.getByText('Daily training finished').waitFor();
+  await page.keyboard.press('r');   // must do nothing, and not throw
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: /Relaxed practice only/ }).waitFor();
+});
+
+await step('backspace is ignored during the rest between burst rounds', async () => {
+  await page.evaluate(() => { const a = window.FT.app; a.burstRun = 1500; a.burstRest = 4000; window.FT.ui.startExercise('bursts', { minutes: 0.2 }); });
+  await page.locator('.w').first().waitFor();
+  const t0 = Date.now();
+  while (!/Rest/.test(await page.locator('#timer').textContent()) && Date.now() - t0 < 10000) {
+    const w = await page.evaluate(() => { const el = [...document.querySelectorAll('.w')].find((e) => !e.querySelector('.ok,.bad,.extra')); return el && el.textContent; });
+    await page.keyboard.type(w + ' ', { delay: 5 });
+  }
+  const done = () => page.evaluate(() => document.querySelectorAll('.w .ok').length);
+  const before = await done();
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Backspace');
+  assert.equal(await done(), before);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  await page.evaluate(() => { const a = window.FT.app; a.burstRun = 0; a.burstRest = 0; });
+});
+
+await step('the last words of a text can be finished, and the place moves to the end', async () => {
+  const id = await page.evaluate(async () => {
+    const t = { id: 'short', title: 'Short', words: 'one two three four five six seven eight nine ten eleven twelve'.split(' '), pos: 6, addedAt: Date.now() };
+    await window.FT.app.store.saveText(t);
+    window.FT.ui.startExercise('prose', { text: t });
+    return t.id;
+  });
+  await page.locator('.w').first().waitFor();
+  await page.keyboard.type('seven eight nine ten eleven twelve', { delay: 10 }); // no space after the last word
+  await page.getByText('How much effort did that take?').waitFor({ timeout: 5000 });
+  await page.keyboard.press('2');
+  await page.getByText(/Your place is saved/).waitFor();
+  await page.waitForFunction((i) => window.FT.app.store.getText(i).then((t) => t.pos === 12), id, { timeout: 3000 });
+});
+
 await step('phone width has no horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   for (const k of ['p', 't', 'q', 'h', 's', 'd']) {

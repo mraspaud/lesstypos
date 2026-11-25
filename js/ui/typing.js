@@ -205,6 +205,12 @@
     var before = ty.session.state().wordIndex;
     ty.session.input({ kind: 'text', data: data, t: t });
     var st = ty.session.state();
+    // the last word of a text needs no space: complete it once typed correctly
+    var cur = st.words[st.wordIndex];
+    if (ty.exhausted && st.wordIndex === st.words.length - 1 && FT.text.sameStr(cur.typed, cur.target)) {
+      ty.session.input({ kind: 'text', data: ' ', t: t, auto: true });
+      st = ty.session.state();
+    }
     for (var i = before; i <= Math.min(st.wordIndex, st.words.length - 1); i++) paintWord(i);
     if (st.words.length - st.wordIndex < 60 && !ty.exhausted) {
       var more = ty.ex.more(100);
@@ -217,8 +223,9 @@
     placeCaret();
     if (st.wordIndex !== before) trimAbove();
   }
+  function resting() { return ty.burst && ty.burst.phase === 'rest'; }
   function onBack(t) {
-    if (!ty || ty.stopped || ty.first == null) return;
+    if (!ty || ty.stopped || ty.first == null || resting()) return;
     var before = ty.session.state().wordIndex;
     if (ty.session.input({ kind: 'back', t: t }) === false) { blocked(); return; }
     var now = ty.session.state().wordIndex;
@@ -236,7 +243,7 @@
     ty.caret.classList.add('nudge');
   }
   function onBackWord(t) {
-    if (!ty || ty.stopped || ty.first == null) return;
+    if (!ty || ty.stopped || ty.first == null || resting()) return;
     var before = ty.session.state().wordIndex;
     if (!ty.session.current().typed.length) ty.session.input({ kind: 'back', t: t }); // step into a wrong previous word
     var w = ty.session.current();
@@ -265,9 +272,10 @@
     var info = { type: ty.type, startedAt: ty.startedAt, words: words, keys: ty.keys, opts: ty.opts,
       durationMs: words.length ? words[words.length - 1].tEnd - ty.first : 0,
       text: ty.ex.text || null, rounds: ty.burst ? ty.burst.rounds : null };
+    var textDone = ty.exhausted && ty.session.state().wordIndex >= ty.session.state().words.length;
     stopTyping();
     document.body.classList.remove('typing-mode');
-    if (words.length < 10 || (info.rounds && !info.rounds.length)) {
+    if ((words.length < 10 && !textDone) || (info.rounds && !info.rounds.length)) {
       app.notice = 'That exercise was too short to analyse (fewer than 10 words), so nothing was saved.';
       if (info.opts.programme && app.run) { viewBetween(); renderNotice(); app.notice = null; return; }
       go('home');

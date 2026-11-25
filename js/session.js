@@ -68,7 +68,9 @@
         if (ch === ' ' && w.typed.length === 0) continue;
         if (w.stream.length === 0) w.tStart = ev.t;
         w.typed += ch;
-        w.stream.push({ k: 'c', ch: ch, t: ev.t, g: g });
+        var entry = { k: 'c', ch: ch, t: ev.t, g: g };
+        if (ev.auto) entry.auto = true; // inserted by the app (end of a text), not typed
+        w.stream.push(entry);
         if (ch === ' ') commit();
       }
     }

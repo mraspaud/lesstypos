@@ -113,3 +113,17 @@ test('rhythm is the coefficient of variation of within-word intervals', () => {
   const v = FT.timing.rhythmCv([100, 200].map((iki) => ({ clean: true, iki, wordInitial: false })));
   assert.ok(Math.abs(v - Math.sqrt(5000) / 150) < 1e-9);
 });
+
+test('an automatic space that ends the last word of a text is not timed', () => {
+  const s = FT.session.create(['ab', 'cd']);
+  let t = 0;
+  for (const ch of 'ab cd') s.input({ kind: 'text', data: ch, t: (t += 100) });
+  s.input({ kind: 'text', data: ' ', t, auto: true });
+  const w = s.state().words;
+  assert.equal(w[1].committed, true);
+  assert.equal(w[1].stream[w[1].stream.length - 1].auto, true);
+  const r = FT.timing.extract(w);
+  const last = r.records[r.records.length - 1];
+  assert.equal(last.reason, 'auto');
+  assert.equal(last.clean, false);
+});
