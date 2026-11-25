@@ -12,9 +12,16 @@
 //   is one motor event (observed fact). Declared macros typed as separate fast
 //   keystrokes (< macroGapMs) are merged too (FT.text.pressIds). Undeclared fast pairs are only
 //   reported as candidates (macroCandidates), never merged.
+// - Letters arriving under SIMULTANEOUS_MS apart that are not a declared key
+//   were sent together by the keyboard (e.g. a tap-hold key released by the
+//   next press, or a deferred letter), so neither interval is finger timing:
+//   both are left out (reason 'simultaneous'). Design choice: 6 ms, the gap
+//   between firmware pairs (<= 5 ms) and the fastest finger interval (8.6 ms)
+//   in one user's data; no published threshold.
 (function (FT) {
   'use strict';
   var CTX = 3;
+  var SIMULTANEOUS_MS = 6;
 
   function median(a) {
     if (!a.length) return null;
@@ -59,6 +66,7 @@
           lastOfWord: p === an.targets.length - 1 && tg.idx === w.stream.length - 1 };
       }
     }
+    markSimultaneous(records);
     var within = [], initial = [];
     records.forEach(function (r) { if (r.clean) (r.wordInitial ? initial : within).push(r.iki); });
     var baseline = { within: median(within), initial: median(initial) };
@@ -69,6 +77,16 @@
     return { records: records, baseline: baseline };
   }
 
+  function markSimultaneous(records) {
+    for (var i = 1; i < records.length; i++) {
+      var r = records[i];
+      if (r.iki == null || r.iki >= SIMULTANEOUS_MS || r.macro) continue;
+      [records[i - 1], r].forEach(function (x) {
+        if (x.reason === null) { x.reason = 'simultaneous'; x.clean = false; }
+      });
+    }
+  }
+
   // Bigrams whose IKIs are consistently near-zero: possible keyboard macros.
   function macroCandidates(results, opts) {
     opts = opts || {};
@@ -76,7 +94,7 @@
     var stats = {};
     results.forEach(function (res) {
       res.records.forEach(function (r) {
-        if (!r.clean || !r.ctx) return;
+        if (!(r.clean || r.reason === 'simultaneous') || !r.ctx) return; // raw intervals, before the simultaneous rule
         var seq = r.ctx.slice(-1) + r.ch;
         if (seq.indexOf(' ') >= 0) return;
         var s = stats[seq] || (stats[seq] = { n: 0, fast: 0 });

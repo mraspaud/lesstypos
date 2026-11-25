@@ -70,10 +70,12 @@ test('a declared macro arriving as separate fast keystrokes is merged', () => {
   assert.equal(r.records[1].reason, 'macro');
 });
 
-test('fast keystrokes that are not declared macros keep their timing', () => {
+test('fast keystrokes that are not declared macros are never merged into one press', () => {
   const r = run([['the', 'the ', [100, 4, 120, 100]]]);
-  assert.equal(r.records[1].clean, true);
-  assert.equal(r.records[1].iki, 4);
+  assert.notEqual(r.records[1].reason, 'macro');
+  assert.equal(r.records[1].iki, 4); // the raw interval is kept
+  const slower = run([['the', 'the ', [100, 8, 120, 100]]]);
+  assert.equal(slower.records[1].clean, true);
 });
 
 test('timing is normalised by population baselines', () => {
@@ -159,4 +161,44 @@ test('word-start penalty is median word-initial minus median within-word interva
 test('common-pair statistics report how many intervals they rest on', () => {
   const recs = Array.from({ length: 25 }, () => ({ clean: true, wordInitial: false, ctx: 'h', ch: 'e', iki: 100 }));
   assert.deepEqual(plain(FT.timing.commonPairStats(recs)), { ms: 100, n: 25 });
+});
+
+// Functionality: letters a keyboard sends almost together (firmware, not
+// fingers) are left out of timing. Design choice: under 6 ms; the user's
+// keyboard puts firmware pairs at 1–5 ms and the fastest finger interval
+// at 8.6 ms.
+test('an undeclared pair arriving under 6 ms apart leaves both letters out of timing', () => {
+  const r = run([['bead', 'bead ', [100, 150, 2, 150, 150]]]);
+  const [, e, a, d] = r.records;
+  assert.equal(e.clean, false); assert.equal(e.reason, 'simultaneous');
+  assert.equal(a.clean, false); assert.equal(a.reason, 'simultaneous');
+  assert.equal(d.clean, true);
+});
+
+test('a fast but human interval (12 ms) stays timed', () => {
+  const r = run([['bead', 'bead ', [100, 150, 12, 150, 150]]]);
+  assert.ok(r.records.slice(1).every((x) => x.clean));
+});
+
+test('a declared multi-letter key sent as two fast keystrokes stays a macro, its first letter timed', () => {
+  const r = run([['the', 'the ', [100, 2, 150, 150]], ['ab', 'ab ', 150]], { macros: ['th'] });
+  assert.equal(r.records[0].reason, 'first');
+  assert.equal(r.records[1].reason, 'macro');
+  const r2 = run([['ab', 'ab ', 150], ['the', 'the ', [150, 2, 150, 150]]], { macros: ['th'] });
+  assert.equal(r2.records[3].clean, true);   // t
+  assert.equal(r2.records[4].reason, 'macro'); // h
+});
+
+test('a u sent together with the next vowel (deferred qu key) leaves u and the vowel out of timing', () => {
+  const r = run([['ab', 'ab ', 150], ['quest', 'quest ', [150, 247, 4, 150, 150, 150]]], { macros: ['qu'] });
+  const q = r.records[3], u = r.records[4], e = r.records[5], s = r.records[6];
+  assert.equal(q.clean, true);
+  assert.equal(u.reason, 'simultaneous');
+  assert.equal(e.reason, 'simultaneous');
+  assert.equal(s.clean, true);
+});
+
+test('the session baseline ignores simultaneous pairs', () => {
+  const r = run([['bead', 'bead ', [100, 100, 2, 200, 200]]]);
+  assert.equal(r.baseline.within, 200); // e (100) and a (2) are left out
 });
