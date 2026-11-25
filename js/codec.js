@@ -16,6 +16,8 @@
   function withRoundedTime(e) { return Object.assign({}, e, { t: roundTime(e.t) }); }
 
   var BACK = '\b';
+  // Difference from the previous value of `field` on a running clock.
+  function delta(clock, field, value) { var d = value - clock[field]; clock[field] = value; return d; }
   function steps(t) { return Math.round(t * STEP); }
   function onlyKeys(o, allowed) { return Object.keys(o).every(function (k) { return allowed.indexOf(k) >= 0; }); }
   function plainEntry(e) {
@@ -29,12 +31,10 @@
   function encodeKeys(keys) {
     var ok = keys.every(function (e) { return onlyKeys(e, ['k', 'c', 't']) && (e.k === 'd' || e.k === 'u') && typeof e.c === 'string' && typeof e.t === 'number'; });
     if (!ok) return keys;
-    var codes = [], index = {}, ev = [], prev = 0;
+    var codes = [], index = {}, ev = [], clock = { t: 0 };
     keys.forEach(function (e) {
       if (!(e.c in index)) { index[e.c] = codes.length; codes.push(e.c); }
-      var t = steps(e.t);
-      ev.push(index[e.c] * 2 + (e.k === 'u' ? 1 : 0), t - prev);
-      prev = t;
+      ev.push(index[e.c] * 2 + (e.k === 'u' ? 1 : 0), delta(clock, 't', steps(e.t)));
     });
     return { codes: codes, ev: ev };
   }
@@ -53,11 +53,10 @@
     if (!w.stream.every(plainEntry)) return w;
     var c = '', ts = [], gs = [], auto = [];
     w.stream.forEach(function (e, i) {
-      var t = steps(e.t);
-      ts.push(t - clock.t); clock.t = t;
+      ts.push(delta(clock, 't', steps(e.t)));
       if (e.k === 'b') { c += BACK; return; }
       c += e.ch;
-      if (e.g === undefined) gs.push(null); else { gs.push(e.g - clock.g); clock.g = e.g; }
+      gs.push(e.g === undefined ? null : delta(clock, 'g', e.g));
       if (e.auto) auto.push(i);
     });
     var out = { target: w.target, meta: w.meta, c: c, t: ts, g: gs };

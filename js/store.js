@@ -68,21 +68,22 @@
       var rec = Object.assign({}, s, { schema: s.schema != null ? s.schema : FT.SCHEMA });
       return db.set('session:' + s.id, FT.codec.encodeSession(rec));
     }
+    function keysWith(prefix) {
+      return db.keys().then(function (keys) { return keys.filter(function (k) { return String(k).indexOf(prefix) === 0; }); });
+    }
+    function listPrefix(prefix) {
+      return keysWith(prefix).then(function (ks) { return Promise.all(ks.map(function (k) { return db.get(k); })); })
+        .then(function (list) { return list.filter(Boolean); });
+    }
     function listSessions() {
-      return db.keys().then(function (keys) {
-        var ks = keys.filter(function (k) { return String(k).indexOf('session:') === 0; });
-        return Promise.all(ks.map(function (k) { return db.get(k); }));
-      }).then(function (list) {
-        return list.filter(Boolean).map(FT.codec.decodeSession).sort(function (a, b) { return a.startedAt - b.startedAt; });
+      return listPrefix('session:').then(function (list) {
+        return list.map(FT.codec.decodeSession).sort(function (a, b) { return a.startedAt - b.startedAt; });
       });
     }
     // Stored sizes (JSON length) of the raw sessions and the derived profile.
     function sizes() {
-      return db.keys().then(function (keys) {
-        var ks = keys.filter(function (k) { return String(k).indexOf('session:') === 0; });
-        return Promise.all(ks.map(function (k) { return db.get(k); }).concat([db.get('profile')]));
-      }).then(function (recs) {
-        var profile = recs.pop();
+      return Promise.all([listPrefix('session:'), db.get('profile')]).then(function (r) {
+        var recs = r[0], profile = r[1];
         return { sessions: recs.length,
           sessionBytes: recs.reduce(function (a, r) { return a + JSON.stringify(r).length; }, 0),
           profileBytes: profile ? JSON.stringify(profile).length : 0 };
@@ -90,8 +91,7 @@
     }
     // Re-saves sessions stored before compaction; returns how many.
     function compactSessions() {
-      return db.keys().then(function (keys) {
-        var ks = keys.filter(function (k) { return String(k).indexOf('session:') === 0; });
+      return keysWith('session:').then(function (ks) {
         return Promise.all(ks.map(function (k) {
           return db.get(k).then(function (rec) {
             if (!rec || rec.enc) return 0;
@@ -99,12 +99,6 @@
           });
         }));
       }).then(function (n) { return n.reduce(function (a, b) { return a + b; }, 0); });
-    }
-    function listPrefix(prefix) {
-      return db.keys().then(function (keys) {
-        var ks = keys.filter(function (k) { return String(k).indexOf(prefix) === 0; });
-        return Promise.all(ks.map(function (k) { return db.get(k); }));
-      }).then(function (list) { return list.filter(Boolean); });
     }
     // Prose texts: { id, title, words: [...], pos, addedAt }.
     function saveText(t) { return db.set('text:' + t.id, t); }
