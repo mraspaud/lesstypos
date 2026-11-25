@@ -209,52 +209,69 @@
       return { err: err, lat: lat };
     }
 
+    // Judgement of every context, in steps:
+    //   aggregate evidence -> global prior -> judge each order against its
+    //   parent -> confirm across sessions -> explain parents away -> label.
     function evaluate(when) {
       var day = when && when.day != null ? when.day : st.lastDay;
-      var keys = Object.keys(st.contexts);
+      var agg = aggregateAll(day);
+      var prior = globalPrior(agg);
+      var j = judgeByOrder(agg, prior, day);
+      confirmAcrossSessions(j.out);
+      explainAway(j.out, agg, j.hypers, day);
+      labelStates(j.out);
+      return { get: function (k) { return j.out[k]; }, all: j.out, hyper: j.hypers, global: prior };
+    }
+
+    function aggregateAll(day) {
       var agg = {};
-      keys.forEach(function (k) { agg[k] = aggregate(st.contexts[k], day); });
-      var global = { n: 0, e: 0, ln: 0, ls: 0, lss: 0 };
-      keys.forEach(function (k) {
+      Object.keys(st.contexts).forEach(function (k) { agg[k] = aggregate(st.contexts[k], day); });
+      return agg;
+    }
+
+    // Unigrams are judged against all typing: the pooled unigram evidence.
+    function globalPrior(agg) {
+      var g = { n: 0, e: 0, ln: 0, ls: 0 };
+      Object.keys(agg).forEach(function (k) {
         if (k.length !== 1) return;
-        var g = agg[k];
-        global.n += g.n; global.e += g.e; global.ln += g.ln; global.ls += g.ls; global.lss += g.lss;
+        g.n += agg[k].n; g.e += agg[k].e; g.ln += agg[k].ln; g.ls += agg[k].ls;
       });
-      var gRate = (global.e + 1) / (global.n + 2);
-      var gMu = global.ln ? global.ls / global.ln : 0;
-      var out = {};
-      var hypers = {};
-      // ascending order: parents are evaluated first
+      return { rate: (g.e + 1) / (g.n + 2), mu: g.ln ? g.ls / g.ln : 0 };
+    }
+
+    // Ascending order, so each parent is judged before its children.
+    function judgeByOrder(agg, prior, day) {
+      var out = {}, hypers = {}, keys = Object.keys(agg);
       for (var order = 1; order <= MAX_ORDER; order++) {
-        var ks = keys.filter(function (k) { return k.length === order; });
-        var items = ks.map(function (k) {
-          var pRate = gRate, pMu = gMu, redundant = false;
-          if (order > 1) {
-            var pk = k.slice(1), pe = out[pk];
-            if (pe) {
-              // parent's estimate without this child's own data, weighted
-              // with the child's weights (a comparison matched in time)
-              var pg = minus(aggregateUsing(st.contexts[pk], weightFn(st.contexts[k], day)), agg[k]);
-              redundant = pg.n < cfg.minN;
-              var hp = hypers[order - 1];
-              var pj = judge(pg, pe.parentErrorRate, pe.parentMu, hp, true);
-              pRate = pj.errorRate; pMu = pj.mu;
-            }
-          }
-          return { k: k, g: agg[k], m: pRate, mu: pMu, redundant: redundant };
-        });
+        var items = keys.filter(function (k) { return k.length === order; })
+          .map(function (k) { return parentEstimate(k, order, agg, out, hypers, prior, day); });
         var hyper = hypers[order] = hyperFor(items);
         items.forEach(function (x) {
-          var j = judge(x.g, x.m, x.mu, hyper);
-          j.key = x.k; j.order = order; j.parent = order > 1 ? x.k.slice(1) : null;
-          j.n = x.g.n; j.errors = x.g.e; j.latN = x.g.ln;
-          if (x.redundant) { j.redundant = true; j.weak = false; j.hesitant = false; }
-          out[x.k] = j;
+          var r = judge(x.g, x.m, x.mu, hyper);
+          r.key = x.k; r.order = order; r.parent = order > 1 ? x.k.slice(1) : null;
+          r.n = x.g.n; r.errors = x.g.e; r.latN = x.g.ln;
+          if (x.redundant) { r.redundant = true; r.weak = false; r.hesitant = false; }
+          out[x.k] = r;
         });
       }
-      // Replication across sessions.
+      return { out: out, hypers: hypers };
+    }
+
+    // The parent's estimate without this child's own data, weighted with the
+    // child's weights (a comparison matched in time).
+    function parentEstimate(k, order, agg, out, hypers, prior, day) {
+      var item = { k: k, g: agg[k], m: prior.rate, mu: prior.mu, redundant: false };
+      var pk = k.slice(1), pe = order > 1 && out[pk];
+      if (!pe) return item;
+      var pg = minus(aggregateUsing(st.contexts[pk], weightFn(st.contexts[k], day)), agg[k]);
+      var pj = judge(pg, pe.parentErrorRate, pe.parentMu, hypers[order - 1], true);
+      item.m = pj.errorRate; item.mu = pj.mu; item.redundant = pg.n < cfg.minN;
+      return item;
+    }
+
+    function confirmAcrossSessions(out) {
       var globalBy = {};
-      keys.forEach(function (k) {
+      Object.keys(st.contexts).forEach(function (k) {
         if (k.length !== 1) return;
         st.contexts[k].b.forEach(function (b) {
           var g = globalBy[bkey(b)] || (globalBy[bkey(b)] = { n: 0, e: 0, ln: 0, ls: 0 });
@@ -266,35 +283,41 @@
         if (!(c.weak || c.hesitant)) { c.errSessions = c.latSessions = null; return; }
         var r = replication(k, c.parent, globalBy);
         c.errSessions = r.err; c.latSessions = r.lat;
-        var confirmedW = c.weak && r.err >= cfg.minSessions, confirmedH = c.hesitant && r.lat >= cfg.minSessions;
-        if ((c.weak && !confirmedW) || (c.hesitant && !confirmedH)) c.emerging = !(confirmedW || confirmedH);
-        c.weak = confirmedW; c.hesitant = confirmedH;
+        var w = c.weak && r.err >= cfg.minSessions, h = c.hesitant && r.lat >= cfg.minSessions;
+        if ((c.weak && !w) || (c.hesitant && !h)) c.emerging = !(w || h);
+        c.weak = w; c.hesitant = h;
       });
-      // Explaining away, highest order first.
-      for (order = MAX_ORDER; order >= 2; order--) {
+    }
+
+    // A flagged parent whose deficit is accounted for by its flagged children
+    // is not flagged itself. Highest order first.
+    function explainAway(out, agg, hypers, day) {
+      var flagged = function (c) { return c && (c.weak || c.hesitant); };
+      for (var order = MAX_ORDER; order >= 2; order--) {
+        var kidsByParent = {};
         Object.keys(out).forEach(function (k) {
           var c = out[k];
-          if (c.order !== order || !(c.weak || c.hesitant)) return;
-          var p = out[c.parent];
-          if (!p || !(p.weak || p.hesitant)) return;
-          var flaggedKids = Object.keys(out).filter(function (kk) {
-            var x = out[kk];
-            return x.order === order && x.parent === c.parent && (x.weak || x.hesitant);
-          });
-          var rest = agg[c.parent], pw = weightFn(st.contexts[c.parent], day);
-          flaggedKids.forEach(function (kk) { rest = minus(rest, aggregateUsing(st.contexts[kk], pw)); });
+          if (c.order === order && flagged(c)) (kidsByParent[c.parent] = kidsByParent[c.parent] || []).push(k);
+        });
+        Object.keys(kidsByParent).forEach(function (pk) {
+          var p = out[pk];
+          if (!flagged(p)) return;
+          var kids = kidsByParent[pk], pw = weightFn(st.contexts[pk], day), rest = agg[pk];
+          kids.forEach(function (kk) { rest = minus(rest, aggregateUsing(st.contexts[kk], pw)); });
           var r = judge(rest, p.parentErrorRate, p.parentMu, hypers[order - 1]);
-          if (p.weak && !r.weak) { p.weak = false; p.explainedBy = flaggedKids; }
-          if (p.hesitant && !r.hesitant) { p.hesitant = false; p.explainedBy = flaggedKids; }
+          if (p.weak && !r.weak) { p.weak = false; p.explainedBy = kids; }
+          if (p.hesitant && !r.hesitant) { p.hesitant = false; p.explainedBy = kids; }
         });
       }
+    }
+
+    function labelStates(out) {
       Object.keys(out).forEach(function (k) {
         var c = out[k];
         c.state = c.insufficient ? 'insufficient' : c.redundant ? 'redundant'
           : c.weak ? 'weak' : c.hesitant ? 'hesitant' : c.emerging ? 'emerging' : 'ok';
         c.stage = st.contexts[k].stage ? st.contexts[k].stage.name : null;
       });
-      return { get: function (k) { return out[k]; }, all: out, hyper: hypers, global: { rate: gRate, mu: gMu } };
     }
 
     function explain(key, when) {
