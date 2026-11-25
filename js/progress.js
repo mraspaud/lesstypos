@@ -171,11 +171,11 @@
         k[0] += 1; k[1] += err;
         i += len;
       }
-      var groups = {};
+      var groups = {}, presses = FT.text.pressIds(w.stream, macros);
       an.events.forEach(function (e) {
         if (e.type !== 'sub' && e.type !== 'transpose') return;
-        var entry = w.stream[e.idx], g = entry && entry.g;
-        var whole = g != null ? w.stream.filter(function (x) { return x.g === g && x.k === 'c'; }).map(function (x) { return x.ch; }).join('').toLowerCase() : '';
+        var g = presses[e.idx];
+        var whole = g != null ? w.stream.filter(function (x, i) { return presses[i] === g; }).map(function (x) { return x.ch; }).join('').toLowerCase() : '';
         if (whole.length > 1 && ms.indexOf(whole) >= 0) {
           if (!groups[g]) { groups[g] = true; land[whole] = (land[whole] || 0) + e.w; }
           return;

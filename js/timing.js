@@ -10,7 +10,7 @@
 //   population is a design choice.
 // - Multi-character outputs: a single input event carrying several characters
 //   is one motor event (observed fact). Declared macros typed as separate fast
-//   keystrokes (< macroGapMs) are merged too. Undeclared fast pairs are only
+//   keystrokes (< macroGapMs) are merged too (FT.text.pressIds). Undeclared fast pairs are only
 //   reported as candidates (macroCandidates), never merged.
 (function (FT) {
   'use strict';
@@ -26,9 +26,7 @@
   function extract(words, opts) {
     opts = opts || {};
     var pauseMs = opts.pauseMs || 5000;
-    var macroGapMs = opts.macroGapMs || 30;
-    var macros = {};
-    (opts.macros || []).forEach(function (m) { if (m && m.length > 1) macros[m] = true; });
+    var macroGapMs = opts.macroGapMs || FT.text.MACRO_GAP_MS;
     var records = [];
     var text = '';
     var prev = null; // previous record
@@ -36,6 +34,7 @@
       var w = words[wi];
       var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream, { macros: opts.macros });
       w.analysis = an;
+      var presses = FT.text.pressIds(w.stream, opts.macros, macroGapMs);
       for (var p = 0; p < an.targets.length; p++) {
         var tg = an.targets[p];
         var rec = {
@@ -46,14 +45,12 @@
         if (prev && prev.t != null && tg.t != null) rec.iki = tg.t - prev.t;
         var consecutive = prev && tg.idx != null && (
           p > 0 ? tg.idx === prev.idx + 1 : (tg.idx === 0 && prev.lastOfWord));
-        var pair = prev ? prev.ch + tg.ch : '';
         var typedEntry = tg.idx != null ? w.stream[tg.idx] : null;
         if (typedEntry && typedEntry.auto) rec.reason = 'auto';
         else if (!prev) rec.reason = 'first';
         else if (tg.err > 0) rec.reason = 'error';
         else if (prev.err > 0 || !consecutive) rec.reason = 'after-error';
-        else if (prev.g != null && prev.g === tg.g) { rec.reason = 'macro'; rec.macro = true; }
-        else if (macros[pair] && rec.iki != null && rec.iki < macroGapMs) { rec.reason = 'macro'; rec.macro = true; }
+        else if (p > 0 && presses[tg.idx] != null && presses[tg.idx] === presses[prev.idx]) { rec.reason = 'macro'; rec.macro = true; } // second letter of one press
         else if (rec.iki > pauseMs) rec.reason = 'pause';
         rec.clean = rec.reason === null;
         records.push(rec);
