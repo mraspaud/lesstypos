@@ -108,5 +108,22 @@
     return total ? rolled / total : null;
   }
 
-  FT.timing = { extract: extract, macroCandidates: macroCandidates, median: median, rollover: rollover };
+  // Share of clean keystrokes slower than twice the ratio expected for them
+  // (expectedFn(record) -> expected ratio, e.g. from the sequence model).
+  function hesitationRate(records, expectedFn) {
+    var clean = records.filter(function (r) { return r.clean; });
+    if (!clean.length) return null;
+    return clean.filter(function (r) { return r.ratio > 2 * expectedFn(r); }).length / clean.length;
+  }
+
+  // Rhythm: coefficient of variation of clean within-word intervals.
+  function rhythmCv(records) {
+    var ikis = records.filter(function (r) { return r.clean && !r.wordInitial; }).map(function (r) { return r.iki; });
+    if (ikis.length < 2) return null;
+    var ms = FT.stats.meanSd(ikis);
+    return ms[0] ? ms[1] / ms[0] : null;
+  }
+
+  FT.timing = { extract: extract, macroCandidates: macroCandidates, median: median, rollover: rollover,
+    hesitationRate: hesitationRate, rhythmCv: rhythmCv };
 })(globalThis.FT);

@@ -96,3 +96,20 @@ test('macro candidates are suggested but never merged automatically', () => {
   assert.ok(cand[0].confidence > 0.9);
   assert.ok(r.records.filter((x) => x.ch === 'h').every((x) => x.reason !== 'macro'));
 });
+
+test('hesitation rate: clean keystrokes slower than twice their expected ratio', () => {
+  const recs = [1, 1.5, 2.5, 3, 0.8].map((ratio, i) => ({ clean: true, ratio, ctx: '', ch: 'abcde'[i] }));
+  recs.push({ clean: false, ratio: 9, ctx: '', ch: 'x' });
+  assert.equal(FT.timing.hesitationRate(recs, () => 1), 2 / 5);
+  assert.equal(FT.timing.hesitationRate(recs, (r) => (r.ch === 'd' ? 2 : 1)), 1 / 5);
+  assert.equal(FT.timing.hesitationRate([], () => 1), null);
+});
+
+test('rhythm is the coefficient of variation of within-word intervals', () => {
+  const recs = [100, 100, 100, 100].map((iki) => ({ clean: true, iki, wordInitial: false }));
+  assert.equal(FT.timing.rhythmCv(recs), 0);
+  recs.push({ clean: true, iki: 900, wordInitial: true }); // word starts are not part of rhythm
+  assert.equal(FT.timing.rhythmCv(recs), 0);
+  const v = FT.timing.rhythmCv([100, 200].map((iki) => ({ clean: true, iki, wordInitial: false })));
+  assert.ok(Math.abs(v - Math.sqrt(5000) / 150) < 1e-9);
+});

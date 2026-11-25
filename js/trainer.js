@@ -80,74 +80,85 @@
       return { raw: raw, summary: process(raw) };
     }
 
-    function cv(a) {
-      if (a.length < 2) return null;
-      var ms = FT.stats.meanSd(a);
-      return ms[0] ? ms[1] / ms[0] : null;
-    }
-
+    // Processing a raw session: measure what happened, describe it, let the
+    // learners (model, substitutions, burst target, difficulty) update, and
+    // record a history entry. Deterministic, so replaying raw sessions
+    // rebuilds the same profile.
     function process(raw) {
       var session = ++sessionCount;
+      var m = measure(raw);
+      var summary = describe(raw, m);
+      learn(raw, session, m, summary);
+      summary.frontier = difficulty.state().frontier;
+      history.push(historyEntry(raw, m, summary));
+      return summary;
+    }
+
+    function measure(raw) {
       var words = raw.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta }; });
       var tm = FT.timing.extract(words, { macros: raw.macros });
       var analyses = words.map(function (w) { return w.analysis; });
       // Speed bursts: speed over the typing rounds only, not the rests between them.
       var activeMs = raw.rounds ? raw.rounds.reduce(function (a, r) { return a + (r.end - r.start); }, 0) : raw.durationMs;
-      var metrics = FT.metrics.summarize(analyses, { durationMs: activeMs });
       var rnd = words.filter(function (w) { return w.meta && w.meta.source === 'random'; });
-      var random = FT.metrics.summarize(rnd.map(function (w) { return w.analysis; }), { durationMs: 0 });
-
-      // Hesitation: clean keystrokes slower than 2x what the model expects for
-      // their context (longest context with enough timing evidence).
-      var ev0 = model.evaluate({ day: raw.day });
-      var clean = tm.records.filter(function (r) { return r.clean; });
-      var hes = 0;
-      clean.forEach(function (r) {
-        var expected = 1, full = r.ctx + r.ch;
-        for (var k = Math.min(3, full.length); k >= 1; k--) {
-          var j = ev0.get(full.slice(-k));
-          if (j && j.latN >= model.config.minN) { expected = Math.exp(j.mu); break; }
-        }
-        if (r.ratio > 2 * expected) hes++;
-      });
-      var within = clean.filter(function (r) { return !r.wordInitial; }).map(function (r) { return r.iki; });
-      var summary = {
-        id: raw.id, type: raw.type, startedAt: raw.startedAt, durationMs: raw.durationMs, effort: raw.effort,
-        metrics: metrics,
-        random: { words: random.words, firstAttemptAccuracy: random.firstAttemptAccuracy },
-        hesitationRate: clean.length ? hes / clean.length : null,
-        rhythmCv: cv(within),
-        rollover: FT.timing.rollover(raw.keys),
-        timeline: FT.progress.timeline(words),
-        baseline: tm.baseline,
-        sources: {},
-        stageChanges: [],
-        difficulty: null,
+      return {
+        words: words, tm: tm, analyses: analyses,
+        metrics: FT.metrics.summarize(analyses, { durationMs: activeMs }),
+        random: FT.metrics.summarize(rnd.map(function (w) { return w.analysis; }), { durationMs: 0 }),
       };
-      words.forEach(function (w) { var s = (w.meta && w.meta.source) || 'other'; summary.sources[s] = (summary.sources[s] || 0) + 1; });
+    }
 
+    // Expected time ratio of a keystroke: from its longest context with
+    // enough timing evidence (1 = the session baseline).
+    function expectedRatio(ev) {
+      return function (r) {
+        var full = r.ctx + r.ch;
+        for (var k = Math.min(3, full.length); k >= 1; k--) {
+          var j = ev.get(full.slice(-k));
+          if (j && j.latN >= model.config.minN) return Math.exp(j.mu);
+        }
+        return 1;
+      };
+    }
+
+    function describe(raw, m) {
+      var sources = {};
+      m.words.forEach(function (w) { var s = (w.meta && w.meta.source) || 'other'; sources[s] = (sources[s] || 0) + 1; });
+      return {
+        id: raw.id, type: raw.type, startedAt: raw.startedAt, durationMs: raw.durationMs, effort: raw.effort,
+        metrics: m.metrics,
+        random: { words: m.random.words, firstAttemptAccuracy: m.random.firstAttemptAccuracy },
+        hesitationRate: FT.timing.hesitationRate(m.tm.records, expectedRatio(model.evaluate({ day: raw.day }))),
+        rhythmCv: FT.timing.rhythmCv(m.tm.records),
+        rollover: FT.timing.rollover(raw.keys),
+        timeline: FT.progress.timeline(m.words),
+        baseline: m.tm.baseline,
+        sources: sources, stageChanges: [], difficulty: null,
+      };
+    }
+
+    function learn(raw, session, m, summary) {
       if (MODEL_TYPES[raw.type]) {
-        model.ingest(tm.records, { session: session, day: raw.day });
+        model.ingest(m.tm.records, { session: session, day: raw.day });
         summary.stageChanges = model.endSession({ session: session, day: raw.day });
       }
-      subs.ingest(analyses, { exercise: raw.type, session: session, t: raw.startedAt });
-      if (raw.type === 'bursts' && raw.rounds) {
-        summary.rounds = bursts.apply(words, raw.rounds, history, raw.startedAt);
-      }
+      subs.ingest(m.analyses, { exercise: raw.type, session: session, t: raw.startedAt });
+      if (raw.type === 'bursts' && raw.rounds) summary.rounds = bursts.apply(m.words, raw.rounds, history, raw.startedAt);
       if (DIFFICULTY_TYPES[raw.type]) {
         summary.difficulty = difficulty.update({
-          words: metrics.words, firstAttemptAccuracy: metrics.firstAttemptAccuracy,
+          words: m.metrics.words, firstAttemptAccuracy: m.metrics.firstAttemptAccuracy,
           hesitationRate: summary.hesitationRate, rhythmCv: summary.rhythmCv, effort: raw.effort, at: raw.startedAt,
         });
       }
-      summary.frontier = difficulty.state().frontier;
-      history.push({
+    }
+
+    function historyEntry(raw, m, summary) {
+      return {
         id: raw.id, type: raw.type, t: raw.startedAt, ms: raw.durationMs, effort: raw.effort,
-        wpm: metrics.wpm, faa: metrics.firstAttemptAccuracy, randomFaa: random.firstAttemptAccuracy,
+        wpm: m.metrics.wpm, faa: m.metrics.firstAttemptAccuracy, randomFaa: m.random.firstAttemptAccuracy,
         hes: summary.hesitationRate, cv: summary.rhythmCv, roll: summary.rollover, frontier: summary.frontier,
-        words: metrics.words,
-      });
-      return summary;
+        words: m.metrics.words,
+      };
     }
 
     return {
