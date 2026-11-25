@@ -103,23 +103,22 @@
   // How an intended key and the key actually typed relate on the layout.
   // Adjacent-key and homologous (same finger, other hand) substitutions are the
   // most common kinds in skilled typing (Grudin 1983).
+  var KINDS = {
+    'reach-up': 'right finger, reach up missed', 'reach-down': 'right finger, reach down missed',
+    'same-finger': 'right finger, sideways', neighbour: 'neighbouring key',
+    mirror: 'mirror key (same finger, other hand)', 'same-hand': 'same hand, other finger', 'other-hand': 'other hand',
+  };
+  function rel(kind, detail) { return { kind: kind, label: KINDS[kind] + (detail ? ' (' + detail + ')' : '') }; }
   function relation(layout, expected, actual) {
     if (!layout) return null;
     var a = layout.keys[expected], b = layout.keys[actual];
     if (!a || !b) return null;
     var f = FINGER[a.finger];
-    if (a.finger === b.finger) {
-      if (b.row > a.row) return { kind: 'reach-up', label: 'right finger, reach up missed (' + f + ')' };
-      if (b.row < a.row) return { kind: 'reach-down', label: 'right finger, reach down missed (' + f + ')' };
-      return { kind: 'same-finger', label: 'right finger, sideways (' + f + ')' };
-    }
-    if (a.hand !== b.hand) {
-      if (a.finger + b.finger === 9 && a.row === b.row) return { kind: 'mirror', label: 'mirror key: same finger on the other hand' };
-      return { kind: 'other-hand', label: 'other hand' };
-    }
-    if (Math.abs(a.row - b.row) <= 1 && Math.abs(a.col - b.col) <= 1) return { kind: 'neighbour', label: 'neighbouring key (' + FINGER[b.finger] + ' instead of ' + f + ')' };
-    return { kind: 'same-hand', label: 'same hand, other finger' };
+    if (a.finger === b.finger) return rel(b.row > a.row ? 'reach-up' : b.row < a.row ? 'reach-down' : 'same-finger', f);
+    if (a.hand !== b.hand) return rel(a.finger + b.finger === 9 && a.row === b.row ? 'mirror' : 'other-hand');
+    if (Math.abs(a.row - b.row) <= 1 && Math.abs(a.col - b.col) <= 1) return rel('neighbour', FINGER[b.finger] + ' instead of ' + f);
+    return rel('same-hand');
   }
 
-  FT.layout = { parse: parse, classify: classify, presses: presses, relation: relation, FINGER: FINGER };
+  FT.layout = { parse: parse, classify: classify, presses: presses, relation: relation, FINGER: FINGER, KINDS: KINDS };
 })(globalThis.FT);
