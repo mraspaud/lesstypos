@@ -188,9 +188,14 @@
     };
   }
 
+  // Replays raw sessions into a fresh profile. The user's own choices that
+  // are not derived from typing (a fixed vocabulary level) carry over from
+  // opts.previous.
   function rebuild(raws, opts) {
-    var t = create(Object.assign({}, opts, { profile: null }));
+    var t = create(Object.assign({}, opts, { profile: null, previous: null }));
     raws.slice().sort(function (a, b) { return a.startedAt - b.startedAt; }).forEach(function (r) { t.process(r); });
+    var prev = opts && opts.previous && opts.previous.difficulty;
+    if (prev && prev.manual) t.difficulty.override(prev.frontier);
     return t;
   }
 

@@ -126,3 +126,16 @@ test('rebuild does not depend on the current accent setting: each raw session ke
     assert.equal(rebuilt.history()[0].faa, 1);
   } finally { FT.text.setOptions({ accents: true }); }
 });
+
+test('a fixed vocabulary level survives a rebuild', () => {
+  const tr = FT.trainer.create({ seed: 14 });
+  tr.difficulty.override(2000);
+  const ex = tr.newExercise({ type: 'relaxed' });
+  const s = FT.session.create(ex.words.slice(0, 60));
+  let t = 0;
+  for (const w of s.state().words.slice(0, 60)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const { raw } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
+  const rebuilt = FT.trainer.rebuild([raw], { seed: 14, previous: tr.profile() });
+  assert.equal(rebuilt.difficulty.state().manual, true);
+  assert.equal(rebuilt.difficulty.state().frontier, 2000);
+});

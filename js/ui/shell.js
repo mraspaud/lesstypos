@@ -44,11 +44,13 @@
     renderNotice();
   }
 
-  function makeTrainer(profile, sessions) {
+  // previous: the stored profile, whose user choices (fixed vocabulary)
+  // survive a rebuild from raw sessions.
+  function makeTrainer(profile, sessions, previous) {
     app.trainerSettings = { macros: macros(), accents: app.settings.accents !== false };
     var opts = { settings: app.trainerSettings, seed: (Date.now() % 1e6) + 1 };
     if (profile) return FT.trainer.create(Object.assign({ profile: profile }, opts));
-    if (sessions && sessions.length) return FT.trainer.rebuild(sessions, opts);
+    if (sessions && sessions.length) return FT.trainer.rebuild(sessions, Object.assign({ previous: previous }, opts));
     return FT.trainer.create(opts);
   }
 
@@ -130,7 +132,7 @@
         applySettings();
         var rebuild = !d.profile || FT.trainer.needsRebuild(d.profile);
         return (rebuild ? app.store.listSessions() : Promise.resolve([])).then(function (sessions) {
-          app.trainer = makeTrainer(rebuild ? null : d.profile, sessions);
+          app.trainer = makeTrainer(rebuild ? null : d.profile, sessions, d.profile);
           if (rebuild && sessions.length) return saveProfile();
         });
       }).then(function () {
