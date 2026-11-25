@@ -62,3 +62,39 @@ test('mismatched grids are reported with a useful message', () => {
   assert.throws(() => FT.layout.parse('a b c\n0 1'), /row 1.*3 keys.*2 fingers/);
   assert.throws(() => FT.layout.parse('a b\n0 x'), /finger/);
 });
+
+// The user's own column-staggered split layout, with a thumb row.
+const THORNIUM = `
+z b w h g " : . / j x @
+( s c n t k , a e i m )
+[ f p l d v = u o y th ]
+qu r space '
+0 0 1 2 3 3 6 6 7 8 9 9
+0 0 1 2 3 3 6 6 7 8 9 9
+0 0 1 2 3 3 6 6 7 8 9 9
+4 4 5 5
+`;
+
+test('space can be declared with the "space" token; underscore stays a literal key', () => {
+  const T = FT.layout.parse(THORNIUM);
+  assert.equal(T.keys[' '].finger, 5);
+  assert.equal(T.keys[' '].hand, 'R');
+  assert.ok(!T.keys._);
+  assert.deepEqual(plain(T.macros), ['th', 'qu']);
+  assert.ok(FT.layout.parse('a _\n0 1').keys._);
+  assert.equal(FT.layout.parse('a ␣\n0 5').keys[' '].finger, 5);
+});
+
+test('multi-letter keys count as one press inside longer sequences', () => {
+  const T = FT.layout.parse(THORNIUM);
+  const the = FT.layout.classify(T, 'the');
+  assert.deepEqual(plain(the.keys), ['th', 'e']);
+  assert.equal(the.type, 'roll-in'); // th (right pinky) -> e (right middle)
+});
+
+test('movement categories on the user layout', () => {
+  const T = FT.layout.parse(THORNIUM);
+  assert.equal(FT.layout.classify(T, 'tk').type, 'sfb');      // both left index
+  assert.equal(FT.layout.classify(T, 'nt').type, 'roll-in');  // middle -> index
+  assert.notEqual(FT.layout.classify(T, 'd t'), null);        // across the space key
+});

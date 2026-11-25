@@ -2,7 +2,8 @@
 // Format (genkey-like): N rows of whitespace-separated keys, then N rows of
 // finger digits with the same shape. Fingers 0..9 = left pinky .. right pinky,
 // 4 and 5 are thumbs (as in libdof .dof). A key token of several characters
-// (e.g. "th") is a multi-character output (macro).
+// (e.g. "th") is a multi-character output (macro). The space key is written
+// "space" (also "spc" or "\u2423"); "_" is a literal underscore.
 // Categories follow community definitions (Getreuer's glossary; the Keyboard
 // layouts doc; layouts.wiki): SFB, SFS, LSB (adjacent fingers, column gap >= 2,
 // as genkey), full/half scissors (adjacent fingers 2/1 rows apart with the
@@ -11,6 +12,7 @@
   'use strict';
   // Preferred height: longer fingers prefer higher rows (middle > ring > index > pinky).
   var HEIGHT = { 0: 0, 1: 2, 2: 3, 3: 1, 6: 1, 7: 3, 8: 2, 9: 0 };
+  var SPACE = { space: true, spc: true, '\u2423': true };
 
   function parse(text) {
     var lines = String(text).split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
@@ -25,7 +27,7 @@
         if (!/^[0-9]$/.test(fs[c])) throw new Error('Unknown finger "' + fs[c] + '" in row ' + (r + 1) + ' (use 0-9)');
         var f = +fs[c];
         var info = { row: r, col: c, finger: f, hand: f <= 4 ? 'L' : 'R' };
-        var tok = ks[c];
+        var tok = SPACE[ks[c].toLowerCase()] ? ' ' : ks[c];
         if (Array.from(tok).length > 1) { macros.push(tok); keys[tok] = info; }
         else keys[tok] = info;
       }
@@ -49,12 +51,36 @@
     return { type: inward ? 'roll-in' : 'roll-out', tags: tags };
   }
 
+  // Split a character sequence into key presses, longest declared key first
+  // (so "the" is [th][e] when a th key exists). Returns null if a character
+  // is not on the layout.
+  function presses(layout, seq) {
+    var chars = Array.from(seq), out = [], maxLen = 1;
+    layout.macros.forEach(function (m) { maxLen = Math.max(maxLen, Array.from(m).length); });
+    for (var i = 0; i < chars.length;) {
+      var hit = null;
+      for (var len = Math.min(maxLen, chars.length - i); len >= 1; len--) {
+        var tok = chars.slice(i, i + len).join('');
+        if (layout.keys[tok]) { hit = tok; break; }
+      }
+      if (!hit) return null;
+      out.push(hit);
+      i += Array.from(hit).length;
+    }
+    return out;
+  }
+
   function classify(layout, seq) {
     if (!layout) return null;
-    if (layout.keys[seq] && Array.from(seq).length > 1) return { type: 'macro', tags: ['macro'] };
-    var chars = Array.from(seq);
-    var ks = chars.map(function (ch) { return layout.keys[ch]; });
-    if (ks.some(function (k) { return !k; })) return null;
+    var toks = presses(layout, seq);
+    if (!toks) return null;
+    var res = classifyPresses(toks.map(function (t) { return layout.keys[t]; }), toks);
+    if (res) res.keys = toks;
+    return res;
+  }
+
+  function classifyPresses(ks, toks) {
+    if (ks.length === 1) return Array.from(toks[0]).length > 1 ? { type: 'macro', tags: ['macro'] } : null;
     if (ks.length === 2) return bigram(ks[0], ks[1]);
     if (ks.length !== 3) return null;
     var a = ks[0], b = ks[1], c = ks[2], tags = [];
@@ -73,5 +99,5 @@
     return { type: type, tags: tags };
   }
 
-  FT.layout = { parse: parse, classify: classify };
+  FT.layout = { parse: parse, classify: classify, presses: presses };
 })(globalThis.FT);
