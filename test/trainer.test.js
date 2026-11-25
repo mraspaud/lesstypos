@@ -268,3 +268,14 @@ test('late keys found in the key log reach the model and leave the rollover meas
   const re = FT.trainer.rebuild([raw]);
   assert.deepEqual(plain(re.evaluate().late), ['e']);
 });
+
+test('the trainer reports swapped letter pairs from its exercises', () => {
+  const tr = FT.trainer.create({ seed: 4 });
+  const s = FT.session.create(['people', 'people']);
+  let t = 0;
+  for (const ch of 'poe<<eople people ') { t += 120; s.input(ch === '<' ? { kind: 'back', t } : { kind: 'text', data: ch, t }); }
+  tr.finish({ type: 'relaxed', startedAt: 0, durationMs: t, words: s.state().words.filter((w) => w.committed), keys: [] });
+  const sw = tr.swaps({ minOpp: 1 });
+  assert.equal(sw[0].expected, 'eo');
+  assert.equal(sw[0].count, 1);
+});

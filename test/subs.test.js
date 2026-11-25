@@ -52,3 +52,19 @@ test('substitution statistics survive serialisation', () => {
   const s2 = FT.subs.create(JSON.parse(JSON.stringify(s.toJSON())));
   assert.deepEqual(plain(s2.matrix({ minOpp: 1 })), plain(s.matrix({ minOpp: 1 })));
 });
+
+// Functionality: swapped letters are reported as their own kind of slip, with
+// the letter pair that was meant, how often it was swapped, and how often the
+// pair came up.
+test('swapped letters are counted per letter pair, not as substitutions', () => {
+  const s = FT.subs.create();
+  feed(s, [['people', 'poe<<eople'], ['people', 'people'], ['geo', 'goe'], ['form', 'form']]);
+  const sw = s.swaps({ minOpp: 1 });
+  assert.equal(sw.length, 1);
+  assert.equal(sw[0].expected, 'eo');
+  assert.equal(sw[0].actual, 'oe');
+  assert.equal(sw[0].count, 2);
+  assert.equal(sw[0].opportunities, 3);
+  assert.deepEqual(plain(sw[0].examples.map((e) => e.context)), ['g[eo]', 'p[eo]ple']);
+  assert.equal(s.matrix({ minOpp: 1 }).length, 0);
+});

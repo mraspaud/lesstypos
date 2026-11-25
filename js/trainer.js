@@ -211,6 +211,7 @@
       explain: function (key) { return model.explain(key, { day: dayOf(now()) }); },
       evaluate: function () { return model.evaluate({ day: dayOf(now()) }); },
       substitutions: function (o) { return subs.matrix(o); },
+      swaps: function (o) { return subs.swaps(o); },
       difficulty: difficulty, model: model, corpus: corpus,
       bursts: { target: function () { return bursts.peek(history); }, step: FT.bursts.step,
         reference: function () { return FT.bursts.relaxedMedian(history); } },

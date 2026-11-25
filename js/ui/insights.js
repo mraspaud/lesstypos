@@ -153,6 +153,15 @@
             '<td class="ex">' + esc(r.examples.slice(0, 3).map(function (e) { return e.context; }).join(', ')) + '</td></tr>';
         }).join('') + '</tbody></table></div><section id="subex"></section>';
     }
+    var swaps = app.trainer.swaps({ minOpp: 10 }).filter(function (r) { return r.count >= 2; }).slice(0, 20);
+    if (swaps.length) {
+      html += '<section class="stack" id="swaps"><h3>Swapped letters</h3><p class="muted">Two neighbouring letters typed in the wrong order, often because the swapped order is the more practised one. Each swap counts as one error (Salthouse 1986). Rates are per occurrence of the intended pair.</p>' +
+        '<div class="tablewrap"><table><thead><tr><th>Intended</th><th>Typed</th><th>Rate</th><th>Times</th><th>Opportunities</th><th>Recent examples</th></tr></thead><tbody>' +
+        swaps.map(function (r) {
+          return '<tr><td>' + seq(r.expected) + '</td><td>' + seq(r.actual) + '</td><td class="num">' + pct(r.observedRate, 2) + '</td><td class="num">' + fix(r.count) +
+            '</td><td class="num">' + r.opportunities + '</td><td class="ex">' + esc(r.examples.slice(0, 3).map(function (e) { return e.context; }).join(', ')) + '</td></tr>';
+        }).join('') + '</tbody></table></div></section>';
+    }
     setView(html);
     if (L) FT.chart.heatmap(document.getElementById('hmall'), FT.layout.grid(L), FT.progress.sumKeys(app.trainer.history()));
     app.$view.querySelectorAll('tr[data-i]').forEach(function (tr) {
