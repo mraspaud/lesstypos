@@ -129,19 +129,18 @@ test('the layout grid separates the hands and centres thumb keys under each hand
   assert.equal(cell('qu').y, 3);
   // left thumbs (qu r) centred under the six left columns: x = 2, 3
   assert.deepEqual([cell('qu').x, cell('r').x], [2, 3]);
-  assert.equal(cell(' ').label, 'space');
   assert.equal(g.width, 13);
 });
 
-test('wide keys (space) take two units and push the keys after them', () => {
+test('every key is one unit wide, the space bar included (as on the user\'s board)', () => {
   const T = FT.layout.parse(THORNIUM);
   const g = plain(FT.layout.grid(T));
   const cell = (k) => g.cells.find((c) => c.key === k);
-  assert.equal(cell(' ').w, 2);
-  assert.equal(cell('z').w, 1);
-  assert.equal(cell("'").x, cell(' ').x + 2);
-  // right thumbs (space, ') take 3 units, centred under the six right columns starting at 7
-  assert.equal(cell(' ').x, 8.5);
+  assert.equal(cell(' ').w, 1);
+  assert.equal(cell(' ').label, '\u2423');
+  assert.equal(cell("'").x, cell(' ').x + 1);
+  // right thumbs (space, ') take 2 units, centred under the six right columns starting at 7
+  assert.equal(cell(' ').x, 9);
 });
 
 // Functionality: a breakdown of letter-pair performance by movement type on
@@ -175,4 +174,13 @@ test('scissors and lateral stretches get their own (overlapping) rows', () => {
   assert.deepEqual(lsb.worst, ['te']);
   assert.deepEqual(sc.worst, ['cr']);
   assert.equal(lsb.overlapping, true);
+});
+
+test('each movement type reports its share of all letter pairs typed', () => {
+  const ctx = (key, n) => ({ key, order: 2, n, errors: 0, latN: n, mu: 0, latRel: 1 });
+  const b = plain(FT.layout.breakdown({ all: { fj: ctx('fj', 300), ed: ctx('ed', 100), te: ctx('te', 100) } }, L));
+  const share = (t) => b.find((r) => r.type === t).share;
+  assert.equal(share('alternate'), 0.6);
+  assert.equal(share('sfb'), 0.2);
+  assert.equal(share('lsb'), 0.2);    // overlapping rows use the same total
 });

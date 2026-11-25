@@ -376,7 +376,7 @@ await step('with a layout, the Errors page and summaries show a keyboard heatmap
   const hm = page.locator('.heatmap').first();
   await hm.locator('svg rect.key').first().waitFor();
   assert.ok(await hm.locator('svg rect.key').count() >= 30);
-  await hm.locator('text=space').first().waitFor();
+  await hm.locator('text=\u2423').first().waitFor();
   await hm.getByRole('button', { name: /Where wrong presses land/ }).click();
   await hm.locator('svg rect.key').first().waitFor();
   const box = await hm.locator('svg').boundingBox();

@@ -68,9 +68,9 @@
     if (!rows.length) return '';
     return '<section class="stack" id="movement"><h3>By movement type</h3><p class="muted">Every letter pair you have typed, grouped by how your fingers move on your layout. ' +
       'Typing research finds alternating hands usually fastest (Salthouse 1986), so it is the reference. Descriptive only: training does not use it.</p>' +
-      '<div class="tablewrap"><table><thead><tr><th>Movement</th><th>Pairs</th><th>Seen</th><th>Time vs alternation</th><th>First-attempt errors</th><th>Slowest pairs</th></tr></thead><tbody>' +
+      '<div class="tablewrap"><table><thead><tr><th>Movement</th><th>Share of your pairs</th><th>Pairs</th><th>Seen</th><th>Time vs alternation</th><th>First-attempt errors</th><th>Slowest pairs</th></tr></thead><tbody>' +
       rows.map(function (r) {
-        return '<tr><td>' + esc(MOVEMENT[r.type] || r.type) + (r.overlapping ? ' <span class="muted">(also in a row above)</span>' : '') + '</td><td class="num">' + r.pairs + '</td><td class="num">' + fix(r.n) + '</td>' +
+        return '<tr><td>' + esc(MOVEMENT[r.type] || r.type) + (r.overlapping ? ' <span class="muted">(also in a row above)</span>' : '') + '</td><td class="num">' + pct(r.share) + '</td><td class="num">' + r.pairs + '</td><td class="num">' + fix(r.n) + '</td>' +
           '<td class="num">' + (r.time == null ? '–' : '×' + fix(r.time, 2)) + '</td><td class="num">' + pct(r.errorRate) + '</td><td>' +
           r.worst.map(function (k) { return '<button type="button" class="linkish" data-key="' + esc(k) + '">' + seq(k) + '</button>'; }).join(' ') + '</td></tr>';
       }).join('') + '</tbody></table></div></section>';

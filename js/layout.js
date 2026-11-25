@@ -143,7 +143,7 @@
       });
     });
     var rightCols = lastRight >= firstRight ? lastRight - firstRight + 1 : 0, rightStart = leftCols + 1;
-    var keyWidth = function (k) { return k === ' ' ? 2 : 1; }; // the space bar is drawn two keys wide
+    var keyWidth = function () { return 1; }; // 1u keys, the space bar included (as on split boards)
     var cells = [];
     rowList.forEach(function (r) {
       ['L', 'R'].forEach(function (hand) {
@@ -153,7 +153,7 @@
         mine.forEach(function (c) {
           var w = keyWidth(c.key);
           var at = r.thumb ? x : hand === 'L' ? c.info.col : rightStart + c.info.col - firstRight;
-          cells.push({ key: c.key, label: c.key === ' ' ? 'space' : c.key, x: at, y: r.y, w: w, hand: hand, finger: c.info.finger });
+          cells.push({ key: c.key, label: c.key === ' ' ? '\u2423' : c.key, x: at, y: r.y, w: w, hand: hand, finger: c.info.finger });
           x += w;
         });
       });
@@ -183,11 +183,12 @@
       });
     });
     var list = Object.keys(groups).map(function (t) { return groups[t]; });
+    var total = list.reduce(function (a, g) { return a + (g.overlapping ? 0 : g.n); }, 0);
     var alt = groups.alternate, ref = alt && alt.latN ? alt.latSum / alt.latN : 1;
     return list.map(function (g) {
       var worst = g.items.slice().sort(function (a, b) { return (b.latRel || 0) - (a.latRel || 0) || b.errors / b.n - a.errors / a.n; })
         .slice(0, 3).map(function (c) { return c.key; });
-      return { type: g.type, overlapping: g.overlapping, pairs: g.pairs, n: g.n, errorRate: g.n ? g.errors / g.n : null,
+      return { type: g.type, overlapping: g.overlapping, share: total ? g.n / total : null, pairs: g.pairs, n: g.n, errorRate: g.n ? g.errors / g.n : null,
         time: g.latN ? (g.latSum / g.latN) / ref : null, worst: worst };
     }).sort(function (a, b) { return (a.overlapping - b.overlapping) || b.n - a.n; });
   }
