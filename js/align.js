@@ -299,7 +299,18 @@
       link(byT, targetPress[o.p], o.p);
       if (o.t != null) link(byTyped, pressOf(o.t), o.p);
     });
-    positions.forEach(function (x, k) { if (x.status === 'bad') x.group = find(k); });
+    // a group is a press mark when a multi-letter press is involved on either side
+    var multi = {}, typedSize = {}, targetSize = {};
+    typedPress.forEach(function (p) { if (p != null) typedSize[p] = (typedSize[p] || 0) + 1; });
+    targetPress.forEach(function (p) { targetSize[p] = (targetSize[p] || 0) + 1; });
+    ops.forEach(function (o) {
+      if (o.p == null || positions[o.p].status !== 'bad') return;
+      if (targetSize[targetPress[o.p]] > 1 || (o.t != null && typedSize[pressOf(o.t)] > 1)) multi[find(o.p)] = true;
+    });
+    positions.forEach(function (x, k) {
+      if (x.status !== 'bad') { x.press = false; return; }
+      x.group = find(k); x.press = !!multi[x.group];
+    });
     return { positions: positions, extras: extras, cursor: end + extras.length };
   }
 

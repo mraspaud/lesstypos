@@ -402,6 +402,26 @@ await step('with a layout, Sequences shows performance by movement type', async 
   await page.locator('#why h2').waitFor();
 });
 
+await step('a wrong multi-letter press shows as one mark, and the rest of the word still matches', async () => {
+  await page.locator('[data-go="home"]').click();
+  await page.evaluate(() => window.FT.ui.startExercise('prose', { text: { id: 'presses', title: 'Presses', pos: 0, words: ['you', 'the', 'cat', 'and', 'more', 'words', 'here'] } }));
+  await page.locator('.w').first().waitFor();
+  const word = (i) => page.locator('.w').nth(i);
+  await page.keyboard.insertText('th');                 // the th key, where y was meant
+  await page.keyboard.type('ou ', { delay: 20 });
+  assert.equal(await word(0).locator('.press-bad').count(), 1);
+  assert.equal(await word(0).locator('.press-bad').textContent(), 'y');
+  assert.equal(await word(0).locator('.l.ok').count(), 2);  // o and u match
+  await page.keyboard.type('xe ', { delay: 20 });       // one key where the th key was meant
+  assert.equal(await word(1).locator('.press-bad').count(), 1);
+  assert.equal(await word(1).locator('.press-bad').textContent(), 'th');
+  await page.keyboard.type('cbt ', { delay: 20 });      // an ordinary wrong letter keeps its own mark
+  assert.equal(await word(2).locator('.press-bad').count(), 0);
+  assert.equal(await word(2).locator('.l.bad').count(), 1);
+  if (shots) await page.screenshot({ path: shots + '/press-marks.png' });
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+});
+
 await step('phone width has no horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   for (const k of ['p', 't', 'q', 'h', 's', 'd']) {

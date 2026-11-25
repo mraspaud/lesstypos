@@ -192,3 +192,10 @@ test('display: a partly typed word leaves the rest untyped and puts the cursor a
   const e = DW('cat', 'caat', false, []);
   assert.equal(e.cursor, 4);   // c a [a] t
 });
+
+test('display: mistakes involving a multi-letter press are flagged as press marks, ordinary ones are not', () => {
+  assert.equal(DW('you', '[th]ou').positions[0].press, true);
+  const the = DW('the', 'xe');
+  assert.deepEqual([the.positions[0].press, the.positions[1].press], [true, true]);
+  assert.equal(DW('cat', 'cbt', true, ['th']).positions[1].press, false);
+});

@@ -13,6 +13,7 @@
   function show() { return U.show.apply(null, arguments); }
   function viewBetween() { return U.viewBetween.apply(null, arguments); }
   function complete() { return U.complete.apply(null, arguments); }
+  function macros() { return U.macros.apply(null, arguments); }
   function viewEffort() { return U.viewEffort.apply(null, arguments); }
 
   // ---------- typing ----------
@@ -84,27 +85,39 @@
     }
     ty.inner.appendChild(frag);
   }
+  // A word shows the best alignment of what was typed with its target
+  // (FT.align.displayWord): extra letters at their place, and one joined mark
+  // for a wrong multi-letter press. data-cursor = letters typed so far.
   function paintWord(i, el) {
     var w = ty.session.state().words[i];
     el = el || ty.els[i];
     if (!el) return;
-    var T = Array.from(w.target), typed = Array.from(w.typed.replace(/ $/, ''));
-    var n = Math.max(T.length, typed.length), html = '';
-    for (var j = 0; j < n; j++) {
-      var cls = 'l', ch = T[j];
-      if (j >= T.length) { cls += ' extra'; ch = typed[j]; }
-      else if (j < typed.length) cls += FT.text.same(typed[j], T[j]) ? ' ok' : ' bad';
-      html += '<span class="' + cls + '">' + esc(ch) + '</span>';
+    var d = FT.align.displayWord(w.target, w.typed, w.stream, macros(), w.committed);
+    var T = Array.from(w.target), html = '';
+    var letter = function (cls, ch) { return '<span class="l' + cls + '">' + esc(ch) + '</span>'; };
+    var extrasBefore = function (p) { return d.extras.filter(function (x) { return x.before === p; }); };
+    for (var p = 0; p <= T.length; p++) {
+      extrasBefore(p).forEach(function (x) { html += letter(' extra', x.ch); });
+      if (p === T.length) break;
+      var pos = d.positions[p];
+      if (pos.press) {
+        var q = p;
+        while (q + 1 < T.length && d.positions[q + 1].press && d.positions[q + 1].group === pos.group && !extrasBefore(q + 1).length) q++;
+        html += '<span class="press-bad">' + T.slice(p, q + 1).map(function (ch) { return letter(' bad', ch); }).join('') + '</span>';
+        p = q;
+        continue;
+      }
+      html += letter(pos.status === 'ok' ? ' ok' : pos.status === 'bad' ? ' bad' : '', T[p]);
     }
     el.innerHTML = html;
-    el.classList.toggle('missed', w.committed && typed.length < T.length);
+    el.dataset.cursor = d.cursor;
   }
   // Caret and line scrolling from on-screen rectangles, relative to the typing
   // window (independent of offsetParent quirks and of the host page's CSS).
   function placeCaret() {
     var st = ty.session.state(), i = st.wordIndex, el = ty.els[i];
     if (!el || !el.isConnected) return;
-    var typed = Array.from(st.words[i].typed).length, letters = el.children;
+    var typed = +el.dataset.cursor || 0, letters = el.querySelectorAll('.l');
     var win = ty.win.getBoundingClientRect(), inner = ty.inner.getBoundingClientRect();
     var r, x;
     if (typed < letters.length) { r = letters[typed].getBoundingClientRect(); x = r.left; }
