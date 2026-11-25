@@ -257,6 +257,7 @@
           var r = judge(x.g, x.m, x.mu, hyper);
           r.key = x.k; r.order = order; r.parent = order > 1 ? x.k.slice(1) : null;
           r.n = x.g.n; r.errors = x.g.e; r.latN = x.g.ln;
+          r.rawMu = x.g.ln ? x.g.ls / x.g.ln : null; // measured mean log ratio (no shrinkage)
           if (x.redundant) { r.redundant = true; r.weak = false; r.hesitant = false; }
           out[x.k] = r;
         });

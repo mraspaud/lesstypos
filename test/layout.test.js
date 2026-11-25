@@ -147,7 +147,7 @@ test('every key is one unit wide, the space bar included (as on the user\'s boar
 // the declared layout (descriptive; the model stays layout-agnostic).
 test('pairs are grouped by movement type, timed relative to alternation', () => {
   const L = FT.layout.parse('a s d   j k l\n0 1 2   7 8 9');
-  const ctx = (key, n, errors, latRel, mu) => ({ key, order: 2, n, errors, latN: n, mu, latRel, state: 'ok' });
+  const ctx = (key, n, errors, latRel, mu) => ({ key, order: 2, n, errors, latN: n, mu, rawMu: mu, latRel, state: 'ok' });
   const all = {
     aj: ctx('aj', 100, 1, 1, Math.log(1.0)),   // alternation
     sk: ctx('sk', 100, 1, 1, Math.log(1.0)),   // alternation
@@ -183,4 +183,30 @@ test('each movement type reports its share of all letter pairs typed', () => {
   assert.equal(share('alternate'), 0.6);
   assert.equal(share('sfb'), 0.2);
   assert.equal(share('lsb'), 0.2);    // overlapping rows use the same total
+});
+
+test('the breakdown leaves out word-boundary pairs and uses measured, not shrunk, timing', () => {
+  const T = FT.layout.parse(THORNIUM);
+  const ctx = (key, rawMu, mu) => ({ key, order: 2, n: 50, errors: 0, latN: 50, mu, rawMu, latRel: 1 });
+  const b = plain(FT.layout.breakdown({ all: {
+    tk: ctx('tk', Math.log(1.5), Math.log(1.1)),   // sfb: measured 1.5, shrunk 1.1
+    ta: ctx('ta', Math.log(1.0), Math.log(1.0)),   // alternation
+    'e ': ctx('e ', Math.log(3), Math.log(3)),     // word boundary
+  } }, T));
+  assert.ok(!b.some((r) => r.worst.includes('e ')));
+  assert.ok(Math.abs(b.find((r) => r.type === 'sfb').time - 1.5) < 1e-9);
+});
+
+test('without alternation data there is no reference, so no relative time', () => {
+  const ctx = (key) => ({ key, order: 2, n: 50, errors: 0, latN: 50, mu: 0, rawMu: 0, latRel: 1 });
+  const b = plain(FT.layout.breakdown({ all: { ed: ctx('ed') } }, L));
+  assert.equal(b.find((r) => r.type === 'sfb').time, null);
+});
+
+test('the model exposes measured (unshrunk) timing per context', () => {
+  const m = FT.model.create();
+  const recs = [];
+  for (let i = 0; i < 30; i++) recs.push({ ch: 'b', ctx: 'a', err: 0, clean: true, logRatio: Math.log(2), word: 'ab' });
+  m.ingest(recs, { session: 1, day: 0 });
+  assert.ok(Math.abs(m.evaluate({ day: 0 }).get('ab').rawMu - Math.log(2)) < 1e-6);
 });
