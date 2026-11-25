@@ -61,3 +61,23 @@ test('Project Gutenberg header and footer are removed', () => {
   const raw = 'The Project Gutenberg eBook of X\nlicence blah\n*** START OF THE PROJECT GUTENBERG EBOOK X ***\nCall me Ishmael.\n*** END OF THE PROJECT GUTENBERG EBOOK X ***\nmore licence';
   assert.deepEqual(plain(FT.text.prepare(raw)), ['Call', 'me', 'Ishmael.']);
 });
+
+// Functionality: the target text is split into presses: a declared
+// multi-letter key (matched regardless of capitals) is one press.
+test('target presses group declared multi-letter keys', () => {
+  assert.deepEqual(plain(FT.text.targetPresses('The ', ['th'])), [0, 0, 1, 2]);
+  assert.deepEqual(plain(FT.text.targetPresses('quoth ', ['th', 'qu'])), [0, 0, 1, 2, 2, 3]);
+  assert.deepEqual(plain(FT.text.targetPresses('the ', [])), [0, 1, 2, 3]);
+  assert.deepEqual(plain(FT.text.targetPresses('athe ', ['th', 'the'])), [0, 1, 1, 1, 2]); // longest first
+});
+
+// Functionality: typed keystrokes are grouped into presses: one multi-character
+// input event, or a declared multi-letter key arriving as fast separate keys.
+const S = (spec) => spec.map(([ch, t, g]) => (ch === '<' ? { k: 'b', t } : { k: 'c', ch, t, g }));
+test('typed presses: one input event, or a declared key typed as fast separate keystrokes', () => {
+  assert.deepEqual(plain(FT.text.pressIds(S([['t', 0, 1], ['h', 0, 1], ['e', 100, 2]]), [])), [0, 0, 1]);
+  assert.deepEqual(plain(FT.text.pressIds(S([['t', 0, 1], ['h', 5, 2], ['e', 100, 3]]), ['th'])), [0, 0, 1]);
+  assert.deepEqual(plain(FT.text.pressIds(S([['t', 0, 1], ['h', 5, 2]]), [])), [0, 1]);            // undeclared: never merged
+  assert.deepEqual(plain(FT.text.pressIds(S([['t', 0, 1], ['h', 120, 2]]), ['th'])), [0, 1]);       // declared but slow
+  assert.deepEqual(plain(FT.text.pressIds(S([['x', 0, 1], ['<', 50], ['e', 100, 2]]), [])), [0, null, 1]);
+});
