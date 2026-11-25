@@ -59,93 +59,93 @@
     return out;
   }
 
-  function analyzeOne(P, stream, flags, flaggedIdx, al) {
-    var events = [];
-    var first = new Array(P.length); // {err, type, actual, t, idx}
-    // Map each flagged keystroke (by T index) to its alignment pair; collect omissions.
-    var tInfo = new Array(flaggedIdx.length);
-    var omissionsBefore = new Array(flaggedIdx.length + 1);
-    for (var q = 0; q <= flaggedIdx.length; q++) omissionsBefore[q] = [];
-    var nextP = 0;
-    var seenT = 0; // index of the next flagged keystroke
-    for (var a = 0; a < al.length; a++) {
-      var p = al[a][0], tj = al[a][1];
-      if (tj === null) {
-        omissionsBefore[seenT].push(p); // omission of P[p] precedes the next flagged keystroke
-        nextP = p + 1;
-      } else {
-        tInfo[tj] = p === null ? { p: null, pos: nextP } : { p: p, pos: p };
-        if (p !== null) nextP = p + 1;
-        seenT++;
-      }
-    }
+  // For one alignment: which target position each flagged (surviving)
+  // keystroke belongs to, and which omissions come before each of them.
+  function mapAlignment(al, nFlagged) {
+    var tInfo = new Array(nFlagged), omissionsBefore = [];
+    for (var q = 0; q <= nFlagged; q++) omissionsBefore.push([]);
+    var nextP = 0, seenT = 0;
+    al.forEach(function (pair) {
+      var p = pair[0], tj = pair[1];
+      if (tj === null) { omissionsBefore[seenT].push(p); nextP = p + 1; return; }
+      tInfo[tj] = p === null ? { p: null, pos: nextP } : { p: p, pos: p };
+      if (p !== null) nextP = p + 1;
+      seenT++;
+    });
+    return { tInfo: tInfo, omissionsBefore: omissionsBefore };
+  }
 
+  // Collects classified keystrokes and the first attempt at each target position.
+  function recorder(P) {
+    var events = [], first = new Array(P.length);
     function setFirst(pos, err, type, actual, t, idx) {
       if (pos < 0 || pos >= P.length || first[pos]) return;
       first[pos] = { err: err, type: type, actual: actual, t: t, idx: idx };
     }
+    return {
+      events: events, first: first,
+      correct: function (pos, corrected, e, i) {
+        events.push({ type: 'none', corrected: corrected, pos: pos, expected: P[pos], actual: e.ch, t: e.t, idx: i });
+        setFirst(pos, 0, 'none', e.ch, e.t, i);
+      },
+      sub: function (pos, corrected, e, i) {
+        events.push({ type: 'sub', corrected: corrected, pos: pos, expected: P[pos], actual: e.ch, t: e.t, idx: i });
+        setFirst(pos, 1, 'sub', e.ch, e.t, i);
+      },
+      ins: function (pos, corrected, e, i, attributed) {
+        events.push({ type: 'ins', corrected: corrected, pos: pos, actual: e.ch, t: e.t, idx: i });
+        if (attributed) setFirst(pos, 1, 'ins', e.ch, e.t, i);
+      },
+      omit: function (pos, corrected, t, i) {
+        events.push({ type: 'omit', corrected: corrected, pos: pos, expected: P[pos], t: t, idx: i });
+        setFirst(pos, 1, 'omit', null, t, i);
+      },
+      firstCorrect: function (pos, e, i) { setFirst(pos, 0, 'none', e.ch, e.t, i); },
+    };
+  }
 
-    var v = 0;
-    var live = []; // positions of live letters (for backspace)
-    var tCount = 0;
-    var lastT = stream.length ? stream[stream.length - 1].t : 0;
-    for (var i = 0; i < stream.length; i++) {
-      var e = stream[i];
+  // A flagged keystroke survived into the final text: its alignment says
+  // what it was. Returns the next target position.
+  function uncorrected(rec, P, e, i, info) {
+    if (info.p === null) { rec.ins(info.pos, false, e, i, true); return info.pos; }
+    if (eq(P[info.p], e.ch)) rec.correct(info.p, false, e, i); else rec.sub(info.p, false, e, i);
+    return info.p + 1;
+  }
+
+  // An unflagged letter was later erased: it was an attempt at P[pos].
+  // Returns the next target position.
+  function corrected(rec, P, e, i, pos) {
+    if (pos >= P.length) { rec.ins(P.length - 1, true, e, i, false); return P.length + 1; }
+    if (eq(e.ch, P[pos])) { rec.correct(pos, true, e, i); return pos + 1; }
+    if (pos + 1 < P.length && eq(e.ch, P[pos + 1])) { // typed the next letter early
+      rec.omit(pos, true, e.t, i);
+      rec.firstCorrect(pos + 1, e, i);
+      return pos + 2;
+    }
+    rec.sub(pos, true, e, i);
+    return pos + 1;
+  }
+
+  function analyzeOne(P, stream, flags, flaggedIdx, al) {
+    var map = mapAlignment(al, flaggedIdx.length), rec = recorder(P);
+    var v = 0, live = [], tCount = 0; // v: target position being attempted; live: positions after each live letter
+    stream.forEach(function (e, i) {
       if (flags[i]) {
-        // omissions located before this flagged keystroke
-        var oms = omissionsBefore[tCount];
-        for (var o = 0; o < oms.length; o++) {
-          events.push({ type: 'omit', corrected: false, pos: oms[o], expected: P[oms[o]], t: e.t, idx: i });
-          setFirst(oms[o], 1, 'omit', null, e.t, i);
-        }
-        var info = tInfo[tCount++];
-        if (info.p === null) {
-          events.push({ type: 'ins', corrected: false, pos: info.pos, actual: e.ch, t: e.t, idx: i });
-          setFirst(info.pos, 1, 'ins', e.ch, e.t, i);
-          v = info.pos;
-        } else {
-          var ok = eq(P[info.p], e.ch);
-          events.push(ok
-            ? { type: 'none', corrected: false, pos: info.p, expected: P[info.p], actual: e.ch, t: e.t, idx: i }
-            : { type: 'sub', corrected: false, pos: info.p, expected: P[info.p], actual: e.ch, t: e.t, idx: i });
-          setFirst(info.p, ok ? 0 : 1, ok ? 'none' : 'sub', e.ch, e.t, i);
-          v = info.p + 1;
-        }
+        map.omissionsBefore[tCount].forEach(function (p) { rec.omit(p, false, e.t, i); });
+        v = uncorrected(rec, P, e, i, map.tInfo[tCount++]);
         live.push(v);
       } else if (e.k === 'b') {
-        if (live.length) v = live.pop() - 1;
-        if (v < 0) v = 0;
-        // position of the erased letter becomes current again
+        if (live.length) v = live.pop() - 1; // back to the erased letter's position
         v = Math.max(0, v);
       } else {
-        // unflagged letter: a corrected keystroke attempting P[v]
-        var pos = v;
-        if (pos >= P.length) {
-          events.push({ type: 'ins', corrected: true, pos: P.length - 1, actual: e.ch, t: e.t, idx: i });
-          pos = P.length;
-        } else if (eq(e.ch, P[pos])) {
-          events.push({ type: 'none', corrected: true, pos: pos, expected: P[pos], actual: e.ch, t: e.t, idx: i });
-          setFirst(pos, 0, 'none', e.ch, e.t, i);
-        } else if (pos + 1 < P.length && eq(e.ch, P[pos + 1])) {
-          events.push({ type: 'omit', corrected: true, pos: pos, expected: P[pos], t: e.t, idx: i });
-          setFirst(pos, 1, 'omit', null, e.t, i);
-          pos = pos + 1;
-          setFirst(pos, 0, 'none', e.ch, e.t, i);
-        } else {
-          events.push({ type: 'sub', corrected: true, pos: pos, expected: P[pos], actual: e.ch, t: e.t, idx: i });
-          setFirst(pos, 1, 'sub', e.ch, e.t, i);
-        }
-        v = pos + 1;
+        v = corrected(rec, P, e, i, v);
         live.push(v);
       }
-    }
-    var trailing = omissionsBefore[flaggedIdx.length];
-    for (o = 0; o < trailing.length; o++) {
-      events.push({ type: 'omit', corrected: false, pos: trailing[o], expected: P[trailing[o]], t: lastT, idx: stream.length });
-      setFirst(trailing[o], 1, 'omit', null, lastT, stream.length);
-    }
-    tagPatterns(P, events);
-    return { events: events, first: first };
+    });
+    var lastT = stream.length ? stream[stream.length - 1].t : 0;
+    map.omissionsBefore[flaggedIdx.length].forEach(function (p) { rec.omit(p, false, lastT, stream.length); });
+    tagPatterns(P, rec.events);
+    return { events: rec.events, first: rec.first };
   }
 
   function tagPatterns(P, events) {
