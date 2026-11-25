@@ -135,13 +135,15 @@
   COMMON_PAIRS.forEach(function (p) { COMMON[p] = true; });
   var MIN_PAIRS = 20;
 
-  // Median clean within-word interval on the common pairs (ms), or null.
-  function commonPairMs(records) {
+  // Median clean within-word interval on the common pairs (ms) and the number
+  // of intervals it rests on; ms is null below MIN_PAIRS intervals.
+  function commonPairStats(records) {
     var ikis = records.filter(function (r) {
       return r.clean && !r.wordInitial && r.ctx && COMMON[r.ctx.slice(-1) + r.ch];
     }).map(function (r) { return r.iki; });
-    return ikis.length >= MIN_PAIRS ? median(ikis) : null;
+    return { ms: ikis.length >= MIN_PAIRS ? median(ikis) : null, n: ikis.length };
   }
+  function commonPairMs(records) { return commonPairStats(records).ms; }
 
   // Extra time before the first letter of a word: median clean word-initial
   // interval minus median clean within-word interval (ms), or null.
@@ -152,5 +154,5 @@
   }
 
   FT.timing = { wordStartMs: wordStartMs, extract: extract, macroCandidates: macroCandidates, median: median, rollover: rollover,
-    hesitationRate: hesitationRate, rhythmCv: rhythmCv, COMMON_PAIRS: COMMON_PAIRS, commonPairMs: commonPairMs };
+    hesitationRate: hesitationRate, rhythmCv: rhythmCv, COMMON_PAIRS: COMMON_PAIRS, commonPairMs: commonPairMs, commonPairStats: commonPairStats };
 })(globalThis.FT);

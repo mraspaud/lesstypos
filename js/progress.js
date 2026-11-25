@@ -87,6 +87,13 @@
     });
     return days.sort().map(function (k) { return Object.assign({ day: k, t: groups[k][0].t }, fn(groups[k])); });
   }
+  // Median of [value, weight] pairs.
+  function weightedMedian(pairs) {
+    var s = pairs.slice().sort(function (a, b) { return a[0] - b[0]; });
+    var total = s.reduce(function (a, p) { return a + p[1]; }, 0), acc = 0;
+    for (var i = 0; i < s.length; i++) { acc += s[i][1]; if (acc >= total / 2) return s[i][0]; }
+    return null;
+  }
   function med(list, key) {
     var v = list.map(function (h) { return h[key]; }).filter(function (x) { return x != null; });
     return v.length ? FT.timing.median(v) : null;
@@ -95,7 +102,8 @@
   // Comparable progress series (comparable sessions only, one point per day):
   //   relaxed   relaxed practice of >= 50 words: WPM, accuracy, effort, rhythm, word-start penalty;
   //   benchmark complete sets of 3 trials (median and range);
-  //   pairMs    common-pair timing from every exercise except speed bursts.
+  //   pairMs    common-pair timing from relaxed practice (one exercise type, so
+  //             comparable), weighted by the number of intervals behind each.
   var MIN_WORDS = 50;
 
   // Complete benchmark sets (3 full trials), oldest first.
@@ -131,8 +139,8 @@
         return { n: l.length, wpm: med(l, 'wpm'), faa: med(l, 'faa'), effort: effort(l), cv: med(l, 'cv'), startMs: med(l, 'startMs') };
       }),
       benchmark: completeSets(history),
-      pairMs: byDay(history.filter(function (h) { return h.type !== 'bursts' && h.pairMs != null; }), function (l) {
-        return { ms: med(l, 'pairMs') };
+      pairMs: byDay(history.filter(function (h) { return h.type === 'relaxed' && h.pairMs != null; }), function (l) {
+        return { ms: weightedMedian(l.map(function (h) { return [h.pairMs, h.pairN || 1]; })) };
       }),
     };
   }

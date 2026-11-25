@@ -3,10 +3,12 @@
   'use strict';
   var esc = FT.fmt.esc, fix = FT.fmt.fix;
 
-  function niceStep(range) {
-    var raw = range / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+  // The smallest 1, 2 or 5 × 10^k step at least as large as raw.
+  function step125(raw) {
+    var mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
     return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
   }
+  function niceStep(range) { return step125(range / 4); }
   function monotonePath(pts) {
     var n = pts.length;
     if (!n) return '';
@@ -111,8 +113,7 @@
     return function (v) { return d1 === d0 ? (r0 + r1) / 2 : r0 + (f(v) - d0) / (d1 - d0) * (r1 - r0); };
   }
   function ticks(lo, hi) {
-    var raw = (hi - lo) / 5 || 1, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
-    var step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag, out = [];
+    var step = step125((hi - lo) / 5 || 1), out = [];
     for (var v = Math.floor(lo / step) * step; v <= Math.ceil(hi / step) * step + step / 2; v += step) out.push(+v.toFixed(10));
     return out;
   }
@@ -124,7 +125,10 @@
     }
     var first = all.filter(function (v) { return v <= lo; }).pop(), last = all.filter(function (v) { return v >= hi; })[0];
     var out = all.filter(function (v) { return v >= first && v <= last; });
-    return out.length >= 3 ? out : ticks(lo, hi); // narrow ranges: round linear values, still placed on the log scale
+    // When the data covers little of that span (or too few ticks), use round
+    // linear values instead, still placed on the log scale.
+    var covered = Math.log(hi / lo) / Math.log(last / first);
+    return out.length >= 3 && covered >= 0.4 ? out : ticks(lo, hi);
   }
   var DAY = 864e5, DAY_STEPS = [1, 2, 3, 5, 7, 14, 30, 60, 90, 180, 365];
   function dayTicks(t0, t1) {

@@ -127,3 +127,10 @@ test('a benchmark set is scored by the median of its trials', () => {
   ];
   assert.deepEqual(plain(FT.progress.benchmarkResult(h, 'b1')), { set: 'b1', trials: 3, wpm: 64, faa: 0.98, min: 60, max: 70, t: 1 });
 });
+
+test('restarting a benchmark gives a fresh sample', () => {
+  const tr = FT.trainer.create({ seed: 22 });
+  const a = tr.newExercise({ type: 'benchmark' }).words.slice(0, 20).map((w) => w.word).join(' ');
+  const b = tr.newExercise({ type: 'benchmark' }).words.slice(0, 20).map((w) => w.word).join(' ');
+  assert.notEqual(a, b);
+});

@@ -61,3 +61,8 @@ test('a narrow log range still gets at least three tick labels', () => {
   assert.ok(tk.length >= 3, JSON.stringify(tk));
   assert.ok(tk[0] <= 103 && tk[tk.length - 1] >= 130);
 });
+
+test('log ticks resolve a range that is narrow relative to its decade', () => {
+  const tk = FT.chart.logTicks(95, 110);
+  assert.ok(tk.length >= 3 && tk[0] >= 80 && tk[tk.length - 1] <= 120, JSON.stringify(tk));
+});

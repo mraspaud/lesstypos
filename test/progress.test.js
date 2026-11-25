@@ -92,9 +92,9 @@ test('benchmarks count only complete sets of three trials', () => {
   assert.deepEqual(b.map((p) => [p.set, p.wpm, p.min, p.max]), [['a', 62, 60, 64]]);
 });
 
-test('common-pair timing leaves out speed bursts', () => {
+test('common-pair timing per day comes from relaxed practice', () => {
   const p = plain(FT.progress.series(HIST).pairMs);
-  assert.deepEqual(p.map((x) => [x.day, x.ms]), [['2026-01-01', 115], ['2026-01-02', 100], ['2026-01-03', 105]]);
+  assert.deepEqual(p.map((x) => [x.day, x.ms]), [['2026-01-01', 110], ['2026-01-03', 105]]);
 });
 
 // Functionality: per-key error statistics for the heatmap. A multi-letter key
@@ -163,4 +163,14 @@ test('a wrong press of a multi-letter key lands on that key', () => {
 test('multi-letter keys match regardless of capitals', () => {
   const ks = plain(FT.progress.keyStats(analysed([['The', 'The']]), ['th']));
   assert.deepEqual(ks.keys.th, [1, 0]);
+});
+
+test('common-pair timing comes from relaxed practice only, weighted by intervals', () => {
+  const h = [
+    { type: 'relaxed', t: D(10), words: 200, pairMs: 100, pairN: 200 },
+    { type: 'relaxed', t: D(10, 12), words: 200, pairMs: 140, pairN: 20 },
+    { type: 'warmup', t: D(10, 8), words: 100, pairMs: 60, pairN: 300 },
+    { type: 'warmup', t: D(10, 9), words: 100, pairMs: 50, pairN: 300 },
+  ];
+  assert.deepEqual(plain(FT.progress.series(h).pairMs.map((p) => p.ms)), [100]);
 });

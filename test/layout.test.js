@@ -210,3 +210,10 @@ test('the model exposes measured (unshrunk) timing per context', () => {
   m.ingest(recs, { session: 1, day: 0 });
   assert.ok(Math.abs(m.evaluate({ day: 0 }).get('ab').rawMu - Math.log(2)) < 1e-6);
 });
+
+test('a key that appears twice on the layout is drawn in both places', () => {
+  const T = FT.layout.parse('a s d   j k l\nspace e   i space\n0 1 2   7 8 9\n4 4   5 5');
+  const spaces = plain(FT.layout.grid(T)).cells.filter((c) => c.key === ' ');
+  assert.equal(spaces.length, 2);
+  assert.deepEqual(spaces.map((c) => c.hand).sort(), ['L', 'R']);
+});

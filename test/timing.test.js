@@ -155,3 +155,8 @@ test('word-start penalty is median word-initial minus median within-word interva
   assert.equal(FT.timing.wordStartMs(recs), 85.5);
   assert.equal(FT.timing.wordStartMs(recs.slice(0, 3)), null);
 });
+
+test('common-pair statistics report how many intervals they rest on', () => {
+  const recs = Array.from({ length: 25 }, () => ({ clean: true, wordInitial: false, ctx: 'h', ch: 'e', iki: 100 }));
+  assert.deepEqual(plain(FT.timing.commonPairStats(recs)), { ms: 100, n: 25 });
+});

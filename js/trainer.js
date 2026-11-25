@@ -63,9 +63,9 @@
         noTargets: type === 'targeted' && !pinned && !tg.length };
     }
     // Benchmark: a fresh, unbiased sample of the 5,000 most common words.
-    var BENCH_RANKS = 5000;
+    var BENCH_RANKS = 5000, benchCalls = 0;
     function benchmarkExercise() {
-      var rng = FT.rng(seed + sessionCount * 131 + history.length * 17 + 3), last = null;
+      var rng = FT.rng(seed + sessionCount * 131 + history.length * 17 + (++benchCalls) * 7919), last = null;
       function take(n) {
         var out = [];
         while (out.length < n) {
@@ -142,7 +142,7 @@
       }
       var rnd = words.filter(function (w) { return w.meta && w.meta.source === 'random'; });
       return {
-        words: words, tm: tm, analyses: analyses,
+        words: words, tm: tm, analyses: analyses, pairs: FT.timing.commonPairStats(tm.records),
         metrics: FT.metrics.summarize(scored, { durationMs: activeMs }),
         random: FT.metrics.summarize(rnd.map(function (w) { return w.analysis; }), { durationMs: 0 }),
       };
@@ -198,7 +198,7 @@
         id: raw.id, type: raw.type, t: raw.startedAt, ms: raw.durationMs, effort: raw.effort, set: raw.set || undefined, planMs: raw.planMs || undefined,
         wpm: m.metrics.wpm, faa: m.metrics.firstAttemptAccuracy, randomFaa: m.random.firstAttemptAccuracy,
         hes: summary.hesitationRate, cv: summary.rhythmCv, roll: summary.rollover, frontier: summary.frontier,
-        pairMs: FT.timing.commonPairMs(m.tm.records), startMs: FT.timing.wordStartMs(m.tm.records),
+        pairMs: m.pairs.ms, pairN: m.pairs.n, startMs: FT.timing.wordStartMs(m.tm.records),
         keys: summary.keyStats.keys, land: Object.keys(summary.keyStats.land).length ? summary.keyStats.land : undefined,
         words: m.metrics.words,
       };

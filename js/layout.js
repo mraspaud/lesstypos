@@ -17,7 +17,7 @@
   function parse(text) {
     var lines = String(text).split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
     if (lines.length % 2) throw new Error('Expected the same number of key rows and finger rows');
-    var n = lines.length / 2, keys = {}, macros = [];
+    var n = lines.length / 2, keys = {}, macros = [], positions = [];
     for (var r = 0; r < n; r++) {
       var ks = lines[r].split(/\s+/), fs = lines[r + n].split(/\s+/);
       if (ks.length !== fs.length) {
@@ -28,11 +28,13 @@
         var f = +fs[c];
         var info = { row: r, col: c, finger: f, hand: f <= 4 ? 'L' : 'R' };
         var tok = SPACE[ks[c].toLowerCase()] ? ' ' : ks[c];
-        if (Array.from(tok).length > 1) { macros.push(tok); keys[tok] = info; }
-        else keys[tok] = info;
+        positions.push({ key: tok, info: info });
+        if (keys[tok]) continue; // a key on the board twice: classify by its first position
+        if (Array.from(tok).length > 1) macros.push(tok);
+        keys[tok] = info;
       }
     }
-    return { keys: keys, macros: macros, rows: n };
+    return { keys: keys, macros: macros, rows: n, positions: positions };
   }
 
   function bigram(a, b) {
@@ -125,10 +127,7 @@
   // the right hand's keys are shifted by a one-key gap. No stagger geometry.
   function grid(layout) {
     var rows = {};
-    Object.keys(layout.keys).forEach(function (k) {
-      var info = layout.keys[k];
-      (rows[info.row] = rows[info.row] || []).push({ key: k, info: info });
-    });
+    layout.positions.forEach(function (p) { (rows[p.info.row] = rows[p.info.row] || []).push(p); });
     var isThumb = function (c) { return c.info.finger === 4 || c.info.finger === 5; };
     var rowList = Object.keys(rows).map(function (r) {
       var list = rows[r].sort(function (a, b) { return a.info.col - b.info.col; });
