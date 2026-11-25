@@ -167,7 +167,7 @@
       evaluate: function () { return model.evaluate({ day: dayOf(now()) }); },
       substitutions: function (o) { return subs.matrix(o); },
       difficulty: difficulty, model: model, corpus: corpus,
-      bursts: { target: function () { return bursts.ensure(history); }, step: FT.bursts.step,
+      bursts: { target: function () { return bursts.peek(history); }, step: FT.bursts.step,
         reference: function () { return FT.bursts.relaxedMedian(history); } },
       history: function () { return history; },
       profile: function () {

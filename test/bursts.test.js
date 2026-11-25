@@ -79,3 +79,18 @@ test('a burst exercise reports speed over its rounds, not the rests between them
   const { summary } = tr.finish({ type: 'bursts', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed), rounds: [r1, r2] });
   assert.ok(Math.abs(summary.metrics.wpm - 120) < 1, String(summary.metrics.wpm)); // 20 chars in 2 s
 });
+
+test('reading the burst target does not fix it before any burst is finished', () => {
+  const tr = FT.trainer.create({ seed: 11 });
+  assert.equal(tr.bursts.target(), 40);                 // no relaxed history yet
+  const relaxed = (t0) => {
+    const ex = tr.newExercise({ type: 'relaxed' });
+    const s = FT.session.create(ex.words.slice(0, 80));
+    let t = t0;
+    for (const w of s.state().words.slice(0, 80)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 100) });
+    tr.finish({ type: 'relaxed', startedAt: t0, durationMs: t - t0, words: s.state().words.filter((w) => w.committed) });
+  };
+  relaxed(Date.UTC(2026, 0, 1));
+  assert.ok(tr.bursts.target() > 100);                   // follows relaxed speed (~120 WPM x 1.1)
+  assert.equal(tr.profile().bursts.target, null);        // nothing was stored by reading it
+});

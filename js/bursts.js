@@ -45,7 +45,9 @@
   function create(state) {
     var st = state || { target: null, log: [] };
     return {
-      target: function () { return st.target; },
+      // The target to aim at now; before the first finished burst exercise it
+      // follows relaxed speed without being stored.
+      peek: function (history) { return st.target != null ? st.target : initialTarget(history); },
       ensure: function (history) { if (st.target == null) st.target = initialTarget(history); return st.target; },
       // Replays the rounds of a finished burst exercise; returns per-round rows.
       apply: function (words, rounds, history, at) {
