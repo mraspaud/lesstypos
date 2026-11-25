@@ -35,7 +35,7 @@ await step('home offers daily training and relaxed practice', async () => {
 await step('typing an exercise with a corrected error, stopping and rating effort', async () => {
   await page.getByRole('button', { name: /Relaxed practice only/ }).click();
   await page.locator('.w').first().waitFor();
-  const words = await page.$$eval('.w', (els) => els.slice(0, 41).map((e) => e.textContent));
+  const words = await page.$$eval('.w', (els) => els.slice(0, 60).map((e) => e.textContent));
   for (let i = 0; i < 40; i++) {
     if (i === 3) { await page.keyboard.type('x', { delay: 20 }); await page.keyboard.press('Backspace'); }
     await page.keyboard.type(words[i] + ' ', { delay: 15 });
@@ -44,7 +44,10 @@ await step('typing an exercise with a corrected error, stopping and rating effor
   const caretOk = await page.$eval('#caret', (c) => c.getBoundingClientRect().height > 0);
   assert.ok(caretOk);
   // the caret sits at the next letter to type
-  await page.keyboard.type(words[40].slice(0, 2), { delay: 20 });
+  // probe inside a word of at least three letters, so the next letter is in the same word
+  let probe = 40;
+  while (words[probe].length < 3) { await page.keyboard.type(words[probe] + ' ', { delay: 15 }); probe++; }
+  await page.keyboard.type(words[probe].slice(0, 2), { delay: 20 });
   await page.waitForTimeout(250);
   const gap = await page.evaluate(() => {
     const c = document.getElementById('caret').getBoundingClientRect();
@@ -168,6 +171,18 @@ await step('settings accept a layout and multi-letter keys', async () => {
   await page.locator('#layoutText').dispatchEvent('change');
   await page.getByText(/Layout read: 40 keys, multi-letter: th qu/).waitFor();
   await page.getByText('From your layout: th qu').waitFor();
+  // finish a short exercise with deliberate slips, then see their kinds on the Errors page
+  await page.locator('[data-go="home"]').click();
+  await page.getByRole('button', { name: /Relaxed practice only/ }).click();
+  await page.locator('.w').first().waitFor();
+  const ws = await page.$$eval('.w', (e) => e.slice(0, 14).map((x) => x.textContent));
+  for (const w of ws) await page.keyboard.type((w.length > 2 && w[0] !== 'z' ? 'z' + w.slice(1) : w) + ' ', { delay: 5 });
+  await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
+  await page.getByText('How much effort did that take?').waitFor();
+  await page.keyboard.press('2');
+  await page.locator('[data-go="errors"]').click();
+  await page.getByText('Kinds of slips').waitFor();
+  await page.locator('[data-go="preferences"]').click();
   assert.deepEqual(await page.evaluate(() => window.FT.app.settings.macros), ['th', 'qu']);
 });
 

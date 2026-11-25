@@ -874,11 +874,32 @@
     var rows = app.trainer.substitutions({ minOpp: 30 }).filter(function (r) { return r.count >= 2; }).slice(0, 40);
     var html = '<section class="stack"><h1>Recurring substitutions</h1>' +
       '<p class="muted">Which key comes out when another was intended. Rates are per opportunity to type the intended character and include errors you corrected. Rare pairs are shrunk toward the overall substitution rate, so a one-off does not top the list.</p></section>';
+    var L = app.layout;
+    if (L) {
+      // Kinds of slips across all substitutions on the declared layout.
+      var kinds = {}, total = 0;
+      app.trainer.substitutions({ minOpp: 1 }).forEach(function (r) {
+        var rel = FT.layout.relation(L, r.expected, r.actual);
+        if (!rel) return;
+        var k = kinds[rel.kind] || (kinds[rel.kind] = { n: 0, label: rel.kind });
+        k.n += r.count; total += r.count;
+      });
+      var KIND = { 'reach-up': 'right finger, reach up missed', 'reach-down': 'right finger, reach down missed', 'same-finger': 'right finger, sideways',
+        neighbour: 'neighbouring key', mirror: 'mirror key (same finger, other hand)', 'same-hand': 'same hand, other finger', 'other-hand': 'other hand' };
+      var list = Object.keys(kinds).sort(function (a, b) { return kinds[b].n - kinds[a].n; });
+      if (total >= 3) {
+        html += '<section class="stack"><h3>Kinds of slips</h3><p class="muted">How the typed key relates to the intended one on your layout, across ' + fix(total) + ' substitutions. ' +
+          'In studies of skilled typists, neighbouring keys and mirror keys are the most common slips (Grudin 1983).</p><ul class="list">' +
+          list.map(function (k) { return '<li><b class="num">' + pct(kinds[k].n / total, 0) + '</b> ' + esc(KIND[k]) + '</li>'; }).join('') + '</ul></section>';
+      }
+    }
     if (!rows.length) html += '<p class="panel">No recurring substitutions yet.</p>';
     else {
-      html += '<div class="tablewrap"><table><thead><tr><th>Intended</th><th>Typed</th><th>Rate</th><th>Times</th><th>Opportunities</th><th>Recent examples</th></tr></thead><tbody>' +
+      html += '<div class="tablewrap"><table><thead><tr><th>Intended</th><th>Typed</th>' + (L ? '<th>Kind</th>' : '') + '<th>Rate</th><th>Times</th><th>Opportunities</th><th>Recent examples</th></tr></thead><tbody>' +
         rows.map(function (r, i) {
+          var rel = L && FT.layout.relation(L, r.expected, r.actual);
           return '<tr class="clickable" data-i="' + i + '"><td>' + seq(r.expected) + '</td><td>' + seq(r.actual) + '</td>' +
+            (L ? '<td>' + esc(rel ? rel.label : '') + '</td>' : '') +
             '<td class="num">' + pct(r.rate, 2) + '</td><td class="num">' + fix(r.count) + '</td><td class="num">' + r.opportunities + '</td>' +
             '<td class="ex">' + esc(r.examples.slice(0, 3).map(function (e) { return e.context; }).join(', ')) + '</td></tr>';
         }).join('') + '</tbody></table></div><section id="subex"></section>';

@@ -98,3 +98,23 @@ test('movement categories on the user layout', () => {
   assert.equal(FT.layout.classify(T, 'nt').type, 'roll-in');  // middle -> index
   assert.notEqual(FT.layout.classify(T, 'd t'), null);        // across the space key
 });
+
+// Functionality: substitutions are classified by how the intended and typed
+// keys relate on the declared layout (adjacent-key and homologous errors are
+// the most common kinds in skilled typing, Grudin 1983).
+test('a same-finger substitution one row lower is a missed reach up', () => {
+  const T = FT.layout.parse(THORNIUM);
+  const r = plain(FT.layout.relation(T, 'w', 'c')); // left ring: top row intended, home row typed
+  assert.equal(r.kind, 'reach-up');
+  assert.match(r.label, /reach up/);
+  assert.equal(FT.layout.relation(T, 'c', 'w').kind, 'reach-down');
+});
+
+test('neighbouring, mirror-image and unrelated substitutions', () => {
+  const T = FT.layout.parse(THORNIUM);
+  assert.equal(FT.layout.relation(T, 'n', 't').kind, 'neighbour');   // left middle vs left index, home row
+  assert.equal(FT.layout.relation(T, 'n', 'e').kind, 'mirror');      // left middle vs right middle, home row
+  assert.equal(FT.layout.relation(T, 'z', 'y').kind, 'other-hand');
+  assert.equal(FT.layout.relation(T, 's', 'd').kind, 'same-hand');
+  assert.equal(FT.layout.relation(T, 'n', 'é'), null);           // not on the layout
+});
