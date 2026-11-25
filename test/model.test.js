@@ -129,3 +129,16 @@ test('a mastered context that becomes weak again is flagged again', () => {
   for (let s = 4; s < 7; s++) m.ingest(makeRecords(words, 300, errRn, 90 + s), { session: s + 1, day: s });
   assert.equal(m.evaluate({ day: 7 }).get('rn').weak, true);
 });
+
+test('long histories are compacted without changing judgements materially', () => {
+  const m = FT.model.create({ exactSessions: 6, block: 4 });
+  const words = [...FILLER, ...RN, ...N_WORDS];
+  for (let s = 0; s < 30; s++) m.ingest(makeRecords(words, 60, errRn, 200 + s), { session: s + 1, day: s });
+  assert.ok(m.state().contexts.rn.b.length <= 12);
+  const ref = FT.model.create({ exactSessions: 1000 });
+  for (let s = 0; s < 30; s++) ref.ingest(makeRecords(words, 60, errRn, 200 + s), { session: s + 1, day: s });
+  const a = m.explain('rn', { day: 30 }), b = ref.explain('rn', { day: 30 });
+  assert.equal(a.state, b.state);
+  assert.ok(Math.abs(a.errorRate - b.errorRate) < 0.01);
+  assert.equal(a.sessions >= 1, true);
+});

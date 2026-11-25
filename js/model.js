@@ -27,7 +27,7 @@
   var MAX_ORDER = 4;
   var DEFAULTS = {
     stabilityDays: 30, halfLifeObs: 60, minN: 8, pFlag: 0.95, minErrAbs: 0.005, minErrRel: 1.25,
-    minLatRel: 1.10, maxExamples: 12,
+    minLatRel: 1.10, maxExamples: 12, exactSessions: 24, block: 8,
   };
 
   function create(opts, state) {
@@ -80,22 +80,57 @@
           c.ex.push(words[x]);
         }
         if (c.ex.length > cfg.maxExamples) c.ex.splice(0, c.ex.length - cfg.maxExamples);
+        compact(c, session);
       });
       st.sessions = Math.max(st.sessions, session);
       st.lastDay = Math.max(st.lastDay, day);
     }
 
-    function aggregate(c, day) {
+    // Buckets older than the newest `exactSessions` sessions are merged into
+    // fixed session blocks shared by all contexts, so parent and child buckets
+    // stay aligned. A merged bucket takes the n-weighted mean session and day.
+    function compact(c, session) {
+      var cutoff = session - cfg.exactSessions, out = [], cur = null, curBlock = null;
+      for (var i = 0; i < c.b.length; i++) {
+        var x = c.b[i];
+        if (x.s > cutoff) { if (cur) { out.push(cur); cur = null; } out.push(x); continue; }
+        var blk = Math.floor((x.s - 1) / cfg.block);
+        if (cur && curBlock === blk) {
+          var n = cur.n + x.n || 1;
+          cur.s = (cur.s * cur.n + x.s * x.n) / n; cur.d = (cur.d * cur.n + x.d * x.n) / n;
+          cur.n += x.n; cur.e += x.e; cur.ln += x.ln; cur.ls += x.ls; cur.lss += x.lss;
+          cur.wd = Math.max(cur.wd, x.wd); cur.blk = blk;
+        } else {
+          if (cur) out.push(cur);
+          cur = Object.assign({}, x, { blk: blk }); curBlock = blk;
+        }
+      }
+      if (cur) out.push(cur);
+      c.b = out;
+    }
+
+    // Weight of evidence at (session s, day d) from the point of view of
+    // context c: exposure decay by c's own later observations, times the
+    // FSRS-shaped day decay.
+    function weightFn(c, day) {
+      var bs = c.b;
+      return function (b) {
+        // observations of c strictly after session b.s
+        var l = 0;
+        for (var j = bs.length - 1; j >= 0 && bs[j].s > b.s; j--) l += bs[j].n;
+        return Math.pow(0.5, l / cfg.halfLifeObs) * S.recencyWeight(day - b.d, cfg.stabilityDays);
+      };
+    }
+    function aggregateUsing(c, wfn) {
       var g = { n: 0, e: 0, ln: 0, ls: 0, lss: 0 };
-      var later = 0;
-      for (var i = c.b.length - 1; i >= 0; i--) {
-        var b = c.b[i];
-        var w = Math.pow(0.5, later / cfg.halfLifeObs) * S.recencyWeight(day - b.d, cfg.stabilityDays);
-        later += b.n;
+      for (var i = 0; i < c.b.length; i++) {
+        var b = c.b[i], w = wfn(b);
         g.n += w * b.n; g.e += w * b.e; g.ln += w * b.ln; g.ls += w * b.ls; g.lss += w * b.lss;
       }
       return g;
     }
+
+    function aggregate(c, day) { return aggregateUsing(c, weightFn(c, day)); }
     function minus(a, b) {
       return { n: Math.max(a.n - b.n, 0), e: Math.max(a.e - b.e, 0), ln: Math.max(a.ln - b.ln, 0),
         ls: a.ls - b.ls, lss: a.lss - b.lss };
@@ -175,8 +210,9 @@
           if (order > 1) {
             var pk = k.slice(1), pe = out[pk];
             if (pe) {
-              // parent's estimate without this child's own data
-              var pg = minus(agg[pk], agg[k]);
+              // parent's estimate without this child's own data, weighted
+              // with the child's weights (a comparison matched in time)
+              var pg = minus(aggregateUsing(st.contexts[pk], weightFn(st.contexts[k], day)), agg[k]);
               redundant = pg.n < cfg.minN;
               var hp = hypers[order - 1];
               var pj = judge(pg, pe.parentErrorRate, pe.parentMu, hp, true);
@@ -205,8 +241,8 @@
             var x = out[kk];
             return x.order === order && x.parent === c.parent && (x.weak || x.hesitant);
           });
-          var rest = agg[c.parent];
-          flaggedKids.forEach(function (kk) { rest = minus(rest, agg[kk]); });
+          var rest = agg[c.parent], pw = weightFn(st.contexts[c.parent], day);
+          flaggedKids.forEach(function (kk) { rest = minus(rest, aggregateUsing(st.contexts[kk], pw)); });
           var r = judge(rest, p.parentErrorRate, p.parentMu, hypers[order - 1]);
           if (p.weak && !r.weak) { p.weak = false; p.explainedBy = flaggedKids; }
           if (p.hesitant && !r.hesitant) { p.hesitant = false; p.explainedBy = flaggedKids; }
