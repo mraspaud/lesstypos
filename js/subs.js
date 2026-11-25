@@ -20,7 +20,7 @@
         for (var p = 0; p < P.length; p++) {
           st.opp[P[p]] = (st.opp[P[p]] || 0) + 1;
           st.totalOpp++;
-          if (p + 1 < P.length && P[p] !== P[p + 1]) st.pairOpp[P[p] + P[p + 1]] = (st.pairOpp[P[p] + P[p + 1]] || 0) + 1;
+          if (p + 1 < P.length && !FT.text.same(P[p], P[p + 1])) st.pairOpp[P[p] + P[p + 1]] = (st.pairOpp[P[p] + P[p + 1]] || 0) + 1;
         }
         for (var j = 0; j < an.events.length; j++) {
           var e = an.events[j];

@@ -267,3 +267,31 @@ test('a doubled letter is not a swap', () => {
   const r = A('book ', 'bok<ok ');
   assert.equal(r.events.filter((e) => e.type === 'transpose').length, 0);
 });
+
+// Review findings on transpositions.
+const swapsOf = (r) => r.events.filter((e) => e.type === 'transpose');
+test('crossed letters after a wrong prefix are not a swap', () => {
+  const r = A('people ', 'xoeple ');
+  assert.equal(swapsOf(r).length, 0);
+  assert.ok(total(r) > 2.5); // three readings, weighted over the equally good alignments (1/N)
+});
+
+test('a second swap in a word is found after the first one, when erased and retyped', () => {
+  const r = A('other ', 'toeh<<<<other ');
+  assert.equal(total(r), 2);
+  assert.ok(!r.events.some((e) => e.type === 'sub'));
+});
+
+test('a swap partly erased and retyped is still one swap', () => {
+  const r = A('people ', 'poe<eple ');
+  assert.equal(total(r), 1);
+  assert.ok(swapsOf(r).length > 0);
+});
+
+test('after an early letter is erased, the next attempt is compared with the right position', () => {
+  const r = A('cat ', 'ct<ta<<at ');
+  assert.equal(total(r), 1);
+  assert.ok(!r.events.some((e) => e.type === 'sub' && e.expected === ' '));
+  const r2 = A('cat ', 'ct<ax<<at ');
+  assert.ok(!r2.events.some((e) => e.type !== 'none' && e.expected === ' '));
+});

@@ -5,11 +5,15 @@
 //   classification of flagged (uncorrected) and unflagged (corrected) keystrokes.
 // Ambiguous alignments are weighted 1/N (MacKenzie & Soukoreff 2002).
 // Keystroke classes C/INF/IF/F as in Soukoreff & MacKenzie (2003).
-// Transposition (Salthouse 1986): two adjacent letters typed in swapped order,
-// right after a correctly typed prefix, are one error shared by both positions.
-// Swaps are found from the text on screen when each letter was typed (so an
-// erased swap is found too); among equally optimal alignments, those agreeing
-// with a surviving swap are kept (design choice). "premature" is a post-hoc tag.
+// Transposition: two adjacent letters typed in swapped order (an error class
+// of Salthouse 1986). Design choices (user decision for the count): a swap is
+// recognised on the text on screen, right after correctly typed letters, so
+// an erased or retyped swap is found too; among equally optimal alignments,
+// those agreeing with a surviving swap are kept; a swap is one error shared by
+// its two positions. Limitation: two swaps left uncorrected in one word are
+// not found when the edit distance prefers another alignment (it has no
+// transposition operation, unlike Damerau-Levenshtein). "premature" is a
+// post-hoc tag.
 // Presses (design choice, user decision): one key action is one mistake. With
 // declared multi-letter keys (opts.macros), letters of one wrong press, on the
 // typed side (FT.text.pressIds) or the target side (FT.text.targetPresses),
@@ -157,61 +161,68 @@
       has: function (i) { return presses.typed[i] != null && wrong[presses.typed[i]]; },
       mark: function (i) { if (presses.typed[i] != null) wrong[presses.typed[i]] = true; },
     };
-    var v = 0, live = [], tCount = 0; // v: target position being attempted; live: positions after each live letter
+    var v = 0, live = [], tCount = 0; // v: target position being attempted; live: position each letter on screen was typed at
     stream.forEach(function (e, i) {
       if (flags[i]) {
         map.omissionsBefore[tCount].forEach(function (p) { rec.omit(p, false, e.t, i); });
-        v = uncorrected(rec, P, e, i, map.tInfo[tCount++], pressErr);
         live.push(v);
+        v = uncorrected(rec, P, e, i, map.tInfo[tCount++], pressErr);
       } else if (e.k === 'b') {
-        if (live.length) v = live.pop() - 1; // back to the erased letter's position
-        v = Math.max(0, v);
+        if (live.length) v = live.pop(); // back to where the erased letter was typed
       } else if (swaps.done[i]) {
         // second letter of an erased swap, recorded with the first
       } else if (swaps.at[i] && swaps.at[i].pos === v && !flags[i + 1]) {
         rec.transpose(v, true, e, i, stream[i + 1], i + 1);
         swaps.done[i + 1] = true;
-        live.push(v + 1, v + 2);
+        live.push(v, v + 1);
         v += 2;
       } else {
-        v = corrected(rec, P, e, i, v, pressErr);
         live.push(v);
+        v = corrected(rec, P, e, i, v, pressErr);
       }
     });
     swaps.done = {};
     var lastT = stream.length ? stream[stream.length - 1].t : 0;
     map.omissionsBefore[flaggedIdx.length].forEach(function (p) { rec.omit(p, false, lastT, stream.length); });
-    tagPatterns(P, rec.events);
-    sharePressErrors(rec.first, presses, swapLinks(rec));
+    tagPatterns(P, rec.events, swaps);
+    sharePressErrors(rec.first, presses, swapLinks(rec, swaps));
     return { events: rec.events, first: rec.first };
   }
 
-  // Positions whose first attempt was one transposition: [pos, pos + 1].
-  function swapLinks(rec) {
+  // Positions whose first attempt was one of the swaps found: [pos, pos + 1].
+  function swapLinks(rec, swaps) {
     var links = [];
-    rec.events.forEach(function (e) {
-      if (!e.swapStart) return;
-      var a = rec.first[e.pos], b = rec.first[e.pos + 1];
-      if (a && b && a.idx === e.idx && b.idx === e.idx + 1) { a.type = b.type = 'transpose'; links.push([e.pos, e.pos + 1]); }
+    swaps.list.forEach(function (sw) {
+      var a = rec.first[sw.pos], b = rec.first[sw.pos + 1];
+      if (a && b && a.idx === sw.i && b.idx === sw.j) { a.type = b.type = 'transpose'; links.push([sw.pos, sw.pos + 1]); }
     });
     return links;
   }
 
-  // Swaps in the stream: keystroke i typed P[k+1] and keystroke i+1 typed P[k]
-  // (P[k] != P[k+1]) right after the text on screen read P[0..k).
+  // Swaps, read from the text on screen as it was typed: whenever its last two
+  // letters read P[k+1] P[k] (P[k] != P[k+1]) after P[0..k) (letters of swaps
+  // already found count as right), keystrokes i, j typed a swap at k.
+  // list: every swap; at: swaps typed as two consecutive keystrokes, by i.
   function findSwaps(P, stream) {
-    var at = {}, text = [];
-    var prefixOk = function (k) { for (var q = 0; q < k; q++) if (!eq(text[q], P[q])) return false; return true; };
+    var list = [], at = {}, text = [], swapPos = {};
+    var prefixOk = function (k) {
+      for (var q = 0; q < k; q++) if (!eq(text[q].ch, P[q]) && swapPos[text[q].i] !== q) return false;
+      return true;
+    };
     for (var i = 0; i < stream.length; i++) {
-      var e = stream[i], n = stream[i + 1];
+      var e = stream[i];
       if (e.k === 'b') { text.pop(); continue; }
-      var k = text.length;
-      if (n && n.k === 'c' && k + 1 < P.length && !eq(P[k], P[k + 1]) && eq(e.ch, P[k + 1]) && eq(n.ch, P[k]) && prefixOk(k)) {
-        at[i] = { pos: k, next: i + 1 };
-      }
-      text.push(e.ch);
+      if (e.k !== 'c') continue;
+      text.push({ ch: e.ch, i: i });
+      var k = text.length - 2;
+      if (k < 0 || k + 1 >= P.length || eq(P[k], P[k + 1])) continue;
+      if (!eq(text[k].ch, P[k + 1]) || !eq(text[k + 1].ch, P[k]) || !prefixOk(k)) continue;
+      var sw = { i: text[k].i, j: i, pos: k };
+      list.push(sw);
+      swapPos[sw.i] = k; swapPos[sw.j] = k + 1;
+      if (sw.j === sw.i + 1) at[sw.i] = { pos: k, next: sw.j };
     }
-    return { at: at, done: {} };
+    return { list: list, at: at, done: {} };
   }
 
   // Keep the alignments that place each surviving swap as two substitutions
@@ -219,12 +230,11 @@
   function preferSwaps(als, swaps, flags, flaggedIdx) {
     var tOf = {};
     flaggedIdx.forEach(function (si, tj) { tOf[si] = tj; });
-    var wanted = Object.keys(swaps.at).map(Number).filter(function (i) { return flags[i] && flags[i + 1]; })
-      .map(function (i) { return { p: swaps.at[i].pos, tj: tOf[i] }; });
+    var wanted = swaps.list.filter(function (sw) { return flags[sw.i] && flags[sw.j]; });
     if (!wanted.length) return als;
     var has = function (al, p, tj) { return al.some(function (x) { return x[0] === p && x[1] === tj; }); };
     var kept = als.filter(function (al) {
-      return wanted.every(function (w) { return has(al, w.p, w.tj) && has(al, w.p + 1, w.tj + 1); });
+      return wanted.every(function (sw) { return has(al, sw.pos, tOf[sw.i]) && has(al, sw.pos + 1, tOf[sw.j]); });
     });
     return kept.length ? kept : als;
   }
@@ -255,7 +265,7 @@
     first.forEach(function (f, pos) { if (f && f.err) f.err = 1 / size[find(pos)]; });
   }
 
-  function tagPatterns(P, events) {
+  function tagPatterns(P, events, swaps) {
     var C = P.map(FT.text.canon);
     var subs = events.filter(function (e) { return e.type === 'sub'; });
     for (var i = 0; i < subs.length; i++) {
@@ -263,15 +273,17 @@
       s.premature = C.indexOf(a, s.pos + 1) > s.pos;
       s.case = a !== C[s.pos] && a.toLowerCase() === C[s.pos].toLowerCase();
     }
-    for (i = 0; i + 1 < subs.length; i++) {
-      var x = subs[i], y = subs[i + 1];
-      if (x.corrected === y.corrected && y.pos === x.pos + 1 &&
-          eq(x.actual, P[y.pos]) && eq(y.actual, P[x.pos])) {
-        x.type = 'transpose'; y.type = 'transpose'; x.swapStart = true;
-        x.premature = y.premature = false;
-        i++;
-      }
-    }
+    // Substitutions made by the keystrokes of a swap found on screen.
+    var find = function (idx, pos) {
+      return events.filter(function (e) { return e.idx === idx && e.pos === pos && (e.type === 'sub' || e.type === 'transpose'); })[0];
+    };
+    swaps.list.forEach(function (sw) {
+      var x = find(sw.i, sw.pos), y = find(sw.j, sw.pos + 1);
+      if (!x || !y) return;
+      if (x.type === 'transpose' && x.swapStart) { y.type = 'transpose'; y.premature = false; return; } // already counted
+      x.type = y.type = 'transpose'; x.swapStart = true;
+      x.premature = y.premature = false;
+    });
   }
 
   function analyzeWord(P, stream, opts) {
