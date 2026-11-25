@@ -18,6 +18,7 @@
     var model = p.model ? FT.model.fromJSON(p.model) : FT.model.create();
     var subs = FT.subs.create(p.subs || null);
     var difficulty = FT.difficulty.create(p.difficulty || { frontier: 200, max: corpus.size });
+    var bursts = FT.bursts.create(p.bursts || null);
     var sessionCount = p.sessionCount || 0;
     var seed = opts.seed || 1;
     var history = p.history || []; // compact per-exercise summaries
@@ -128,6 +129,9 @@
         summary.stageChanges = model.endSession({ session: session, day: raw.day });
       }
       subs.ingest(analyses, { exercise: raw.type, session: session, t: raw.startedAt });
+      if (raw.type === 'bursts' && raw.rounds) {
+        summary.rounds = bursts.apply(words, raw.rounds, history, raw.startedAt);
+      }
       if (DIFFICULTY_TYPES[raw.type]) {
         summary.difficulty = difficulty.update({
           words: metrics.words, firstAttemptAccuracy: metrics.firstAttemptAccuracy,
@@ -150,10 +154,12 @@
       evaluate: function () { return model.evaluate({ day: dayOf(now()) }); },
       substitutions: function (o) { return subs.matrix(o); },
       difficulty: difficulty, model: model, corpus: corpus,
+      bursts: { target: function () { return bursts.ensure(history); }, step: FT.bursts.step,
+        reference: function () { return FT.bursts.relaxedMedian(history); } },
       history: function () { return history; },
       profile: function () {
         return { lang: lang, modelVersion: FT.MODEL_VERSION, sessionCount: sessionCount, model: model.toJSON(), subs: subs.toJSON(),
-          difficulty: difficulty.toJSON(), history: history };
+          difficulty: difficulty.toJSON(), bursts: bursts.toJSON(), history: history };
       },
     };
   }
