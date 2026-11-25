@@ -2,8 +2,8 @@
 (function (FT) {
   'use strict';
   if (typeof document === 'undefined') return;
-  var U = FT.ui, app = U.app, EXERCISES = U.EXERCISES, EFFORT = U.EFFORT, DEFAULT_SETTINGS = U.DEFAULT_SETTINGS;
-  var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, fix = FT.fmt.fix, pill = FT.fmt.pill;
+  var U = FT.ui, app = U.app, DEFAULT_SETTINGS = U.DEFAULT_SETTINGS;
+  var esc = FT.fmt.esc;
   // defined in other ui files
   function startExercise() { return U.startExercise.apply(null, arguments); }
   function stopTyping() { return U.stopTyping.apply(null, arguments); }
