@@ -16,12 +16,13 @@
     return last.auto || last.ch === separatorOf(w) ? 'ok' : 'bad';
   }
   function isOtherSeparator(w, ch) { return isSeparator(ch) && ch !== separatorOf(w); }
-  // All the word's letters, or all its key presses (a multi-letter key is one),
-  // typed before the separator just typed, right or wrong.
+  // All the word's letters, or all its key presses (a multi-letter key is one,
+  // also when its letters are typed one by one), typed before the separator
+  // just typed, right or wrong.
   function complete(w, macros) {
     if (Array.from(w.typed).length - 1 >= Array.from(w.target).length) return true;
     if (!macros || !macros.length) return false;
-    var flags = FT.align.flagStream(w.stream), ids = FT.presses.ids(w.stream, macros), typed = {};
+    var flags = FT.align.flagStream(w.stream), ids = FT.presses.ids(w.stream, macros, Infinity), typed = {};
     for (var i = 0; i < w.stream.length - 1; i++) if (flags[i] && ids[i] != null) typed[ids[i]] = true;
     var target = FT.presses.ofTarget(w.target, macros);
     return Object.keys(typed).length >= (target.length ? target[target.length - 1] + 1 : 0);

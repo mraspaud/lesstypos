@@ -170,3 +170,10 @@ test('with a multi-letter key, a word is complete when it has as many presses as
   typist(s).type('xe ');   // one key where the th key was meant, then e: two presses, as "the" needs
   assert.equal(s.state().wordIndex, 1);
 });
+
+test('a multi-letter key typed by hand, letter by letter, counts as one press of it', () => {
+  const FT = load();
+  const s = FT.session.create(['the', 'cat'], { macros: ['th'] });
+  typist(s, { dt: 200 }).type('th ');   // t and h typed slowly: still one press short of "the"
+  assert.equal(s.state().wordIndex, 0);
+});
