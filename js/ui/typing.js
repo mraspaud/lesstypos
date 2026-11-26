@@ -20,6 +20,7 @@
   // ---------- typing ----------
   function burstRun() { return app.burstRun || FT.exercises.BURST_ROUND_MS; }   // overridable for tests
   function burstRest() { return app.burstRest || FT.exercises.BURST_REST_MS; }
+  var WORDS_SHOWN = 120, WORDS_ADDED = 100;   // the DOM holds a window of the exercise's words
   var ty = null; // active typing state
   function stopTyping() {
     if (ty) { clearInterval(ty.timer); if (ty.detach) ty.detach(); ty = null; }
@@ -54,9 +55,8 @@
       '<div id="stopbar" class="stopbar" hidden></div>' +
       '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"' + (withCard ? ' aria-describedby="briefing"' : '') + '></textarea>' +
       '</section>');
-    var session = FT.session.create(ex.words.slice(0, 120), { equivalence: equivalence() });
-    var fed = 120;
-    ty = { type: type, ex: ex, session: session, fed: fed, durationMs: durationMs, keys: [], first: null, startedAt: null,
+    var session = FT.session.create(ex.words.slice(0, WORDS_SHOWN), { equivalence: equivalence() });
+    ty = { type: type, ex: ex, session: session, pending: ex.words.slice(WORDS_SHOWN), durationMs: durationMs, keys: [], first: null, startedAt: null,
       els: [], inner: document.getElementById('inner'), caret: document.getElementById('caret'),
       win: document.getElementById('window'), capture: document.getElementById('capture'), stopped: false, opts: opts, offset: 0, pauses: [],
       briefing: withCard, free: free };
@@ -301,7 +301,7 @@
     }
     for (var i = before; i <= Math.min(st.wordIndex, st.words.length - 1); i++) paintWord(i);
     if (st.words.length - st.wordIndex < 60 && !ty.exhausted) {
-      var more = ty.ex.more(100);
+      var more = nextWords(WORDS_ADDED);
       if (!more.length) ty.exhausted = true;
       var from = st.words.length;
       ty.session.append(more);
@@ -311,6 +311,11 @@
     if (ty.overtime && st.wordIndex !== before && atSentenceEnd()) { finishExercise(); return; }
     placeCaret();
     if (st.wordIndex !== before) trimAbove();
+  }
+  // The prepared words in order, then more from the exercise: a book must not skip.
+  function nextWords(n) {
+    var out = ty.pending.splice(0, n);
+    return out.length ? out : ty.ex.more(n);
   }
   function resting() { return ty.burst && ty.burst.phase === 'rest'; }
   function onBack(t) {

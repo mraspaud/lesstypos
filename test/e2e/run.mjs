@@ -1074,6 +1074,24 @@ await step('home continues the book with c, in free reading: no time limit, the 
   await page.keyboard.press('Delete');
 });
 
+await step('prose runs on through the book without a gap, and the place saved is where typing stopped', async () => {
+  const text = { id: 'long', title: 'Long', words: Array.from({ length: 700 }, (_, i) => 'w' + i), pos: 10 };
+  await page.evaluate((t) => window.FT.app.store.saveText(t).then(() => window.FT.ui.startExercise('prose', { text: t, free: true })), text);
+  await page.locator('.w').first().waitFor();
+  const typed = [];
+  for (let i = 0; i < 130; i++) {
+    const w = await page.evaluate(() => { const el = [...document.querySelectorAll('.w')].find((e) => !e.querySelector('.ok,.bad,.extra')); return el.textContent; });
+    typed.push(w);
+    await page.keyboard.type(w + ' ', { delay: 4 });
+  }
+  assert.deepEqual(typed.slice(118, 123), ['w128', 'w129', 'w130', 'w131', 'w132']);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
+  await page.getByText('How much effort did that take?').waitFor();
+  await effortReady(); await page.keyboard.press('0');
+  assert.equal(await page.evaluate(async () => (await window.FT.app.store.getText('long')).pos), 140);
+  await page.evaluate(() => window.FT.app.store.deleteText('long'));
+});
+
 await step('reading from home continues exactly where the book was left, also after prose read another way', async () => {
   const readAndSave = async (n) => {
     await page.locator('.w').first().waitFor();
