@@ -318,17 +318,21 @@
   // ---------- summary ----------
   // The decision first (what next), then speed, accuracy and one sentence each
   // on vocabulary and the focus list; everything else is under Details (d).
+  // info.past: an earlier exercise reopened from the Progress log.
   function viewSummary(s, info) {
     app.current = 'summary';
     renderNav();
-    var m = s.metrics, h = app.trainer.history();
-    var cur = h[h.length - 1];
-    var cmp = FT.progress.compare(h.slice(0, -1), cur);
-    var inProg = info.opts && info.opts.programme && app.run;
+    var m = s.metrics, h = app.trainer.history(), past = !!info.past;
+    var at = past ? h.findIndex(function (x) { return x.id === s.id; }) : h.length - 1;
+    var cmp = at >= 0 ? FT.progress.compare(h.slice(0, at), h[at]) : null;
+    var inProg = !past && info.opts && info.opts.programme && app.run;
     var tg = app.trainer.targets();
+    var when = new Date(s.startedAt);
     var html = (inProg ? programmeBar() : '') +
-      '<section class="stack"><h1>' + esc(EXERCISES[s.type].name) + ' finished</h1>' +
-      (inProg ? '' : '<div class="row"><button class="btn primary" type="button" id="again">Practise again <kbd>Enter</kbd></button>' +
+      '<section class="stack"><h1>' + esc(EXERCISES[s.type].name) + (past ? ' · ' + esc(when.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' +
+        when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : ' finished') + '</h1>' +
+      (past ? '<div class="row"><button class="btn" type="button" id="backlog">Back to the log <kbd>Esc</kbd></button></div>'
+        : inProg ? '' : '<div class="row"><button class="btn primary" type="button" id="again">Practise again <kbd>Enter</kbd></button>' +
         '<button class="btn" type="button" id="seqs">See the focus list <kbd>q</kbd></button></div>') +
       '<div class="tiles">' +
       '<div class="tile"><b>' + fix(m.wpm) + '</b><span>WPM</span></div>' +
@@ -336,7 +340,7 @@
       '</div>' +
       (s.textProgress ? '<p>' + esc(s.textProgress.title) + ': ' + proseProgress(s.textProgress, s.textProgress.pos) + '. Your place is saved.</p>' : '') +
       (s.difficulty ? '<p>' + esc(FT.fmt.vocabSentence(s.difficulty, s.frontier)) + '</p>' : '') +
-      '<p>' + focusSentence(s, tg) + '</p>' +
+      (past ? '' : '<p>' + focusSentence(s, tg) + '</p>') +
       '</section>';
     if (s.rounds) {
       html += '<section class="stack"><h3>Rounds</h3><div class="tablewrap"><table><thead><tr><th>Round</th><th>WPM</th><th>Accuracy</th><th>Target</th><th>Result</th></tr></thead><tbody>' +
@@ -357,11 +361,14 @@
     det.addEventListener('toggle', draw);
     var toggle = function () { det.open = !det.open; draw(); bindKeys(); };
     var again = function () { startExercise(info.type, info.opts); };
+    var backToLog = function () { go('insights/progress'); };
     function bindKeys() {
-      if (inProg) bindProgrammeBar({ d: toggle });
+      if (past) app.keys = { Escape: backToLog, d: toggle };
+      else if (inProg) bindProgrammeBar({ d: toggle });
       else app.keys = { Enter: again, q: function () { go('insights/focus'); }, d: toggle };
     }
-    if (!inProg) {
+    if (past) document.getElementById('backlog').onclick = backToLog;
+    else if (!inProg) {
       document.getElementById('again').onclick = again;
       document.getElementById('seqs').onclick = function () { go('insights/focus'); };
     }

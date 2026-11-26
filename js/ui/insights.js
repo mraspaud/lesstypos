@@ -256,12 +256,13 @@
     var h = app.trainer.history().slice().reverse();
     var pc = progressCharts(app.trainer.history());
     var html = '<section class="stack">' + U.sectionHead('insights') + '</section>' + pc.html +
-      '<section class="stack"><h2>All exercises</h2><p class="muted">Newest first. “Random words” is the unbiased sample that targeted practice never influences.</p></section>';
+      '<section class="stack"><h2>All exercises</h2><p class="muted">Newest first; open a row for its summary. “Random words” is the unbiased sample that targeted practice never influences.</p></section>';
     if (!h.length) html += '<p class="panel">No exercises yet.</p>';
     else html += '<div class="tablewrap"><table id="alltable"><thead><tr><th>When</th><th>Exercise</th><th>Min</th><th>WPM</th><th>Accuracy</th><th>Random words</th><th>Effort</th><th>Hesitation</th><th>Rhythm</th><th>Vocabulary</th></tr></thead><tbody>' +
       h.map(function (x) {
         var d = new Date(x.t);
-        return '<tr><td class="num nowrap">' + esc(d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</td>' +
+        return '<tr class="clickable"><td class="num nowrap"><button type="button" class="rowbtn" data-row data-past="' + esc(x.id) + '">' +
+          esc(d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</button></td>' +
           '<td>' + esc((EXERCISES[x.type] || { name: x.type }).name) + '</td><td class="num">' + fix(x.ms / 60000, 1) + '</td>' +
           '<td class="num">' + fix(x.wpm) + '</td><td class="num">' + pct(x.faa) + '</td><td class="num">' + pct(x.randomFaa) + '</td>' +
           '<td class="num">' + (x.effort || '–') + '</td><td class="num">' + pct(x.hes) + '</td><td class="num">' + fix(x.cv, 2) + '</td>' +
@@ -269,6 +270,14 @@
       }).join('') + '</tbody></table></div>';
     setView(html);
     pc.draw();
+    app.$view.querySelectorAll('[data-past]').forEach(function (b) { b.onclick = function () { openPast(b.dataset.past); }; });
+  }
+  // A past exercise's summary, rebuilt from its stored record (nothing is learned).
+  function openPast(id) {
+    app.store.getSession(id).then(U.onThisScreen(function (raw) {
+      if (!raw) { app.notice = 'The record of this exercise is no longer stored.'; U.renderNotice(); return; }
+      U.viewSummary(app.trainer.summarize(raw), { past: true, opts: {} });
+    })).catch(U.storageError);
   }
 
   Object.assign(U, { viewSequences: viewSequences, markSel: markSel, movement: movement, showWhy: showWhy, viewErrors: viewErrors, viewHistory: viewHistory });

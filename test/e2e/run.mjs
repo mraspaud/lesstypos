@@ -1034,6 +1034,20 @@ await step('a paragraph ends with Enter: the next one starts on a new line, and 
   await page.keyboard.press('Delete');
 });
 
+await step('a past exercise opens from the Progress log with keys only, details and all, and Esc returns', async () => {
+  await nav('insights/progress');
+  await page.locator('#alltable').waitFor();
+  const firstWpm = await page.locator('#alltable tbody tr').first().locator('td').nth(3).textContent();
+  await page.keyboard.press('j');
+  await page.keyboard.press('Enter');
+  await page.locator('h1', { hasText: /·/ }).waitFor();
+  assert.equal(await page.locator('.tile b').first().textContent(), firstWpm);
+  await page.keyboard.press('d');
+  assert.ok(await page.locator('#details').evaluate((d) => d.open));
+  await page.keyboard.press('Escape');
+  await page.locator('#alltable').waitFor();
+});
+
 await step('the chapter choice steps with the arrow keys and keeps the focus', async () => {
   await nav('settings/texts');
   const select = page.locator('select[data-chapter="alice"]');
