@@ -81,6 +81,14 @@
   // Variant B's exercises: rated effort 1 or 2 of 5.
   function effortless(h) { return h.effort != null && h.effort <= 2; }
 
-  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, scale: scale, effortless: effortless,
+  // Both variants and the coverage, or null before A has a scale.
+  function index(evaluation, history, ref, opts) {
+    var all = scale(history);
+    if (!all) return null;
+    var a = predict(evaluation, all, ref, opts), low = scale(history, effortless);
+    return { wpm: a.wpm, effortlessWpm: low ? predict(evaluation, low, ref, opts).wpm : undefined, coverage: a.coverage };
+  }
+
+  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, scale: scale, effortless: effortless, index: index,
     REFERENCE_WORDS: REFERENCE_WORDS };
 })(globalThis.FT);

@@ -15,10 +15,19 @@
       words: m.metrics.words, wpm: m.metrics.wpm,
       firstAttemptAccuracy: m.metrics.firstAttemptAccuracy, randomFirstAttemptAccuracy: m.random.firstAttemptAccuracy,
       hesitationRate: m.hesitationRate, rhythmCv: m.rhythmCv, rollover: m.rollover, wordStartMs: m.wordStartMs,
-      commonPairMs: m.commonPairs.ms, commonPairIntervals: m.commonPairs.n,
+      commonPairMs: m.commonPairs.ms, commonPairIntervals: m.commonPairs.n, centreMs: m.centreMs,
       frontier: m.frontier, vocabularyDecision: m.vocabularyDecision || undefined, burstRounds: m.burstRounds || undefined,
       keyPresses: m.keyStats.keys, wrongPressLandings: Object.keys(landings).length ? landings : undefined,
     };
+  }
+
+  // The experimental fluency index (FT.fluency.index), when it has a scale:
+  // fluencyWpm (A, predicted speed), effortlessWpm (B, effortless speed) and
+  // fluencyCoverage.
+  function withFluency(h, index) {
+    if (!index) return h;
+    h.fluencyWpm = index.wpm; h.effortlessWpm = index.effortlessWpm; h.fluencyCoverage = index.coverage;
+    return h;
   }
 
   // Long enough, and timed, to compare with other exercises of its type.
@@ -30,5 +39,5 @@
     return history.some(function (h) { return h.run && FT.days.number(h.startedAt) === day; });
   }
 
-  FT.history = { trainedOn: trainedOn, entry: entry, isComparable: isComparable, isComparableRelaxed: isComparableRelaxed };
+  FT.history = { trainedOn: trainedOn, entry: entry, withFluency: withFluency, isComparable: isComparable, isComparableRelaxed: isComparableRelaxed };
 })(globalThis.FT);

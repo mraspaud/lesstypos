@@ -13,16 +13,18 @@ const { near } = require('./helpers/assert');
 const FT = load();
 
 // Simulated typist: types each word correctly at 120 ms/key, except (with err)
-// substitutes 'n' for 'h' after 't', then corrects it.
+// substitutes 'n' for 'h' after 't', then corrects it. opts: { err, instant
+// (characters whose key comes up at once), effort, type, dt }.
 function simulate(trainer, nWords, t0, opts = {}) {
-  const ex = trainer.newExercise({ type: 'relaxed' });
+  const type = opts.type || 'relaxed';
+  const ex = trainer.newExercise({ type });
   const s = FT.session.create(ex.words.slice(0, nWords));
   const keys = [];
   let t = t0;
   for (const w of s.state().words.slice(0, nWords)) {
     let prev = '';
     for (const ch of w.target + ' ') {
-      t += 120;
+      t += opts.dt || 120;
       if (opts.err && ch === 'h' && prev === 't') {
         s.input({ kind: 'text', data: 'n', t }); t += 150;
         s.input({ kind: 'back', t }); t += 150;
@@ -34,7 +36,7 @@ function simulate(trainer, nWords, t0, opts = {}) {
     }
   }
   const words = s.state().words.filter((w) => w.committed);
-  return trainer.finish({ type: 'relaxed', startedAt: t0, durationMs: t - t0, words, keys, effort: opts.effort ?? null });
+  return trainer.finish({ type, startedAt: t0, durationMs: t - t0, words, keys, effort: opts.effort ?? null });
 }
 
 test('finishing an exercise yields a raw record and a summary', () => {
@@ -366,4 +368,69 @@ test('a past speed-bursts summary shows its rounds and targets', () => {
     rounds: [{ start: 0, end: t / 2 }, { start: t / 2, end: t }] });
   assert.equal(done.summary.rounds.length, 2);
   assert.deepEqual(shownAgain(tr.summarize(done.raw)).rounds, plain(done.summary.rounds));
+});
+
+// Functionality: the experimental fluency index (FT.fluency) is computed as
+// training goes, from earlier exercises only, so a rebuild reproduces it.
+const HOUR = 3600e3, DAY0 = Date.UTC(2026, 0, 1);
+const practiseRelaxed = (tr, count, opts = {}, from = 0) => {
+  for (let i = 0; i < count; i++) simulate(tr, 60, DAY0 + (from + i) * HOUR, opts);
+  return tr.history();
+};
+
+test('history entries keep the session centre in ms per population', () => {
+  const tr = FT.trainer.create({ seed: 30 });
+  const h = practiseRelaxed(tr, 1)[0];
+  assert.equal(Math.round(h.centreMs.within), 120);
+  assert.equal(Math.round(h.centreMs.initial), 120);
+});
+
+test('exercises get the fluency index once 3 relaxed exercises set its scale', () => {
+  const tr = FT.trainer.create({ seed: 31 });
+  const h = practiseRelaxed(tr, 3, { effort: 3 });
+  assert.equal(h[1].fluencyWpm, undefined);
+  assert.ok(h[2].fluencyWpm > 0 && h[2].fluencyCoverage >= 0 && h[2].fluencyCoverage <= 1, JSON.stringify(h[2]));
+  simulate(tr, 60, DAY0 + 3 * HOUR, { type: 'warmup' });
+  assert.ok(tr.history()[3].fluencyWpm > 0);
+});
+
+test('effortless speed is missing until 3 relaxed exercises are rated effort 1 or 2', () => {
+  const tr = FT.trainer.create({ seed: 32 });
+  practiseRelaxed(tr, 3, { effort: 4 });
+  const h = practiseRelaxed(tr, 3, { effort: 2 }, 3);
+  assert.ok(h[2].fluencyWpm > 0);
+  assert.equal(h[4].effortlessWpm, undefined);
+  assert.ok(h[5].effortlessWpm > 0);
+});
+
+test('a benchmark trial gets the prediction made before it, whatever its typing', () => {
+  const trials = [90, 200].map((dt) => {
+    const tr = FT.trainer.create({ seed: 33 });
+    practiseRelaxed(tr, 3, { effort: 2 });
+    simulate(tr, 60, DAY0 + 3 * HOUR, { type: 'benchmark', dt });
+    return tr.history();
+  });
+  const [fast, slow] = trials.map((h) => h[3]);
+  assert.equal(fast.type, 'benchmark');
+  assert.ok(fast.fluencyWpm > 0 && fast.effortlessWpm > 0);
+  assert.deepEqual([fast.fluencyWpm, fast.effortlessWpm, fast.fluencyCoverage], [slow.fluencyWpm, slow.effortlessWpm, slow.fluencyCoverage]);
+  assert.equal(fast.fluencyWpm, trials[0][2].fluencyWpm);
+});
+
+test('speed bursts get no fluency index: they never feed the sequence model', () => {
+  const tr = FT.trainer.create({ seed: 34 });
+  practiseRelaxed(tr, 3);
+  simulate(tr, 60, DAY0 + 3 * HOUR, { type: 'bursts' });
+  assert.equal(tr.history()[3].fluencyWpm, undefined);
+});
+
+test('a rebuild reproduces the fluency index', () => {
+  const tr = FT.trainer.create({ seed: 35 });
+  const raws = [];
+  for (let i = 0; i < 4; i++) raws.push(simulate(tr, 80, DAY0 + i * 864e5, { err: i === 1, effort: 2 }).raw);
+  raws.push(simulate(tr, 60, DAY0 + 4 * 864e5, { type: 'benchmark' }).raw);
+  const fields = (h) => h.map((e) => [e.centreMs, e.fluencyWpm, e.effortlessWpm, e.fluencyCoverage]);
+  const rebuilt = FT.trainer.rebuild(JSON.parse(JSON.stringify(raws)), { seed: 35 });
+  assert.ok(tr.history()[4].fluencyWpm > 0);
+  assert.deepEqual(plain(fields(rebuilt.history())), plain(fields(tr.history())));
 });

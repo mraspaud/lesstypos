@@ -91,13 +91,23 @@
     // record a history entry. Deterministic, so replaying raw sessions
     // rebuilds the same profile.
     function process(raw) {
+      var beforeTrial = raw.type === 'benchmark' ? fluencyIndex(raw.day) : null;
       var session = feeds(raw.type, 'sequences') ? clock.advance(raw.run || raw.id) : clock.sessionCount();
       if (raw.vocab) applyVocabulary(raw.vocab);
       var m = measure(raw);
       var summary = describe(raw, m);
       withOutcome(summary, learn(raw, session, m, summary), difficulty.state().frontier);
-      history.push(historyEntry(raw, m, summary));
+      var entry = historyEntry(raw, m, summary);
+      history.push(entry);
+      FT.history.withFluency(entry, beforeTrial || (feeds(raw.type, 'sequences') ? fluencyIndex(raw.day) : null));
       return summary;
+    }
+
+    // The experimental fluency index from the model and history as they stand
+    // (FT.fluency): after an exercise that feeds the model, before a benchmark
+    // trial, so it never rests on the trial it is checked against.
+    function fluencyIndex(day) {
+      return FT.fluency.index(model.evaluate({ day: day }), history, FT.fluency.reference(corpus), { minN: model.config.minN });
     }
 
     // A fixed vocabulary is part of what happened; replaying it keeps a
@@ -190,7 +200,7 @@
 
     function historyEntry(raw, m, summary) {
       return FT.history.entry(raw, {
-        metrics: m.metrics, random: m.random, commonPairs: m.pairs, wordStartMs: FT.timing.wordStartMs(m.tm.records),
+        metrics: m.metrics, random: m.random, commonPairs: m.pairs, wordStartMs: FT.timing.wordStartMs(m.tm.records), centreMs: m.tm.centreMs,
         hesitationRate: summary.hesitationRate, rhythmCv: summary.rhythmCv, rollover: summary.rollover, keyStats: summary.keyStats,
         frontier: summary.frontier, vocabularyDecision: summary.difficulty, burstRounds: summary.rounds,
       });
