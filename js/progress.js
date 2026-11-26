@@ -91,11 +91,15 @@
   var FLUENCY_MIN_COVERAGE = 0.5;
   function fluencyShown(h) { return h.fluencyWpm != null && h.fluencyCoverage >= FLUENCY_MIN_COVERAGE; }
   var orNull = function (x) { return x == null ? null : x; };
-  // The index after the last exercise of each day.
+  // The index after the last exercise of each day; keysChanged: typed with
+  // other multi-letter keys than the day before, which moves the index
+  // without any change in typing.
   function fluencyByDay(history) {
+    var keysOf = function (h) { return (h.fluencyKeys || []).slice().sort().join(' '); }, before = null;
     return byDay(history.filter(fluencyShown), function (l) {
-      var last = l[l.length - 1];
-      return { wpm: last.fluencyWpm, effortlessWpm: orNull(last.effortlessWpm), coverage: last.fluencyCoverage };
+      var last = l[l.length - 1], keys = keysOf(last), changed = before !== null && keys !== before;
+      before = keys;
+      return { wpm: last.fluencyWpm, effortlessWpm: orNull(last.effortlessWpm), coverage: last.fluencyCoverage, keysChanged: changed };
     });
   }
   // Each complete benchmark set against the index predicted before its first

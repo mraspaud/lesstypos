@@ -221,7 +221,8 @@
           'Both add your share of ' + PAUSES + ', since measured speed includes them. ' +
           'Shown once ' + pct(FT.progress.FLUENCY_MIN_COVERAGE, 0) + ' of the text is timed from sequences of two letters or more (coverage). Trust it only as far as the benchmark check below shows.',
         label: 'Predicted WPM', color: '--series-1', min: 1, rows: series.fluency,
-        point: function (p) { return { t: p.startedAt, y: p.wpm, tip: '<b>' + fix(p.wpm) + ' WPM predicted</b> · ' + esc(date(p.startedAt)) + '<br>effortless ' + (p.effortlessWpm == null ? 'not yet (needs ' + EFFORTLESS_NEEDS + ')' : fix(p.effortlessWpm) + ' WPM') + ', coverage ' + pct(p.coverage, 0) }; },
+        point: function (p) { return { t: p.startedAt, y: p.wpm, tip: '<b>' + fix(p.wpm) + ' WPM predicted</b> · ' + esc(date(p.startedAt)) + '<br>effortless ' + (p.effortlessWpm == null ? 'not yet (needs ' + EFFORTLESS_NEEDS + ')' : fix(p.effortlessWpm) + ' WPM') + ', coverage ' + pct(p.coverage, 0) +
+          (p.keysChanged ? '<br>multi-letter keys changed' : '') }; },
         second: { color: '--series-2', points: series.fluency.filter(function (p) { return p.effortlessWpm != null; }).map(function (p) { return { t: p.startedAt, y: p.effortlessWpm }; }) },
         cols: ['Day', 'Predicted WPM', 'Effortless WPM', 'Coverage'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.effortlessWpm), pct(p.coverage, 0)]; },
         after: timeBreakdownLine(FT.progress.timeBreakdown(history)) + fluencyCheckSection(FT.progress.fluencyCheck(history), date) },

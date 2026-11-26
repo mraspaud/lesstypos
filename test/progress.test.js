@@ -118,6 +118,14 @@ test('the fluency index per day is the last prediction of the day with enough co
   assert.deepEqual(days.map((p) => [p.day, p.wpm, p.effortlessWpm, p.coverage]), [['2026-01-01', 52, null, 0.7], ['2026-01-03', 55, 48, 0.8]]);
 });
 
+// The reference is typed with the multi-letter keys declared at the time, so
+// a change of keys moves the index without any change in typing.
+test('a day whose index was typed with other multi-letter keys than the day before is marked', () => {
+  const keyed = (d, keys) => Object.assign(predicted(relaxedAt(d, 9), 50, 45), keys ? { fluencyKeys: keys } : {});
+  const h = [keyed(1), keyed(2, ['th']), keyed(3, ['th']), keyed(4, ['qu', 'th']), keyed(5, ['th', 'qu']), keyed(6)];
+  assert.deepEqual(plain(FT.progress.series(h).fluency.map((p) => p.keysChanged)), [false, true, false, true, false, true]);
+});
+
 test('each complete benchmark set is checked against the prediction made before its first trial', () => {
   const h = [
     predicted(trial('a', 1, 60), 66, 70), predicted(trial('a', 1, 62), 67, 71), predicted(trial('a', 1, 64), 67, 71),
