@@ -225,7 +225,7 @@
           (p.keysChanged ? '<br>multi-letter keys changed' : '') }; },
         second: { color: '--series-2', points: series.fluency.filter(function (p) { return p.effortlessWpm != null; }).map(function (p) { return { t: p.startedAt, y: p.effortlessWpm }; }) },
         cols: ['Day', 'Predicted WPM', 'Effortless WPM', 'Coverage'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.effortlessWpm), pct(p.coverage, 0)]; },
-        after: timeBreakdownLine(FT.progress.timeBreakdown(history)) + fluencyCheckSection(FT.progress.fluencyCheck(history), date) },
+        after: timeBreakdownLine(FT.fluency.breakdown(history)) + fluencyCheckSection(FT.progress.fluencyCheck(history), date) },
       { title: 'Common-pair timing', note: 'Median time between the letters of the ' + FT.timing.COMMON_PAIRS.length + ' most common pairs inside words, in relaxed practice, weighted by how many such pairs each exercise had. Lower is faster. Pairs typed with a multi-letter key (such as th) are not timed. Log scale.',
         label: 'Common-pair timing in ms', color: '--series-1', min: 1, rows: series.commonPairMs, log: true, fmt: function (v) { return Math.round(v) + ''; },
         point: function (p) { return { t: p.startedAt, y: p.commonPairMs, tip: '<b>' + fix(p.commonPairMs) + ' ms</b> · ' + esc(date(p.startedAt)) }; },
@@ -258,7 +258,7 @@
     } };
   }
 
-  // Where recent relaxed typing time goes, measured (FT.progress.timeBreakdown).
+  // Where recent relaxed typing time goes, measured (FT.fluency.breakdown).
   function timeBreakdownLine(b) {
     if (!b) return '';
     return '<p id="timebreakdown">Flow speed ' + fix(b.flowWpm) + ' WPM: your speed if corrections took no extra time, without ' + PAUSES + ' · ' +

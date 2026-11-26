@@ -118,21 +118,6 @@
     return { rows: rows, fluency: errors('fluencyWpm'), effortless: errors('effortlessWpm') };
   }
 
-  // Where the time of recent relaxed typing goes (the exercises the fluency
-  // index scales on, FT.fluency.recent), measured, not predicted:
-  // correctionShare, the share of the time that corrections cost (FT.timing
-  // correction); pauseShare, the share pauses over 5 s take (FT.timing
-  // pauseTime); flowWpm, the speed of the same characters without either;
-  // errorCostMs, the cost per error (null without errors). Null before a
-  // measured relaxed exercise.
-  function timeBreakdown(history) {
-    var recent = FT.fluency.recent(history), typedMs = 0, correctionMs = 0, pauseMs = 0, wpmMs = 0;
-    if (!recent.length) return null;
-    recent.forEach(function (h) { typedMs += h.durationMs; correctionMs += h.correctionMs; pauseMs += h.pauseMs; wpmMs += h.wpm * h.durationMs; });
-    return { exercises: recent.length, flowWpm: wpmMs / (typedMs - correctionMs - pauseMs), correctionShare: correctionMs / typedMs, pauseShare: pauseMs / typedMs,
-      errorCostMs: FT.fluency.errorCostMs(recent) };
-  }
-
   // Comparable progress series (comparable sessions only, one point per day):
   //   relaxed       comparable relaxed practice (FT.history.isComparableRelaxed): WPM, accuracy, effort, rhythm, word-start penalty;
   //   benchmark     complete sets of 3 trials (median and range);
@@ -170,5 +155,5 @@
   }
 
   FT.progress = { completeSets: completeSets, previousSet: previousSet, benchmarkStatus: benchmarkStatus, sumKeys: sumKeys, compare: compare, benchmarkResult: benchmarkResult, series: series,
-    fluencyCheck: fluencyCheck, timeBreakdown: timeBreakdown, FLUENCY_MIN_COVERAGE: FLUENCY_MIN_COVERAGE };
+    fluencyCheck: fluencyCheck, FLUENCY_MIN_COVERAGE: FLUENCY_MIN_COVERAGE };
 })(globalThis.FT);

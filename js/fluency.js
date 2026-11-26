@@ -95,15 +95,6 @@
     return { within: FT.stats.mean(within), initial: FT.stats.mean(initial) };
   }
 
-  // The last SCALE_EXERCISES comparable relaxed exercises with a measured
-  // pace that pass filter. Design choice: 5. Relaxed practice is the pace the
-  // index is about.
-  var SCALE_EXERCISES = 5, MIN_SCALE_EXERCISES = 3;
-  function recent(history, filter) {
-    return history.filter(function (h) {
-      return FT.history.isComparableRelaxed(h) && h.paceMs && h.paceMs.within != null && h.paceMs.initial != null && (!filter || filter(h));
-    }).slice(-SCALE_EXERCISES);
-  }
   var meanOf = function (entries, value) { return FT.stats.mean(entries.map(value)); };
   var sumOf = function (entries, value) { return entries.reduce(function (sum, h) { return sum + value(h); }, 0); };
   // The cost per error of exercises, pooled: all their correction time over
@@ -118,11 +109,13 @@
     return presses > 0 ? sumOf(entries, function (h) { return h.pauseMs; }) / presses : 0;
   }
 
-  // The scale: per population, the mean pace of the recent exercises; their
-  // cost per error (0 when none had an error) and pause time per press; null
-  // before MIN_SCALE_EXERCISES of them (design choice: 3).
+  // The scale, from the recent relaxed exercises (FT.history.recentRelaxed)
+  // that pass filter: per population, their mean pace; their cost per error
+  // (0 when none had an error) and pause time per press; null before
+  // MIN_SCALE_EXERCISES of them (design choice: 3).
+  var MIN_SCALE_EXERCISES = 3;
   function scale(history, filter) {
-    var picked = recent(history, filter);
+    var picked = FT.history.recentRelaxed(history, filter);
     if (picked.length < MIN_SCALE_EXERCISES) return null;
     return {
       within: meanOf(picked, function (h) { return h.paceMs.within; }),
@@ -131,6 +124,22 @@
       pauseMs: pauseMsPerPress(picked),
     };
   }
+
+  // Where the time of the same recent relaxed exercises goes, measured, not
+  // predicted: correctionShare, the share of the time that corrections cost
+  // (FT.timing correction); pauseShare, the share pauses over 5 s take
+  // (FT.timing.pauseTime); flowWpm, the speed of the same characters without
+  // either; errorCostMs, the cost per error (null without errors). Null
+  // before a measured relaxed exercise.
+  function breakdown(history) {
+    var recent = FT.history.recentRelaxed(history);
+    if (!recent.length) return null;
+    var typedMs = sumOf(recent, function (h) { return h.durationMs; }), correctionMs = sumOf(recent, function (h) { return h.correctionMs; });
+    var pauseMs = sumOf(recent, function (h) { return h.pauseMs; }), wpmMs = sumOf(recent, function (h) { return h.wpm * h.durationMs; });
+    return { exercises: recent.length, flowWpm: wpmMs / (typedMs - correctionMs - pauseMs), correctionShare: correctionMs / typedMs, pauseShare: pauseMs / typedMs,
+      errorCostMs: errorCostMs(recent) };
+  }
+
   // Variant B's exercises: rated effort 1 or 2 of 5.
   var EFFORTLESS_MAX = 2;
   function effortless(h) { return h.effort != null && h.effort <= EFFORTLESS_MAX; }
@@ -144,6 +153,6 @@
     return { wpm: a.wpm, effortlessWpm: low ? predict(evaluation, low, ref, opts).wpm : undefined, coverage: a.coverage, keys: ref.keys };
   }
 
-  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, pace: pace, recent: recent, errorCostMs: errorCostMs, scale: scale, effortless: effortless, index: index,
+  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, pace: pace, scale: scale, breakdown: breakdown, effortless: effortless, index: index,
     REFERENCE_WORDS: REFERENCE_WORDS, MIN_SCALE_EXERCISES: MIN_SCALE_EXERCISES, EFFORTLESS_MAX: EFFORTLESS_MAX };
 })(globalThis.FT);

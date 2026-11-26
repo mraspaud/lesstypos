@@ -36,11 +36,21 @@
   // Long enough, and timed, to compare with other exercises of its type.
   function isComparable(h) { return h.wpm != null && h.words >= MIN_WORDS; }
   function isComparableRelaxed(h) { return h.type === 'relaxed' && isComparable(h); }
+  // Comparable relaxed practice whose pace was measured (FT.fluency.pace).
+  function isMeasuredRelaxed(h) { return isComparableRelaxed(h) && !!h.paceMs && h.paceMs.within != null && h.paceMs.initial != null; }
+  // The last RECENT_RELAXED measured relaxed exercises that pass filter: what
+  // the fluency index scales on and its time breakdown measures. Design
+  // choice: 5. Relaxed practice is the pace the index is about.
+  var RECENT_RELAXED = 5;
+  function recentRelaxed(history, filter) {
+    return history.filter(function (h) { return isMeasuredRelaxed(h) && (!filter || filter(h)); }).slice(-RECENT_RELAXED);
+  }
 
   // Whether an exercise of a daily training was done on that local day.
   function trainedOn(history, day) {
     return history.some(function (h) { return h.run && FT.days.number(h.startedAt) === day; });
   }
 
-  FT.history = { trainedOn: trainedOn, entry: entry, withFluency: withFluency, isComparable: isComparable, isComparableRelaxed: isComparableRelaxed, MIN_WORDS: MIN_WORDS };
+  FT.history = { trainedOn: trainedOn, entry: entry, withFluency: withFluency, isComparable: isComparable, isComparableRelaxed: isComparableRelaxed,
+    recentRelaxed: recentRelaxed, MIN_WORDS: MIN_WORDS };
 })(globalThis.FT);

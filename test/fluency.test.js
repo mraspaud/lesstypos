@@ -170,6 +170,54 @@ test('the effortless scale takes only exercises rated effort 1 or 2', () => {
   near(FT.fluency.scale(history.concat(relaxed(100, 100, { effort: 2 })), FT.fluency.effortless).within, 100);
 });
 
+// Functionality: where the time of recent relaxed typing goes, measured: the
+// flow of keystrokes without corrections or pauses, the time corrections
+// cost (FT.timing correction) with their cost per error, and the time pauses
+// over 5 s take (FT.timing.pauseTime).
+const typed = (wpm, durationMs, correctionMs, errors, more = {}) => relaxed(150, 200, Object.assign({ wpm, durationMs, correctionMs, errors }, more));
+
+test('recent relaxed typing splits into flow speed and the share of time corrections cost', () => {
+  const b = plain(FT.fluency.breakdown([typed(60, 60000, 6000, 6), typed(50, 120000, 24000, 20)]));
+  assert.equal(b.exercises, 2);
+  assert.equal(b.flowWpm, (60 * 60000 + 50 * 120000) / (54000 + 96000));   // the same characters without the correction time
+  assert.equal(b.correctionShare, 30000 / 180000);
+  assert.equal(b.errorCostMs, 30000 / 26);                                 // pooled, not the mean of 1,000 and 1,200 ms
+});
+
+test('pauses over 5 s are taken out of the flow speed too, with their own share', () => {
+  const b = FT.fluency.breakdown([typed(60, 60000, 6000, 6, { pauseMs: 12000 }), typed(60, 60000, 0, 0)]);
+  assert.equal(b.flowWpm, (60 * 60000 * 2) / (120000 - 6000 - 12000));
+  assert.equal(b.pauseShare, 0.1);
+  assert.equal(b.correctionShare, 0.05);
+});
+
+test('the breakdown takes the last 5 comparable relaxed exercises', () => {
+  const old = typed(10, 60000, 30000, 3), other = { type: 'warmup' }, short = { words: 20 };
+  const b = FT.fluency.breakdown([old].concat([1, 2, 3, 4, 5].map(() => typed(60, 60000, 6000, 6)),
+    [typed(10, 60000, 30000, 3, other), typed(10, 60000, 30000, 3, short)]));
+  assert.equal(b.exercises, 5);
+  assert.equal(b.correctionShare, 0.1);
+  assert.equal(b.errorCostMs, 1000);
+});
+
+test('typing without errors has no cost per error', () => {
+  const b = FT.fluency.breakdown([typed(60, 60000, 0, 0)]);
+  assert.equal(b.correctionShare, 0);
+  assert.equal(b.pauseShare, 0);
+  assert.equal(b.flowWpm, 60);
+  assert.equal(b.errorCostMs, null);
+});
+
+test('correction time without errors counts in the share, with no cost per error', () => {
+  const b = FT.fluency.breakdown([typed(60, 60000, 6000, 0)]);
+  assert.equal(b.correctionShare, 0.1);
+  assert.equal(b.errorCostMs, null);
+});
+
+test('there is no breakdown before a relaxed exercise was measured', () => {
+  assert.equal(FT.fluency.breakdown([typed(60, 60000, 6000, 6, { paceMs: undefined, correctionMs: undefined })]), null);
+});
+
 // Sanity check, in sample: a model and a scale built from a typist's
 // exercises predict the speed of the very text the typist typed last. Out of
 // sample, only the benchmark check can tell (FT.progress.fluencyCheck).
