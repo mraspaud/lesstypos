@@ -35,12 +35,12 @@
   // from its first keystroke, so over the characters after it), the running
   // speed (correct characters since the first keystroke / 5 per minute), and
   // whether the word's first attempt had an error.
-  function timeline(words) {
+  function timeline(words, analyses) {
     var out = [], t0 = null, prevEnd = null, correct = 0;
     for (var i = 0; i < words.length; i++) {
       var w = words[i];
       if (!w.stream.length) continue;
-      var an = w.analysis || FT.align.analyzeWord(FT.session.targetOf(w), w.stream);
+      var an = analyses[i];
       var first = w.stream[0].t, end = w.stream[w.stream.length - 1].t;
       if (t0 === null) t0 = first;
       var start = prevEnd === null ? first : prevEnd;
@@ -151,14 +151,14 @@
   // one press, stored under its lowercase name. keys[press] = [presses,
   // first-attempt errors]; land[press] = wrong presses that typed it, a
   // multi-character input event landing on its multi-letter key.
-  // words: committed words with their stream (and analysis).
-  function keyStats(words, macros) {
+  // words: committed words with their stream; analyses: one per word.
+  function keyStats(words, analyses, macros) {
     var ms = (macros || []).map(function (m) { return m.toLowerCase(); });
     var keys = {}, land = {};
-    words.forEach(function (w) {
-      var an = w.analysis || FT.align.analyzeWord(FT.session.targetOf(w), w.stream, { macros: macros });
+    words.forEach(function (w, wi) {
+      var an = analyses[wi];
       var P = an.targets.map(function (x) { return x.ch; });
-      var tp = FT.text.targetPresses(P.join(''), macros), byPress = {};
+      var tp = FT.presses.ofTarget(P.join(''), macros), byPress = {};
       P.forEach(function (ch, i) {
         var b = byPress[tp[i]] || (byPress[tp[i]] = { chars: '', err: 0 });
         b.chars += ch; b.err += an.targets[i].err;
@@ -168,7 +168,7 @@
         var k = keys[tok] || (keys[tok] = [0, 0]);
         k[0] += 1; k[1] += Math.min(1, b.err); // one press: at most one error
       });
-      var groups = {}, presses = FT.text.pressIds(w.stream, macros);
+      var groups = {}, presses = an.presses.typed;
       an.events.forEach(function (e) {
         if (e.type !== 'sub' && e.type !== 'transpose') return;
         var g = presses[e.idx];

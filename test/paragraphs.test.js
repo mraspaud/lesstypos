@@ -52,7 +52,8 @@ test('at a paragraph end Enter is correct and a space is one error', () => {
 test('the Enter keystroke is part of the timing and sequence records', () => {
   const s = FT.session.create([{ word: 'two.', sep: '\n' }, 'Three']);
   typeAll(s, 'two.\nThree ');
-  const { records } = FT.timing.extract(s.state().words);
+  const words = s.state().words;
+  const { records } = FT.timing.extract(words, FT.align.analyzeWords(words));
   assert.deepEqual(plain(records.map((r) => r.ch).slice(3, 6)), ['.', '\n', 'T']);
   assert.equal(records[5].ctx.slice(-2), '.\n');
 });

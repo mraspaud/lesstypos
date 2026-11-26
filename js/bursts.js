@@ -26,15 +26,18 @@
   }
 
   function wordEnd(w) { return w.tEnd != null ? w.tEnd : w.stream[w.stream.length - 1].t; }
+  function finishedWithin(w, start, end) {
+    if (!w.stream.length) return false;
+    var t = wordEnd(w);
+    return t >= start && t <= end;
+  }
 
-  // Statistics of the words finished within [start, end].
-  function roundStats(words, start, end, macros) {
+  // Statistics of the words finished within [start, end]; analyses: one per word.
+  function roundStats(words, analyses, start, end) {
     var C = 0, n = 0, targets = 0, err = 0;
-    words.forEach(function (w) {
-      if (!w.stream.length) return;
-      var t = wordEnd(w);
-      if (t < start || t > end) return;
-      var an = w.analysis || FT.align.analyzeWord(FT.session.targetOf(w), w.stream, { macros: macros });
+    words.forEach(function (w, i) {
+      if (!finishedWithin(w, start, end)) return;
+      var an = analyses[i];
       n++; C += an.counts.C;
       an.targets.forEach(function (x) { targets++; err += x.err; });
     });
@@ -50,11 +53,11 @@
       peek: function (history) { return st.target != null ? st.target : initialTarget(history); },
       ensure: function (history) { if (st.target == null) st.target = initialTarget(history); return st.target; },
       // Replays the rounds of a finished burst exercise; returns per-round rows.
-      apply: function (words, rounds, history, at) {
+      apply: function (words, analyses, rounds, history, at) {
         var ref = relaxedMedian(history);
         this.ensure(history);
         return rounds.map(function (r, i) {
-          var s = roundStats(words, r.start, r.end);
+          var s = roundStats(words, analyses, r.start, r.end);
           var res = step(st.target, s, ref);
           st.target = res.after;
           st.log.push({ at: at, round: i + 1, before: res.before, after: res.after, wpm: s.wpm, accuracy: s.accuracy, reason: res.reason });
@@ -66,5 +69,5 @@
     };
   }
 
-  FT.bursts = { MIN_ACC: MIN_ACC, START_ABOVE: START_ABOVE, create: create, initialTarget: initialTarget, step: step, roundStats: roundStats, relaxedMedian: relaxedMedian };
+  FT.bursts = { MIN_ACC: MIN_ACC, START_ABOVE: START_ABOVE, create: create, initialTarget: initialTarget, step: step, roundStats: roundStats, finishedWithin: finishedWithin, relaxedMedian: relaxedMedian };
 })(globalThis.FT);

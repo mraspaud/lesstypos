@@ -11,8 +11,10 @@ const { load, plain } = require('./helpers/load');
 
 const FT = load();
 
+const extract = (words, analysisOpts) => FT.timing.extract(words, FT.align.analyzeWords(words, analysisOpts));
+
 // Build committed words from a typing script: [[target, typedScript, dt]...]
-function run(script, opts) {
+function run(script, analysisOpts) {
   const s = FT.session.create(script.map((x) => x[0]));
   let t = 0;
   for (const [, typed, dts] of script) {
@@ -22,7 +24,7 @@ function run(script, opts) {
       else s.input({ kind: 'text', data: ch, t });
     });
   }
-  return FT.timing.extract(s.state().words.filter((w) => w.committed), opts);
+  return extract(s.state().words.filter((w) => w.committed), analysisOpts);
 }
 
 test('records carry the preceding context including spaces', () => {
@@ -59,7 +61,7 @@ test('a declared macro typed as one input event is one motor event', () => {
   s.input({ kind: 'text', data: 'th', t: 100 });
   s.input({ kind: 'text', data: 'e', t: 220 });
   s.input({ kind: 'text', data: ' ', t: 330 });
-  const r = FT.timing.extract(s.state().words, { macros: ['th'] });
+  const r = extract(s.state().words, { macros: ['th'] });
   assert.equal(r.records[1].reason, 'macro');
   assert.equal(r.records[1].macro, true);
   assert.equal(r.records[2].iki, 120);
@@ -127,7 +129,7 @@ test('an automatic space that ends the last word of a text is not timed', () => 
   const w = s.state().words;
   assert.equal(w[1].committed, true);
   assert.equal(w[1].stream[w[1].stream.length - 1].auto, true);
-  const r = FT.timing.extract(w);
+  const r = extract(w);
   const last = r.records[r.records.length - 1];
   assert.equal(last.reason, 'auto');
   assert.equal(last.clean, false);
@@ -222,7 +224,7 @@ test('the auto-inserted space does not take the last letter out of timing', () =
   const words = s.state().words.filter((w) => w.committed);
   const last = words[1].stream[words[1].stream.length - 1];
   if (!last.auto) { last.auto = true; } // the typing screen marks it
-  const r = FT.timing.extract(words);
+  const r = extract(words);
   const d = r.records.find((x) => x.ch === 'd');
   assert.equal(d.clean, true);
 });

@@ -12,7 +12,7 @@
 //   different skew offset from each other.
 // - Multi-character outputs: a single input event carrying several characters
 //   is one motor event (observed fact). Declared macros typed as separate fast
-//   keystrokes (< macroGapMs) are merged too (FT.text.pressIds). Undeclared fast pairs are only
+//   keystrokes (< FT.presses.MACRO_GAP_MS) are merged too (FT.presses.ids). Undeclared fast pairs are only
 //   reported as candidates (macroCandidates), never merged.
 // - Letters arriving under SIMULTANEOUS_MS apart that are not a declared key
 //   were sent together by the keyboard (e.g. a tap-hold key released by the
@@ -40,18 +40,16 @@
     return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
   }
 
-  function extract(words, opts) {
+  // analyses: FT.align.analyzeWords(words, ...), one per word.
+  function extract(words, analyses, opts) {
     opts = opts || {};
     var pauseMs = FT.valueOr(opts.pauseMs, 5000);
-    var macroGapMs = FT.valueOr(opts.macroGapMs, FT.text.MACRO_GAP_MS);
     var records = [];
     var text = '';
     var prev = null; // previous record
     for (var wi = 0; wi < words.length; wi++) {
       var w = words[wi];
-      var an = w.analysis || FT.align.analyzeWord(FT.session.targetOf(w), w.stream, { macros: opts.macros, gapMs: macroGapMs });
-      w.analysis = an;
-      var presses = FT.text.pressIds(w.stream, opts.macros, macroGapMs);
+      var an = analyses[wi], presses = an.presses.typed;
       for (var p = 0; p < an.targets.length; p++) {
         var tg = an.targets[p];
         var rec = {
@@ -152,14 +150,14 @@
   // Design choice: >= LATE_MIN_N single-key presses, >= LATE_SHARE of them held
   // < INSTANT_MS, and at least one key with >= LATE_MIN_N presses whose median
   // hold is >= HOLD_INFO_MS (otherwise the input carries no hold information). keys: [{k, c, t}]; words carry
-  // streams; macros as for FT.text.pressIds.
+  // streams; macros as for FT.presses.ids.
   var MATCH_MS = 5, INSTANT_MS = 3, LATE_MIN_N = 10, LATE_SHARE = 0.8, HOLD_INFO_MS = 20;
   // Each press that typed characters, in time order: its (canonical, as the
   // model sees it) first character and whether it typed only that character.
   function typedChars(words, macros) {
     var chars = [];
     (words || []).forEach(function (w) {
-      var ids = FT.text.pressIds(w.stream, macros), size = {};
+      var ids = FT.presses.ids(w.stream, macros), size = {};
       ids.forEach(function (p) { if (p != null) size[p] = (size[p] || 0) + 1; });
       w.stream.forEach(function (e, i) {
         if (e.k !== 'c' || e.auto || (i > 0 && ids[i] === ids[i - 1])) return; // one entry per press

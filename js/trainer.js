@@ -151,25 +151,23 @@
     }
 
     function measure(raw) {
-      var words = raw.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta }; });
-      var tm = FT.timing.extract(words, { macros: raw.macros });
-      var analyses = words.map(function (w) { return w.analysis; });
+      var words = raw.words, analyses = FT.align.analyzeWords(words, { macros: raw.macros });
+      var tm = FT.timing.extract(words, analyses);
       // Speed bursts: speed over the words finished inside the typing rounds,
       // over the rounds' duration (not the rests, not a partial last round).
       var activeMs = raw.durationMs, scored = analyses;
       if (raw.rounds) {
         activeMs = raw.rounds.reduce(function (a, r) { return a + (r.end - r.start); }, 0);
-        scored = words.filter(function (w) {
-          var end = w.stream.length ? w.stream[w.stream.length - 1].t : -Infinity;
-          return raw.rounds.some(function (r) { return end >= r.start && end <= r.end; });
-        }).map(function (w) { return w.analysis; });
+        scored = analyses.filter(function (an, i) {
+          return raw.rounds.some(function (r) { return FT.bursts.finishedWithin(words[i], r.start, r.end); });
+        });
       }
-      var rnd = words.filter(function (w) { return w.meta && w.meta.source === 'random'; });
+      var random = analyses.filter(function (an, i) { var meta = words[i].meta; return meta && meta.source === 'random'; });
       return {
         late: FT.timing.lateKeys(raw.keys, words, raw.macros),
         words: words, tm: tm, analyses: analyses, pairs: FT.timing.commonPairStats(tm.records),
         metrics: FT.metrics.summarize(scored, { durationMs: activeMs }),
-        random: FT.metrics.summarize(rnd.map(function (w) { return w.analysis; }), { durationMs: 0 }),
+        random: FT.metrics.summarize(random, { durationMs: 0 }),
       };
     }
 
@@ -198,8 +196,8 @@
         rhythmCv: FT.timing.rhythmCv(m.tm.records),
         rollover: FT.timing.rollover(raw.keys, { exclude: m.late.codes }),
         lateKeys: m.late.chars,
-        timeline: FT.progress.timeline(m.words),
-        keyStats: FT.progress.keyStats(m.words, raw.macros),
+        timeline: FT.progress.timeline(m.words, m.analyses),
+        keyStats: FT.progress.keyStats(m.words, m.analyses, raw.macros),
         baseline: m.tm.baseline,
         sources: sources, stageChanges: [], difficulty: null,
       };
@@ -211,7 +209,7 @@
         summary.stageChanges = model.endSession({ session: session, day: raw.day });
       }
       if (raw.type !== 'benchmark') subs.ingest(m.analyses, { exercise: raw.type, session: session, t: raw.startedAt });
-      if (raw.type === 'bursts' && raw.rounds) summary.rounds = bursts.apply(m.words, raw.rounds, history, raw.startedAt);
+      if (raw.type === 'bursts' && raw.rounds) summary.rounds = bursts.apply(m.words, m.analyses, raw.rounds, history, raw.startedAt);
       if (DIFFICULTY_TYPES[raw.type]) {
         summary.difficulty = difficulty.update({
           words: m.metrics.words, firstAttemptAccuracy: m.metrics.firstAttemptAccuracy,

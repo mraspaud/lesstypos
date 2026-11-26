@@ -38,7 +38,7 @@ test('round statistics count the words finished inside the round', () => {
   t += 10000; // rest
   for (const ch of 'ijkl ') s.input({ kind: 'text', data: ch, t: (t += 100) });
   const words = s.state().words.filter((w) => w.committed);
-  const r1 = FT.bursts.roundStats(words, 0, 1000);
+  const r1 = FT.bursts.roundStats(words, FT.align.analyzeWords(words), 0, 1000);
   assert.equal(r1.words, 2);
   assert.ok(Math.abs(r1.wpm - 120) < 1e-6); // 10 chars / 5 / (1000 ms / 60000)
   assert.equal(r1.accuracy, 1);
@@ -117,5 +117,5 @@ test('live round statistics use the multi-letter keys', () => {
   for (const ch of 'ou are we ') s.input({ kind: 'text', data: ch, t: (t += 100) });
   const words = s.state().words.filter((w) => w.committed);
   const chars = 4 + 4 + 3;
-  assert.ok(Math.abs(FT.bursts.roundStats(words, 0, t, ['th']).accuracy - (1 - 1 / chars)) < 1e-9);
+  assert.ok(Math.abs(FT.bursts.roundStats(words, FT.align.analyzeWords(words, { macros: ['th'] }), 0, t).accuracy - (1 - 1 / chars)) < 1e-9);
 });

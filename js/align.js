@@ -16,7 +16,7 @@
 // post-hoc tag.
 // Presses (design choice, user decision): one key action is one mistake. With
 // declared multi-letter keys (opts.macros), letters of one wrong press, on the
-// typed side (FT.text.pressIds) or the target side (FT.text.targetPresses),
+// typed side (FT.presses.ids) or the target side (FT.presses.ofTarget),
 // count as one first-attempt error shared between their positions; an extra
 // letter that came out of a press which already made a mistake is part of it.
 // Keystroke classes (C/INF/IF/F) stay per character.
@@ -245,24 +245,24 @@
   // separate. Each group totals one error. Omissions are not linked through
   // the keystroke that followed them. (Design choice, user decision.)
   function sharePressErrors(first, presses, links) {
-    var parent = first.map(function (_, i) { return i; });
-    var find = function (i) { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
-    (links || []).forEach(function (l) { parent[find(l[1])] = find(l[0]); }); // a transposition is one error
-    var byT = {}, byTyped = {};
+    var groups = FT.presses.unionFind(first.length);
+    (links || []).forEach(function (l) { groups.union(l[0], l[1]); }); // a transposition is one error
+    var byTyped = {};
     first.forEach(function (f, pos) {
-      if (!f || !f.err) return;
-      var link = function (map, key) { if (key == null) return; if (map[key] == null) map[key] = pos; else parent[find(pos)] = find(map[key]); };
-      if (f.type !== 'omit') link(byTyped, presses.typed[f.idx]);
+      if (!f || !f.err || f.type === 'omit') return;
+      var press = presses.typed[f.idx];
+      if (press == null) return;
+      if (byTyped[press] == null) byTyped[press] = pos; else groups.union(byTyped[press], pos);
     });
     first.forEach(function (f, pos) {
       if (!f || !f.err || f.type !== 'omit') return;
       first.forEach(function (g, q) {
-        if (q !== pos && g && g.err && g.type === 'sub' && presses.target[q] === presses.target[pos]) parent[find(pos)] = find(q);
+        if (q !== pos && g && g.err && g.type === 'sub' && presses.target[q] === presses.target[pos]) groups.union(q, pos);
       });
     });
     var size = {};
-    first.forEach(function (f, pos) { if (f && f.err) size[find(pos)] = (size[find(pos)] || 0) + 1; });
-    first.forEach(function (f, pos) { if (f && f.err) f.err = 1 / size[find(pos)]; });
+    first.forEach(function (f, pos) { if (f && f.err) size[groups.find(pos)] = (size[groups.find(pos)] || 0) + 1; });
+    first.forEach(function (f, pos) { if (f && f.err) f.err = 1 / size[groups.find(pos)]; });
   }
 
   function tagPatterns(P, events, swaps) {
@@ -288,7 +288,7 @@
 
   function analyzeWord(P, stream, opts) {
     var macros = (opts && opts.macros) || [];
-    var presses = { typed: FT.text.pressIds(stream, macros, opts && opts.gapMs), target: FT.text.targetPresses(P, macros) };
+    var presses = { typed: FT.presses.ids(stream, macros, opts && opts.gapMs), target: FT.presses.ofTarget(P, macros) };
     var flags = flagStream(stream);
     var flaggedIdx = [];
     var T = '';
@@ -337,7 +337,13 @@
       counts: { C: Math.max(Parr.length, Tarr.length) - msd, INF: msd, IF: IF, F: F },
       events: events,
       targets: targets,
+      presses: presses,
     };
+  }
+
+  // The analysis of each typed word, against its target with its separator.
+  function analyzeWords(words, opts) {
+    return words.map(function (w) { return analyzeWord(FT.session.targetOf(w), w.stream, opts); });
   }
 
   // What the word on screen shows: the typed presses compared with the target
@@ -350,10 +356,10 @@
   //   cursor:       number of rendered letters typed.
   function displayWord(word, stream, macros) {
     var target = Array.from(word);
-    var flags = flagStream(stream), ids = FT.text.pressIds(stream, macros);
+    var flags = flagStream(stream), ids = FT.presses.ids(stream, macros);
     var shown = stream.map(function (e, i) { return i; }).filter(function (i) { return flags[i] && !/^[ \n]$/.test(stream[i].ch); });
     var typedPresses = groupBy(shown.map(function (i) { return stream[i]; }), shown.map(function (i) { return ids[i]; }));
-    var targetPresses = groupBy(target.map(function (ch) { return { ch: ch }; }), FT.text.targetPresses(word, macros));
+    var targetPresses = groupBy(target.map(function (ch) { return { ch: ch }; }), FT.presses.ofTarget(word, macros));
     var positions = target.map(function () { return { status: 'untyped', group: null, press: false }; });
     var extras = [], at = 0, k = 0;
     var mark = function (p, ok, group, multi) { positions[p] = ok ? { status: 'ok', group: null, press: false } : { status: 'bad', group: group, press: multi }; };
@@ -385,5 +391,5 @@
     return out;
   }
 
-  FT.align = { displayWord: displayWord, analyzeWord: analyzeWord, flagStream: flagStream };
+  FT.align = { displayWord: displayWord, analyzeWord: analyzeWord, analyzeWords: analyzeWords, flagStream: flagStream };
 })(globalThis.FT);

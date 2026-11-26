@@ -47,11 +47,12 @@ function typedWords(script) {
   }
   return s.state().words.filter((w) => w.committed);
 }
+const timeline = (words) => FT.progress.timeline(words, FT.align.analyzeWords(words));
 
 test('the timeline gives per-word and running speed and marks errors', () => {
   // "abcd " = 5 chars; at 100 ms per key a word takes 0.5 s -> 5/5 / (0.5/60) = 120 WPM
   const words = typedWords([['abcd', 'abcd ', 100], ['efgh', 'efgh ', 200], ['ijkl', 'ixjkl<<jkl ', 100]]);
-  const tl = plain(FT.progress.timeline(words));
+  const tl = plain(timeline(words));
   assert.equal(tl.length, 3);
   assert.equal(tl[0].word, 'abcd');
   assert.equal(Math.round(tl[1].burst), 60);
@@ -63,7 +64,7 @@ test('the timeline gives per-word and running speed and marks errors', () => {
 
 test('the first word is timed from its first keystroke, over the characters after it', () => {
   const words = typedWords([['abcd', 'abcd ', 100]]);
-  const tl = FT.progress.timeline(words);
+  const tl = timeline(words);
   assert.equal(Math.round(tl[0].burst), 120); // 4 keystrokes after the first, in 0.4 s
 });
 
@@ -100,7 +101,7 @@ test('common-pair timing per day comes from relaxed practice', () => {
 // Functionality: per-key error statistics for the heatmap. A multi-letter key
 // (th) is one press; where wrong presses land is counted too.
 // Words as typed: [target, typed], where [..] in typed is one multi-character input event.
-function analysed(pairs) {
+function wordsWithPresses(pairs) {
   return pairs.map(([p, typed]) => {
     const stream = [];
     let g = 0, t = 0;
@@ -109,12 +110,13 @@ function analysed(pairs) {
       if (part === '<') { stream.push({ k: 'b', t }); continue; }
       for (const ch of part.replace(/^\[|\]$/g, '')) stream.push({ k: 'c', ch, t, g });
     }
-    return { target: p, stream, analysis: FT.align.analyzeWord(p + ' ', stream) };
+    return { target: p, stream };
   });
 }
+const keyStats = (words, macros, analysisOpts) => FT.progress.keyStats(words, FT.align.analyzeWords(words, analysisOpts), macros);
 
 test('key statistics count presses, with multi-letter keys as one press', () => {
-  const ks = plain(FT.progress.keyStats(analysed([['the', 'the'], ['then', 'tgen'], ['art', 'art']]), ['th']));
+  const ks = plain(keyStats(wordsWithPresses([['the', 'the'], ['then', 'tgen'], ['art', 'art']]), ['th']));
   assert.deepEqual(ks.keys.th, [2, 1]);       // two presses of the th key, one wrong first attempt
   assert.deepEqual(ks.keys.t, [1, 0]);        // the t in "art" is a plain t press
   assert.deepEqual(ks.keys.e, [2, 0]);
@@ -123,7 +125,7 @@ test('key statistics count presses, with multi-letter keys as one press', () => 
 });
 
 test('without declared multi-letter keys every character is its own press', () => {
-  const ks = plain(FT.progress.keyStats(analysed([['the', 'thx<e']]), []));
+  const ks = plain(keyStats(wordsWithPresses([['the', 'thx<e']]), []));
   assert.deepEqual(ks.keys.t, [1, 0]);
   assert.deepEqual(ks.keys.e, [1, 1]);
   assert.deepEqual(ks.land, { x: 1 });
@@ -156,12 +158,12 @@ test('the previous benchmark is the last complete set before this one', () => {
 });
 
 test('a wrong press of a multi-letter key lands on that key', () => {
-  const ks = plain(FT.progress.keyStats(analysed([['to', '[th]<<to']]), ['th']));
+  const ks = plain(keyStats(wordsWithPresses([['to', '[th]<<to']]), ['th']));
   assert.deepEqual(ks.land, { th: 1 });
 });
 
 test('multi-letter keys match regardless of capitals', () => {
-  const ks = plain(FT.progress.keyStats(analysed([['The', 'The']]), ['th']));
+  const ks = plain(keyStats(wordsWithPresses([['The', 'The']]), ['th']));
   assert.deepEqual(ks.keys.th, [1, 0]);
 });
 
@@ -176,8 +178,7 @@ test('common-pair timing comes from relaxed practice only, weighted by intervals
 });
 
 test('a missed multi-letter press counts as one full error on its key', () => {
-  const words = analysed([['the', 'xe']]).map((w) => Object.assign(w, { analysis: FT.align.analyzeWord('the ', w.stream, { macros: ['th'] }) }));
-  assert.deepEqual(plain(FT.progress.keyStats(words, ['th']).keys.th), [1, 1]);
+  assert.deepEqual(plain(keyStats(wordsWithPresses([['the', 'xe']]), ['th'], { macros: ['th'] }).keys.th), [1, 1]);
 });
 
 test('an exercise too short to count gets no comparison', () => {
@@ -187,6 +188,6 @@ test('an exercise too short to count gets no comparison', () => {
 });
 
 test('the running speed starts after the first keystroke too', () => {
-  const tl = FT.progress.timeline(typedWords([['abcd', 'abcd ', 100]]));
+  const tl = timeline(typedWords([['abcd', 'abcd ', 100]]));
   assert.equal(Math.round(tl[0].running), Math.round(tl[0].burst));
 });

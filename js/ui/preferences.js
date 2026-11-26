@@ -124,7 +124,7 @@
     if (!el) return;
     if (!app.settings.autoMacros) { el.textContent = ''; return; }
     app.store.listSessions().then(function (list) {
-      var res = list.slice(-10).map(function (r) { return FT.timing.extract(r.words.map(function (w) { return { target: w.target, stream: w.stream, meta: w.meta }; }), { macros: macros() }); });
+      var res = list.slice(-10).map(function (r) { return FT.timing.extract(r.words, FT.align.analyzeWords(r.words, { macros: macros() })); });
       var c = FT.timing.macroCandidates(res).filter(function (x) { return macros().indexOf(x.seq) < 0; });
       el.innerHTML = c.length ? 'Possible multi-letter keys (not applied until you add them above): ' +
         c.map(function (x) { return seq(x.seq) + ' ' + pct(x.confidence, 0) + ' of ' + x.n; }).join(', ')

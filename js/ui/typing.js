@@ -209,9 +209,8 @@
   function endRound(end, now, keepOpen) {
     var b = ty.burst;
     now = now == null ? performance.now() : now;
-    var words = ty.session.state().words.filter(function (w) { return w.committed; });
     b.rounds.push({ start: b.start, end: end });
-    var full = FT.bursts.roundStats(words, b.start, end, macros());
+    var full = roundStats(b.start, end);
     var res = FT.bursts.step(b.target, full, b.ref);
     b.last = { stats: full, res: res };
     b.target = res.after;
@@ -222,12 +221,15 @@
     b.phase = 'rest'; b.restEnd = now + burstRest();
     return false;
   }
+  function roundStats(start, end) {
+    var words = ty.session.state().words.filter(function (w) { return w.committed && FT.bursts.finishedWithin(w, start, end); });
+    return FT.bursts.roundStats(words, FT.align.analyzeWords(words, { macros: macros() }), start, end);
+  }
   function burstTick() {
     var b = ty.burst, now = performance.now(), timer = document.getElementById('timer');
     if (b.phase === 'run') {
       var elapsed = now - b.startNow, end = b.start + burstRun();
-      var words = ty.session.state().words.filter(function (w) { return w.committed; });
-      var st = FT.bursts.roundStats(words, b.start, b.start + Math.min(elapsed, burstRun()), macros());
+      var st = roundStats(b.start, b.start + Math.min(elapsed, burstRun()));
       paintPace(st.wpm, b.target);
       timer.textContent = 'Round ' + (b.rounds.length + 1) + ' of ' + b.total + ' · ' + clock(burstRun() - elapsed);
       if (elapsed >= burstRun()) endRound(end, now);

@@ -243,7 +243,7 @@ test('target-press grouping does not depend on the alignment: separate wrong pre
 
 test('stream entries without an input group are separate presses', () => {
   const st = Array.from('cxyt ').map((ch, i) => ({ k: 'c', ch, t: i * 100 }));
-  assert.deepEqual(plain(FT.text.pressIds(st, [])), [0, 1, 2, 3, 4]);
+  assert.deepEqual(plain(FT.presses.ids(st, [])), [0, 1, 2, 3, 4]);
   // nothing absorbed: x and y are two mistakes; the two equally good readings
   // (x for a and y for t, or both x and y at a) are weighted 1/2 each
   assert.equal(total(FT.align.analyzeWord('cat ', st, { macros: [] })), 1.5);
