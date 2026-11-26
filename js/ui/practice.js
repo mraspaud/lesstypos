@@ -24,7 +24,7 @@
   // (with nothing switched on) open its settings.
   function primaryAction(steps, run, def, reading) {
     if (!steps.length) return { label: 'Choose exercises', act: function () { go('settings/training'); } };
-    var choice = FT.programme.homeDefault({ day: today(), trainedOn: app.settings.trainedOn, resumable: !!run });
+    var choice = FT.programme.homeDefault({ trainedToday: FT.history.trainedOn(app.trainer.history(), today()), resumable: !!run });
     if (choice === 'read' && reading) return reading;
     if (run) {
       var done = run.results().length, total = done + run.upcoming().length;
@@ -254,7 +254,6 @@
       '<p class="muted">Speeds from different exercises are not comparable: warm-up and bursts use easier words, prose has capitals and punctuation.</p>' +
       '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button><a href="#insights/progress">See progress</a></div>';
     app.run = null;
-    app.settings.trainedOn = today();
     saveRun();
     setView(html);
     document.getElementById('home').onclick = function () { go('home'); };

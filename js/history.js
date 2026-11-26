@@ -9,7 +9,7 @@
   function entry(raw, measured) {
     var m = measured, landings = m.keyStats.land;
     return {
-      id: raw.id, type: raw.type,
+      id: raw.id, type: raw.type, run: raw.run || undefined,
       startedAt: raw.startedAt, durationMs: raw.durationMs, plannedMs: raw.planMs || undefined,
       benchmarkSet: raw.set || undefined, effort: raw.effort,
       words: m.metrics.words, wpm: m.metrics.wpm,
@@ -25,5 +25,10 @@
   function isComparable(h) { return h.wpm != null && h.words >= MIN_WORDS; }
   function isComparableRelaxed(h) { return h.type === 'relaxed' && isComparable(h); }
 
-  FT.history = { entry: entry, isComparable: isComparable, isComparableRelaxed: isComparableRelaxed };
+  // Whether an exercise of a daily training was done on that local day.
+  function trainedOn(history, day) {
+    return history.some(function (h) { return h.run && FT.days.number(h.startedAt) === day; });
+  }
+
+  FT.history = { trainedOn: trainedOn, entry: entry, isComparable: isComparable, isComparableRelaxed: isComparableRelaxed };
 })(globalThis.FT);

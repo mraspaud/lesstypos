@@ -100,7 +100,7 @@
   // offers relaxed reading. Design choice: the day is the calendar day.
   function homeDefault(o) {
     if (o.resumable) return 'resume';
-    return o.trainedOn === o.day ? 'read' : 'train';
+    return o.trainedToday ? 'read' : 'train';
   }
 
   FT.programme = { homeDefault: homeDefault, DEFAULT: DEFAULT, STEP_TYPES: STEP_TYPES, runner: runner, resume: resume, totalMinutes: totalMinutes, clean: clean, cleanRun: cleanRun };
