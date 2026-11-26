@@ -57,6 +57,24 @@
     return { ms: ms, errors: errors, msPerError: errors > 0 ? ms / errors : null };
   }
 
+  // The time pauses take (intervals over the pause threshold, Dhakal et al.
+  // 2018), which measured speed includes. Design choice: the typing time
+  // (typingMs: from the first key, without the time paused in the app) less
+  // the intervals up to the threshold, less a clean keystroke (its
+  // population's clean mean) for each pause, so the time paused in the app
+  // drops out; never below 0. presses: the keystrokes it is spread over (the
+  // later letters of a declared key are part of its press).
+  // extracted: what extract returned.
+  function pauseTime(extracted, typingMs, opts) {
+    var pauseMs = FT.valueOr(opts && opts.pauseMs, PAUSE_MS), meanMs = extracted.meanMs, ms = typingMs, presses = 0;
+    extracted.records.forEach(function (r) {
+      if (!r.macro) presses++;
+      if (r.iki == null) return;
+      ms -= r.iki <= pauseMs ? r.iki : FT.valueOr(r.wordInitial ? meanMs.initial : meanMs.within, 0);
+    });
+    return { ms: Math.max(0, ms), presses: presses };
+  }
+
   function characterRecords(words, analyses, pauseMs) {
     var records = [], text = '', prev = null;
     words.forEach(function (w, wi) {
@@ -196,6 +214,6 @@
     return init.length >= MIN_WORD_STARTS && within.length >= MIN_PAIRS ? FT.stats.median(init) - FT.stats.median(within) : null;
   }
 
-  FT.timing = { wordStartMs: wordStartMs, extract: extract, macroCandidates: macroCandidates,
+  FT.timing = { wordStartMs: wordStartMs, extract: extract, pauseTime: pauseTime, macroCandidates: macroCandidates,
     hesitationRate: hesitationRate, rhythmCv: rhythmCv, COMMON_PAIRS: COMMON_PAIRS, commonPairStats: commonPairStats };
 })(globalThis.FT);

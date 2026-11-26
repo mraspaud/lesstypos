@@ -291,3 +291,32 @@ test('an interval after an error that is a pause (over 5 s) is not part of its c
 test('without errors there is no cost per error', () => {
   assert.deepEqual(plain(run([['abc', 'abc ', 100], ['abc', 'abc ', 100]]).correction), { ms: 0, errors: 0, msPerError: null });
 });
+
+// Functionality: the time pauses take. An interval over 5 s is a pause, not
+// finger timing (Dhakal et al. 2018), but measured speed includes it, so
+// the fluency index charges each keystroke its share of the pause time.
+// typingMs: the exercise's typing time, from the first key, without the
+// time it was paused in the app.
+const spanOf = (r) => r.records.reduce((ms, x) => ms + (x.iki || 0), 0);
+const PAUSED = [['abc', 'abc ', 100], ['abc', 'abc ', [100, 100, 8000, 100]]];
+
+test('a pause over 5 s takes the time beyond its population’s clean mean', () => {
+  const r = run(PAUSED);
+  assert.deepEqual(plain(FT.timing.pauseTime(r, spanOf(r))), { ms: 7900, presses: 8 });
+});
+
+test('time the exercise was paused in the app is not a pause of typing', () => {
+  const r = run(PAUSED);
+  assert.equal(FT.timing.pauseTime(r, spanOf(r) - 6000).ms, 1900);
+});
+
+test('typing without pauses has no pause time, and never less', () => {
+  const r = run([['abc', 'abc ', 100], ['abc', 'abc ', 100]]);
+  assert.equal(FT.timing.pauseTime(r, spanOf(r)).ms, 0);
+  assert.equal(FT.timing.pauseTime(r, spanOf(r) - 300).ms, 0);
+});
+
+test('the later letters of a declared key are not presses of their own', () => {
+  const r = run([['the', 'the ', [100, 4, 120, 100]]], { macros: ['th'] });
+  assert.equal(FT.timing.pauseTime(r, spanOf(r)).presses, 3);
+});
