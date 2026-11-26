@@ -146,6 +146,7 @@ await step('progress persists across a reload', async () => {
 
 await step('sequences page explains a sequence', async () => {
   await page.keyboard.press('q');
+  await page.locator('#allseq > summary').click();
   await page.getByRole('button', { name: 'All with enough evidence' }).click();
   await page.locator('tr[data-key]').first().click();
   await page.locator('#why h2').waitFor();
@@ -414,6 +415,7 @@ await step('with a layout, the Errors page and summaries show a keyboard heatmap
 
 await step('with a layout, Sequences shows performance by movement type', async () => {
   await nav('insights/focus');
+  await page.locator('#moves > summary').click();            // folded away by default
   const t = page.locator('#movement');
   await t.locator('td', { hasText: 'alternation' }).first().waitFor();
   await t.locator('[data-key]').first().click();
@@ -525,12 +527,14 @@ await step('between exercises Esc keeps the daily training; ending it asks first
 await step('rows of Sequences and Errors open with the keyboard, with j/k and with the arrows', async () => {
   for (const move of [['j', 'k'], ['ArrowDown', 'ArrowUp']]) {
     await page.keyboard.press('q');
+    if (!(await page.locator('#allseq[open]').count())) await page.locator('#allseq > summary').click();
     await page.getByRole('button', { name: 'All with enough evidence' }).click();
+    await page.locator('h1').focus();
     await page.keyboard.press(move[0]);                      // first row
     await page.keyboard.press(move[0]);                      // second row
     await page.keyboard.press(move[1]);                      // back to the first
-    const first = await page.evaluate(() => document.activeElement.closest('tr').dataset.key);
-    assert.equal(first, await page.locator('tr[data-key]').first().getAttribute('data-key'));
+    const first = await page.evaluate(() => document.activeElement.closest('[data-key]').dataset.key);
+    assert.equal(first, await page.evaluate(() => document.querySelector('[data-row]').closest('[data-key]').dataset.key));
     await page.keyboard.press('Enter');
     await page.locator('#why h2').waitFor();
     assert.equal(await page.evaluate(() => document.activeElement.tagName), 'H2');

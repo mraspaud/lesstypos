@@ -250,3 +250,9 @@ details.tableview summary { cursor: pointer; color: var(--muted); }
 #keyhelp dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
 #keyhelp dt { font-family: var(--font-text); }
 #keyhelp dd { margin: 0; }
+
+/* focus list */
+.focuslist { margin: 0; padding-left: 1.6em; display: grid; gap: 6px; }
+.focuslist li { cursor: pointer; }
+.focuslist li.selected .rowbtn { text-decoration: underline; text-underline-offset: 4px; }
+details > summary { cursor: pointer; font-weight: 600; }

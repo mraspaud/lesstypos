@@ -9,7 +9,8 @@
   function startExercise() { return U.startExercise.apply(null, arguments); }
 
   // ---------- sequences ----------
-  var seqTab = 'focus', seqSel = null;
+  var seqTab = 'focus', seqSel = null, allOpen = false, moveOpen = false;
+  var FOCUS_TOP = 8;
   function viewSequences() {
     var t = app.trainer, ev = t.evaluate(), all = ev.all, ctxs = t.model.state().contexts;
     var pr = {};
@@ -28,16 +29,26 @@
       return all[b].n - all[a].n;
     });
     var shown = rows.slice(0, 200);
+    var top = t.targets().slice(0, FOCUS_TOP);
     var html = '<section class="stack">' + U.sectionHead('insights') +
+      (top.length
+        ? '<p class="muted">What LessTypos is training now, most useful first. These sequences appear inside ordinary words in your exercises.</p>' +
+          '<ol class="focuslist">' + top.map(function (x) {
+            var c = all[x.key] || {};
+            return '<li data-key="' + esc(x.key) + '"' + (seqSel === x.key ? ' class="selected"' : '') + '><button type="button" class="rowbtn" data-row>' + seq(x.key) + '</button> ' +
+              FT.fmt.stagePill(x.stage) + ' <span class="muted">' + FT.fmt.focusReason(c, x.stage) + '</span></li>';
+          }).join('') + '</ol>' +
+          '<details><summary>What the statuses mean</summary><p class="muted">' + FT.fmt.statusLegend() + '</p></details>'
+        : '<p class="panel">Nothing needs extra practice yet. Sequences appear here once the evidence shows they cost errors or time in at least 2 sessions.</p>') +
+      (ev.late.length ? '<p class="muted" id="latenote">' + FT.fmt.lateNote(ev.late) + '</p>' : '') +
+      '</section><section id="why"></section>' +
+      '<details id="allseq" class="stack"' + (allOpen ? ' open' : '') + '><summary>All sequences</summary>' +
       '<p class="muted">Each sequence is the last one to four characters you typed, spaces included. It is flagged only when it is credibly worse than its shorter version in other words (for example ' + seq('str') + ' against ' + seq('tr') + '), so a single slip never flags anything.</p>' +
       '<div class="tabs" role="group">' +
       [['focus', 'Focus list'], ['kept', 'Consolidating and mastered'], ['all', 'All with enough evidence']].map(function (x) {
         return '<button type="button" data-tab="' + x[0] + '" aria-pressed="' + (seqTab === x[0]) + '">' + esc(x[1]) + '</button>';
       }).join('') + '</div>' +
-      '<p class="muted num">' + keys.length + ' sequences observed; ' + counts.insufficient + ' do not have enough observations yet.</p>' +
-      '<details><summary>What the statuses mean</summary><p class="muted">' + FT.fmt.statusLegend() + '</p></details>' +
-      (ev.late.length ? '<p class="muted" id="latenote">' + FT.fmt.lateNote(ev.late) + '</p>' : '') + '</section>' +
-      movementTable(ev);
+      '<p class="muted num">' + keys.length + ' sequences observed; ' + counts.insufficient + ' do not have enough observations yet.</p>';
     if (!shown.length) {
       html += '<p class="panel">' + (seqTab === 'focus' ? 'Nothing needs extra practice yet. Sequences appear here once the evidence shows they cost errors or time.' : 'No sequences in this group yet.') + '</p>';
     } else {
@@ -54,8 +65,14 @@
             '<td class="ex">' + esc(ctxs[k].ex.slice(-3).reverse().join(', ')) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
     }
-    html += '<section id="why"></section>';
+    html += '</details>';
+    var mv = movementTable(ev);
+    if (mv) html += '<details id="moves" class="stack"' + (moveOpen ? ' open' : '') + '><summary>By movement type</summary>' + mv + '</details>';
     setView(html);
+    document.getElementById('allseq').addEventListener('toggle', function (e) { allOpen = e.target.open; });
+    var mvd = document.getElementById('moves');
+    if (mvd) mvd.addEventListener('toggle', function (e) { moveOpen = e.target.open; });
+    app.$view.querySelectorAll('.focuslist [data-key]').forEach(function (li) { li.onclick = function () { seqSel = li.dataset.key; showWhy(seqSel); markSel(); }; });
     app.$view.querySelectorAll('[data-tab]').forEach(function (b) { b.onclick = function () { seqTab = b.dataset.tab; viewSequences(); }; });
     app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.onclick = function () { seqSel = r.dataset.key; showWhy(seqSel); markSel(); }; });
     app.$view.querySelectorAll('#movement [data-key]').forEach(function (b) { b.onclick = function () { seqSel = b.dataset.key; showWhy(seqSel); markSel(); }; });
@@ -68,7 +85,7 @@
     if (!app.layout) return '';
     var rows = FT.layout.breakdown(ev, app.layout);
     if (!rows.length) return '';
-    return '<section class="stack" id="movement"><h3>By movement type</h3><p class="muted">Every letter pair you have typed, grouped by how your fingers move on your layout. ' +
+    return '<section class="stack" id="movement"><p class="muted">Every letter pair you have typed, grouped by how your fingers move on your layout. ' +
       'Typing research finds alternating hands usually fastest (Salthouse 1986), so it is the reference. Descriptive only: training does not use it.</p>' +
       '<div class="tablewrap"><table><thead><tr><th>Movement</th><th>Share of your pairs</th><th>Pairs</th><th>Seen</th><th>Time vs alternation</th><th>Errors (first try)</th><th>Slowest pairs</th></tr></thead><tbody>' +
       rows.map(function (r) {
@@ -77,7 +94,7 @@
           r.worst.map(function (k) { return '<button type="button" class="linkish" data-key="' + esc(k) + '">' + seq(k) + '</button>'; }).join(' ') + '</td></tr>';
       }).join('') + '</tbody></table></div></section>';
   }
-  function markSel() { app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.classList.toggle('selected', r.dataset.key === seqSel); }); }
+  function markSel() { app.$view.querySelectorAll('tr[data-key], .focuslist [data-key]').forEach(function (r) { r.classList.toggle('selected', r.dataset.key === seqSel); }); }
   // Movement type of the last two or three key presses of a sequence, on the
   // declared layout. Across spaces only when the layout declares a space key.
   function movement(k) {
