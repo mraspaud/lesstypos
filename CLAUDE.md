@@ -30,6 +30,7 @@
 - A sequence is flagged only when the deficit is credible and replicated in 2 sessions.
 - About 20% of words are an unbiased random sample, kept separate in the statistics.
 - Speed bursts never feed the sequence model or difficulty.
-- Effort is rated after each exercise.
+- Effort is rated after each exercise. Benchmark trials are the exception: they are measurement only, so no rating.
+- Leaving an exercise in progress pauses it; nothing is saved or discarded without asking.
 - Prose accepts the exact character or its ASCII equivalent.
 - Themes are Kanagawa Paper: Canvas (light) and Ink (dark).

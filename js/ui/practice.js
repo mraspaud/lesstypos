@@ -228,6 +228,7 @@
 
   // ---------- effort ----------
   function viewEffort(info) {
+    app.store.saveDraft(info).catch(storageError); // kept until rated, so a reload cannot lose it
     app.current = 'effort';
     renderNav();
     setView('<section class="effort"><h1>How much effort did that take?</h1>' +
@@ -264,7 +265,7 @@
     var res = app.trainer.finish({ type: info.type, startedAt: info.startedAt, durationMs: info.durationMs,
       words: info.words, keys: info.keys, effort: info.effort, text: info.text, rounds: info.rounds, run: info.opts.run,
       set: info.opts.bench ? app.bench.set : null, planMs: info.opts.bench ? info.opts.minutes * 60000 : null });
-    var writes = [app.store.saveSession(res.raw).then(saveProfile)];
+    var writes = [app.store.saveSession(res.raw).then(saveProfile), app.store.clearDraft()];
     if (res.raw.text) {
       var t = info.opts.text;
       t.pos = res.raw.text.to;

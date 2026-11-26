@@ -86,6 +86,7 @@
   }
   function show(name) {
     name = resolve(name);
+    if (U.holdForLeave && U.holdForLeave()) return; // an exercise in progress is paused, never dropped
     leaveScreen();
     stopTyping();
     app.current = name;
@@ -244,7 +245,8 @@
   function typedJustNow() { return Date.now() - (app.typingEndedAt || 0) < 1500; }
   function onGlobalKey(e) {
     if (e.defaultPrevented) return; // already handled (e.g. a digit answering the effort question)
-    if (app.current === 'typing' || app.current === 'effort') return;
+    if (app.current === 'typing') { if (e.target && e.target.id !== 'capture') U.keyElsewhere(e); return; }
+    if (app.current === 'effort') return;
     var tag = (e.target && e.target.tagName) || '';
     if (/INPUT|TEXTAREA|SELECT/.test(tag)) { fieldKey(e); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -264,6 +266,12 @@
     var n = NAV.filter(function (x) { return x[2] === e.key; })[0];
     if (n) { e.preventDefault(); go(n[0]); return; }
     if (LETTERS[e.key]) { e.preventDefault(); go(LETTERS[e.key]); }
+  }
+
+  // An exercise that was waiting for its effort rating when the page closed.
+  function resumeDraft(draft) {
+    if (draft.opts && draft.opts.programme) app.run = FT.programme.resume(app.settings.programmeRun, today()) || null;
+    U.viewEffort(draft);
   }
 
   // ---------- boot ----------
@@ -301,8 +309,10 @@
         });
       }).then(function () {
         if (!app.storageOk) app.notice = 'This browser does not allow storage for this page, so progress will be lost when you close it. Use Settings: Data → Export to keep it.';
-        var h = location.hash.slice(1);
-        show(resolve(h));
+        return app.store.getDraft().catch(function () { return null; });
+      }).then(function (draft) {
+        if (draft) { resumeDraft(draft); return; }
+        show(resolve(location.hash.slice(1)));
       }).catch(function (e) {
         app.$view.innerHTML = '<p class="notice">LessTypos could not start: ' + esc(e && e.message || e) + '</p>';
       });

@@ -222,3 +222,16 @@ test('a backup with a damaged plain exercise is refused before anything is repla
   }
   assert.equal((await b.listSessions())[0].id, 'keep');
 });
+
+// Functionality: an exercise waiting for its effort rating is kept as a draft,
+// so a reload or a closed tab cannot lose it.
+test('an exercise awaiting its rating is kept as a draft until cleared', async () => {
+  const adapter = FT.store.memoryAdapter();
+  const s = FT.store.create({ adapter });
+  assert.equal(await s.getDraft(), null);
+  const draft = { type: 'relaxed', words: typedSession('d').words, keys: typedSession('d').keys, opts: { minutes: 1 } };
+  await s.saveDraft(draft);
+  assert.deepEqual(plain(await FT.store.create({ adapter }).getDraft()), plain(draft));
+  await s.clearDraft();
+  assert.equal(await s.getDraft(), null);
+});

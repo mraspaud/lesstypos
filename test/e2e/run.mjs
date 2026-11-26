@@ -291,7 +291,7 @@ await step('leaving the effort question saves the exercise and leaves no stray k
   await page.waitForTimeout(200);
   assert.equal(await page.evaluate(() => window.FT.app.trainer.history().length), before + 1);
   assert.ok(await page.locator('#window').isVisible());
-  await page.keyboard.press('Escape'); await page.keyboard.press('d');
+  await page.keyboard.press('Escape'); await page.keyboard.press('Delete');
 });
 
 await step('ending training with the mouse leaves no stale programme keys', async () => {
@@ -320,7 +320,7 @@ await step('backspace is ignored during the rest between burst rounds', async ()
   const before = await done();
   for (let i = 0; i < 3; i++) await page.keyboard.press('Backspace');
   assert.equal(await done(), before);
-  await page.keyboard.press('Escape'); await page.keyboard.press('d');
+  await page.keyboard.press('Escape'); await page.keyboard.press('Delete');
   await page.evaluate(() => { const a = window.FT.app; a.burstRun = 0; a.burstRest = 0; });
 });
 
@@ -439,7 +439,7 @@ await step('a wrong multi-letter press shows as one mark, and the rest of the wo
   assert.equal(await word(2).locator('.press-bad').count(), 0);
   assert.equal(await word(2).locator('.l.bad').count(), 1);
   if (shots) await page.screenshot({ path: shots + '/press-marks.png' });
-  await page.keyboard.press('Escape'); await page.keyboard.press('d');
+  await page.keyboard.press('Escape'); await page.keyboard.press('Delete');
 });
 
 
@@ -463,7 +463,7 @@ await step('Esc pauses typing; Esc resumes with the letters kept; d discards', a
   assert.equal(await typedCount(), before);
   await typeWords(1);
   assert.ok(await typedCount() > before);
-  await page.keyboard.press('Escape'); await page.keyboard.press('d');  // discard
+  await page.keyboard.press('Escape'); await page.keyboard.press('Delete');  // discard
   await page.getByRole('button', { name: /Start (daily training|over)|Resume/ }).first().waitFor();
   assert.equal(await page.evaluate(() => window.FT.app.trainer.history().length), saved);
 });
@@ -752,6 +752,49 @@ await step('a pasted backup with markup in its settings or an unknown step canno
   assert.equal(await page.locator('#pwned, #bold').count(), 0);
   assert.equal(await page.evaluate(() => window.pwned), undefined);
   assert.match(await page.locator('.lead').textContent(), /relaxed practice 5 min\./);
+});
+
+
+await step('leaving mid-exercise pauses it instead of discarding', async () => {
+  await page.keyboard.press('1');
+  const before = await page.evaluate(() => window.FT.app.trainer.history().length);
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
+  await page.locator('.w').first().waitFor();
+  await typeWords(4);
+  await page.locator('[data-go="insights"]').click();          // the nav
+  await page.locator('#stopbar').getByText('Paused.').waitFor();
+  assert.ok(await page.locator('#window').isVisible());
+  await page.locator('a.brand').click();                       // the brand link
+  await page.waitForFunction(() => location.hash === '#home');
+  await page.evaluate(() => new Promise((r) => setTimeout(r, 0))); // let the address change be handled
+  assert.ok(await page.locator('#window').isVisible());
+  await page.keyboard.press('Escape');                         // resume and keep typing
+  await typeWords(1);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Delete');
+  await page.locator('[data-go="home"][aria-current="page"]').waitFor();
+  assert.equal(await page.evaluate(() => window.FT.app.trainer.history().length), before);
+});
+
+await step('a finished exercise waiting for its rating survives a reload', async () => {
+  const before = await page.evaluate(() => window.FT.app.trainer.history().length);
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
+  await page.locator('.w').first().waitFor();
+  await typeWords(14);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
+  await page.getByText('How much effort did that take?').waitFor();
+  await page.waitForTimeout(300);
+  await page.reload();
+  await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  await page.getByText('How much effort did that take?').waitFor();
+  await effortReady();
+  await page.keyboard.press('3');
+  await page.getByText(/finished/).waitFor();
+  const h = await page.evaluate(() => window.FT.app.trainer.history());
+  assert.equal(h.length, before + 1);
+  assert.equal(h[h.length - 1].effort, 3);
+  await page.reload();
+  await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  assert.equal(await page.getByText('How much effort did that take?').count(), 0);
 });
 
 await step('phone width has no horizontal scroll', async () => {

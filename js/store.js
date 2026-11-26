@@ -103,6 +103,10 @@
         return db.set('compacted', true).then(function () { return n.reduce(function (a, b) { return a + b; }, 0); });
       });
     }
+    // The exercise waiting for its effort rating, if any.
+    function saveDraft(d) { return db.set('draft', FT.codec.encodeSession(d)); }
+    function getDraft() { return db.get('draft').then(function (d) { return d ? FT.codec.decodeSession(d) : null; }); }
+    function clearDraft() { return db.del('draft'); }
     // Prose texts: { id, title, words: [...], pos, addedAt }.
     function saveText(t) { return db.set('text:' + t.id, t); }
     function getText(id) { return db.get('text:' + id); }
@@ -171,7 +175,7 @@
     }
 
     return { load: load, saveSettings: saveSettings, saveProfile: saveProfile, saveSession: saveSession,
-      listSessions: listSessions, exportAll: exportAll, compactSessions: compactSessions, sizes: sizes,
+      listSessions: listSessions, exportAll: exportAll, saveDraft: saveDraft, getDraft: getDraft, clearDraft: clearDraft, compactSessions: compactSessions, sizes: sizes,
       saveText: saveText, getText: getText, deleteText: deleteText, listTexts: listTexts, importAll: importAll, reset: reset, kind: db.kind };
   }
 

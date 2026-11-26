@@ -311,7 +311,23 @@
     hint('');
     focusCapture();
   }
-  function discard() { show('home'); }
+  function discard() { stopTyping(); show('home'); }
+  // A key pressed while focus is elsewhere on the typing screen (after a click
+  // on a link, say): focus returns to the typing field, and the pause-bar keys
+  // still work.
+  function keyElsewhere(e) {
+    if (!ty) return;
+    focusCapture();
+    var act = { Escape: onEscape, Delete: ty.stopped ? discard : null, Enter: ty.stopped ? finishExercise : null }[e.key];
+    if (act) { e.preventDefault(); act(); }
+  }
+  // Leaving while typing (nav, links, Back) pauses instead (user decision).
+  function holdForLeave() {
+    if (!ty || ty.first == null) return false;
+    if (!ty.stopped) pause();
+    focusCapture(); // the click that tried to leave took the focus
+    return true;
+  }
   // Tab restarts at once before typing; after that it asks once.
   function onTab() {
     if (!ty) return;
@@ -346,5 +362,5 @@
     if (info.opts.bench) complete(info); else viewEffort(info);
   }
 
-  Object.assign(U, { stopTyping: stopTyping, startExercise: startExercise, focusCapture: focusCapture, hint: hint, clock: clock, renderWords: renderWords, paintWord: paintWord, placeCaret: placeCaret, trimAbove: trimAbove, beginIfNeeded: beginIfNeeded, tick: tick, burstTick: burstTick, paintPace: paintPace, correctSoFar: correctSoFar, onText: onText, onBack: onBack, blocked: blocked, onBackWord: onBackWord, onEscape: onEscape, finishExercise: finishExercise });
+  Object.assign(U, { keyElsewhere: keyElsewhere, holdForLeave: holdForLeave, stopTyping: stopTyping, startExercise: startExercise, focusCapture: focusCapture, hint: hint, clock: clock, renderWords: renderWords, paintWord: paintWord, placeCaret: placeCaret, trimAbove: trimAbove, beginIfNeeded: beginIfNeeded, tick: tick, burstTick: burstTick, paintPace: paintPace, correctSoFar: correctSoFar, onText: onText, onBack: onBack, blocked: blocked, onBackWord: onBackWord, onEscape: onEscape, finishExercise: finishExercise });
 })(globalThis.FT);
