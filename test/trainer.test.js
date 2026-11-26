@@ -449,7 +449,7 @@ test('a rebuild reproduces the fluency index', () => {
   const raws = [];
   for (let i = 0; i < 4; i++) raws.push(simulate(tr, 80, DAY0 + i * 864e5, { err: i === 1, effort: 2 }).raw);
   raws.push(simulate(tr, 60, DAY0 + 4 * 864e5, { type: 'benchmark' }).raw);
-  const fields = (h) => h.map((e) => [e.centreMs, e.fluencyWpm, e.effortlessWpm, e.fluencyCoverage]);
+  const fields = (h) => h.map((e) => [e.meanMs, e.errorCostMs, e.correctionMs, e.fluencyWpm, e.effortlessWpm, e.fluencyCoverage]);
   const rebuilt = FT.trainer.rebuild(JSON.parse(JSON.stringify(raws)), { seed: 35 });
   assert.ok(tr.history()[4].fluencyWpm > 0);
   assert.deepEqual(plain(fields(rebuilt.history())), plain(fields(tr.history())));

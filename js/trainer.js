@@ -105,7 +105,7 @@
 
     // The experimental fluency index (FT.fluency) from the model and the
     // history as they stand: after an exercise that feeds the model (its own
-    // centres in the scale), before a benchmark trial, so the index never rests
+    // timing in the scale), before a benchmark trial, so the index never rests
     // on the trial it is checked against. The reference is typed with the
     // multi-letter keys declared for the latest exercise.
     function fluencyIndex(raw) {
