@@ -69,7 +69,12 @@
         else if (k.k === 'd') ty.startKey = k; // the keydown that will start the exercise comes before its letter
       },
       onEscape: onEscape, onTab: onTab,
-      onEnter: function () { if (ty && ty.briefing) closeBriefing(); else if (ty && ty.stopped) finishExercise(); },
+      onEnter: function (t) {
+        if (!ty) return;
+        if (ty.briefing) closeBriefing();
+        else if (ty.stopped) finishExercise();
+        else onText(FT.session.PARAGRAPH, t);   // the end of a paragraph
+      },
       onDelete: function () { if (ty && ty.stopped) discard(); },
     });
     ty.win.addEventListener('click', focusCapture);
@@ -98,6 +103,7 @@
       ty.els[i] = el;
       paintWord(i, el);
       frag.appendChild(el);
+      if (FT.session.separatorOf(words[i]) === FT.session.PARAGRAPH) frag.appendChild(document.createElement('br'));
     }
     ty.inner.appendChild(frag);
   }
@@ -123,8 +129,13 @@
       html += letter(pos.status === 'ok' ? ' ok' : pos.status === 'bad' ? ' bad' : '', T[p]);
     }
     d.extras.forEach(function (ch) { html += letter(' extra', ch); });
+    if (FT.session.separatorOf(w) === FT.session.PARAGRAPH) html += letter(' sep' + paragraphEndStatus(w), '¶');
     el.innerHTML = html;
     el.dataset.cursor = d.cursor;
+  }
+  function paragraphEndStatus(w) {
+    if (!w.committed) return '';
+    return w.typed.slice(-1) === FT.session.PARAGRAPH ? ' ok' : ' bad';
   }
   // Caret and line scrolling from on-screen rectangles, relative to the typing
   // window (independent of offsetParent quirks and of the host page's CSS).
@@ -159,7 +170,10 @@
       if (!el || !el.parentNode) continue;
       if (el.getBoundingClientRect().top - top + lh <= ty.offset - lh) drop.push(el); else break;
     }
-    drop.forEach(function (el) { el.parentNode.removeChild(el); });
+    drop.forEach(function (el) {
+      if (el.nextSibling && el.nextSibling.nodeName === 'BR') el.parentNode.removeChild(el.nextSibling);
+      el.parentNode.removeChild(el);
+    });
     if (drop.length) { ty.offset = -1; placeCaret(); }
   }
   function startClock(t) {

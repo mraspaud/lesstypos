@@ -1017,6 +1017,23 @@ await step('with no texts, prose starts in Alice in Wonderland', async () => {
   await page.keyboard.press('Delete');
 });
 
+await step('a paragraph ends with Enter: the next one starts on a new line, and a space there is marked', async () => {
+  const text = { id: 'paras', title: 'Paragraphs', words: ['One', 'two.', 'Three', 'four.', 'Five', 'six.'], breaks: [1, 3], pos: 0 };
+  await page.evaluate((t) => window.FT.ui.startExercise('prose', { text: t }), text);
+  await page.locator('.w').first().waitFor();
+  const top = (i) => page.locator('.w').nth(i).evaluate((el) => el.getBoundingClientRect().top);
+  assert.ok(await top(2) > await top(1), 'Three starts a new line');
+  assert.equal(await page.locator('.w').nth(1).locator('.sep').textContent(), '¶');
+  await page.keyboard.type('One two.', { delay: 30 });
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('Three four. ', { delay: 30 });     // a space where Enter was due
+  assert.equal(await page.locator('.w').nth(1).locator('.sep.ok').count(), 1);
+  assert.equal(await page.locator('.w').nth(3).locator('.sep.bad').count(), 1);
+  assert.equal(await page.evaluate(() => window.FT.ui.app.current), 'typing');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Delete');
+});
+
 await step('the chapter choice steps with the arrow keys and keeps the focus', async () => {
   await nav('settings/texts');
   const select = page.locator('select[data-chapter="alice"]');

@@ -14,7 +14,7 @@
         if (e.ctrlKey || e.altKey || e.metaKey) h.onBackWord(e.timeStamp); else h.onBack(e.timeStamp);
       } else if (e.key === 'Escape') { e.preventDefault(); h.onEscape && h.onEscape(); }
       else if (e.key === 'Tab') { e.preventDefault(); h.onTab && h.onTab(); }
-      else if (e.key === 'Enter') { e.preventDefault(); h.onEnter && h.onEnter(); }
+      else if (e.key === 'Enter') { e.preventDefault(); h.onEnter && h.onEnter(e.timeStamp); }
       else if (e.key === 'Delete') { e.preventDefault(); h.onDelete && h.onDelete(); }
     }
     function onKeyUp(e) { h.onKey && h.onKey({ k: 'u', c: e.code || e.key, t: e.timeStamp }); }
