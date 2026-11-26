@@ -25,6 +25,10 @@
   var CTX = 3;
   var SIMULTANEOUS_MS = 6;
 
+  // The population's intervals without outliers (Van Selst & Jolicoeur 1994,
+  // the trimming the model applies per context), so one long pause does not
+  // move the centre.
+  function trimmed(a) { return a.length >= 4 ? FT.stats.vjTrim(a) : a; }
   function meanLog(a) {
     if (!a.length) return null;
     return a.reduce(function (s, x) { return s + Math.log(Math.max(x, 1e-3)); }, 0) / a.length;
@@ -78,7 +82,7 @@
     var baseline = { within: median(within), initial: median(initial) };
     // Ratios are centred per population on the log scale (geometric mean = 1),
     // the scale the model compares on; the medians above are for display.
-    var centre = { within: meanLog(within), initial: meanLog(initial) };
+    var centre = { within: meanLog(trimmed(within)), initial: meanLog(trimmed(initial)) };
     records.forEach(function (r) {
       var c = r.wordInitial ? centre.initial : centre.within;
       if (r.clean && c != null) { r.logRatio = Math.log(Math.max(r.iki, 1e-3)) - c; r.ratio = Math.exp(r.logRatio); }

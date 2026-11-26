@@ -40,7 +40,7 @@
   }
   function saveProfile() { return app.store.saveProfile(app.trainer.profile()).catch(storageError); }
   function storageError(e) {
-    app.notice = 'Your progress could not be saved (' + (e && e.message || e) + '). Export your data from the Data page to keep it.';
+    app.notice = 'Your progress could not be saved (' + (e && e.message || e) + '). Export your data from Settings: Data to keep it.';
     renderNotice();
   }
 
@@ -96,11 +96,11 @@
   // The section heading and its tabs, for the top of a tabbed page.
   function sectionHead(section) {
     var S = SECTIONS[section], cur = app.current;
-    return '<h1>' + esc(S.name) + '</h1><div class="tabs sectiontabs" role="tablist" aria-label="' + esc(S.name) + '">' +
+    return '<h1>' + esc(S.name) + '</h1><nav class="tabs sectiontabs" aria-label="' + esc(S.name) + ' pages">' +
       S.tabs.map(function (t) {
         var r = section + '/' + t[0];
-        return '<button type="button" role="tab" data-stab="' + r + '" aria-selected="' + (cur === r) + '"' + (cur === r ? ' aria-current="page"' : '') + '>' + esc(t[1]) + '</button>';
-      }).join('') + '</div>';
+        return '<button type="button" data-stab="' + r + '"' + (cur === r ? ' aria-current="page"' : '') + '>' + esc(t[1]) + '</button>';
+      }).join('') + '</nav>';
   }
   // Leaving a screen: an exercise waiting for its effort rating is saved
   // without one, and screen-specific key handlers are dropped.
@@ -151,11 +151,17 @@
   // ---------- lists and tabs ----------
   // j/k and the down/up arrows move between the rows of a list ([data-row]);
   // left/right move between tabs ([data-tab]).
+  // Not folded away in a closed <details> (its summary stays visible).
+  function shown(el) {
+    var d = el.closest('details:not([open])');
+    return !d || (el.closest('summary') && el.closest('summary').parentNode === d);
+  }
   function moveRow(dir) {
-    var rows = Array.prototype.slice.call(app.$view.querySelectorAll('[data-row]'));
+    var rows = Array.prototype.slice.call(app.$view.querySelectorAll('[data-row]')).filter(shown);
     if (!rows.length) return false;
     var i = rows.indexOf(document.activeElement);
-    var next = rows[i < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, i + dir))];
+    if (i < 0) { var sel = app.$view.querySelector('.selected [data-row]'); i = sel ? rows.indexOf(sel) : -1; } // continue from the opened row
+    var next = i < 0 ? rows[0] : rows[Math.max(0, Math.min(rows.length - 1, i + dir))];
     next.focus();
     if (next.scrollIntoView) next.scrollIntoView({ block: 'nearest' });
     return true;
@@ -204,19 +210,25 @@
   function closeKeyHelp() { var el = document.getElementById('keyhelp'); if (el) el.remove(); }
   function keyHelp() {
     var rows = [];
+    var seen = {};
     app.$view.querySelectorAll('kbd').forEach(function (k) {
-      // a hint inside a button, or next to one ("or press Enter")
-      var owner = k.closest('button, a') || (k.parentNode.parentNode && k.parentNode.parentNode.querySelector('button'));
-      if (!owner || owner.closest('#keyhelp')) return;
+      // the hint's label: its button, link or summary, else the note it sits in
+      var owner = k.closest('button, a, summary') || k.parentNode;
+      if (owner.closest('#keyhelp') || /^\d–\d$|^[1-5]$/.test(k.textContent) && !k.closest('button')) return;
       var b = owner.cloneNode(true);
       b.querySelectorAll('kbd').forEach(function (x) { x.remove(); });
-      rows.push([k.textContent, b.textContent.trim()]);
+      var label = b.textContent.replace(/^\s*(or press|press)\s*/i, '').replace(/\s+/g, ' ').trim();
+      if (!label || seen[k.textContent]) return;
+      seen[k.textContent] = true;
+      rows.push([k.textContent, label]);
     });
     if (app.$view.querySelector('[data-row]')) rows.push(['j k ↓ ↑', 'Move through the list'], ['Enter', 'Open the selected row']);
     if (app.$view.querySelector('[data-tab], [data-stab]')) rows.push(['← →', 'Switch tabs (on a tab)']);
     if (app.$view.querySelector('[data-stab]')) rows.push(['[ ]', 'Previous or next tab']);
-    NAV.forEach(function (n) { rows.push([n[2], n[1]]); });
+    var mine = app.keys || {};
+    NAV.forEach(function (n) { if (!mine[n[2]]) rows.push([n[2], n[1]]); });
     Object.keys(LETTERS).forEach(function (k) {
+      if (mine[k] || seen[k]) return; // this screen uses the key for something else
       var r = LETTERS[k], sec = SECTIONS[sectionOf(r)], tab = sec.tabs && sec.tabs.filter(function (t) { return r === sectionOf(r) + '/' + t[0]; })[0];
       rows.push([k, sec.name + (tab ? ': ' + tab[1] : '')]);
     });
@@ -259,11 +271,14 @@
     app.$view = document.getElementById('view');
     app.$nav = document.getElementById('nav');
     document.addEventListener('keydown', onGlobalKey);
+    var skip = document.querySelector('a.skip');
+    if (skip) skip.addEventListener('click', function (e) { e.preventDefault(); app.$view.focus(); });
     app.$nav.addEventListener('click', function (e) { var b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
     window.addEventListener('hashchange', function () {
       var h = location.hash.slice(1);
       if (h === app.ownHash) { app.ownHash = null; return; }
-      if (!h || resolve(h) === app.current) return;
+      if (!h || (!VIEWS[h] && !ALIASES[h])) return; // not a page (e.g. an in-page link)
+      if (resolve(h) === app.current) return;
       if (h !== resolve(h)) { go(h); return; } // an older page name: show its new place
       show(h);
     });
@@ -285,7 +300,7 @@
           if (rebuild && sessions.length) return saveProfile();
         });
       }).then(function () {
-        if (!app.storageOk) app.notice = 'This browser does not allow storage for this page, so progress will be lost when you close it. Use Data → Export to keep it.';
+        if (!app.storageOk) app.notice = 'This browser does not allow storage for this page, so progress will be lost when you close it. Use Settings: Data → Export to keep it.';
         var h = location.hash.slice(1);
         show(resolve(h));
       }).catch(function (e) {

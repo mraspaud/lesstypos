@@ -48,13 +48,13 @@
       var action, reasons = [];
       if (acc < st.low) {
         action = 'retreat';
-        reasons.push('first-attempt accuracy ' + pct(acc) + ' below ' + pct(st.low));
+        reasons.push('accuracy (first try) ' + pct(acc) + ' below ' + pct(st.low));
       } else if (acc < st.high) {
         action = 'hold';
-        reasons.push('first-attempt accuracy ' + pct(acc) + ' within target band');
+        reasons.push('accuracy (first try) ' + pct(acc) + ' within the target band');
       } else {
         action = 'advance';
-        reasons.push('first-attempt accuracy ' + pct(acc) + ' at or above ' + pct(st.high));
+        reasons.push('accuracy (first try) ' + pct(acc) + ' at or above ' + pct(st.high));
         if (hes != null && hesBase != null && hes > hesBase * st.hesTol && hes - hesBase > st.hesAbs) {
           action = 'hold'; reasons.push('hesitation ' + pct(hes) + ' above recent ' + pct(hesBase));
         }

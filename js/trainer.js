@@ -150,7 +150,8 @@
     }
 
     // Expected time ratio of a keystroke: from its longest context with
-    // enough timing evidence (1 = the session baseline).
+    // enough timing evidence (1 = the session's typical interval for its
+    // population, the geometric mean of the trimmed clean intervals).
     function expectedRatio(ev) {
       return function (r) {
         var full = r.ctx + r.ch;

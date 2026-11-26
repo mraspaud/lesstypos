@@ -58,6 +58,7 @@
       onKey: function (k) { if (ty && ty.first != null && !ty.stopped) ty.keys.push(k); },
       onEscape: onEscape, onTab: onTab,
       onEnter: function () { if (ty && ty.stopped) finishExercise(); },
+      onDelete: function () { if (ty && ty.stopped) discard(); },
     });
     ty.win.addEventListener('click', focusCapture);
     ty.capture.addEventListener('blur', function () { if (ty) { ty.win.classList.add('blurred'); hint('Click here or press any key to continue typing.'); } });
@@ -171,6 +172,21 @@
   // Speed bursts: rounds of BURST_RUN ms, each started by the first keystroke
   // after a BURST_REST ms rest. A live pace bar compares the round's speed
   // with the adaptive target (FT.bursts).
+  // Closes the current burst round at `end` (keystroke clock); returns true
+  // when that finished the exercise.
+  function endRound(end, now) {
+    var b = ty.burst;
+    now = now == null ? performance.now() : now;
+    var words = ty.session.state().words.filter(function (w) { return w.committed; });
+    b.rounds.push({ start: b.start, end: end });
+    var full = FT.bursts.roundStats(words, b.start, end, macros());
+    var res = FT.bursts.step(b.target, full, b.ref);
+    b.last = { stats: full, res: res };
+    b.target = res.after;
+    if (b.rounds.length >= b.total) { finishExercise(); return true; }
+    b.phase = 'rest'; b.restEnd = now + burstRest();
+    return false;
+  }
   function burstTick() {
     var b = ty.burst, now = performance.now(), timer = document.getElementById('timer');
     if (b.phase === 'run') {
@@ -179,15 +195,7 @@
       var st = FT.bursts.roundStats(words, b.start, b.start + Math.min(elapsed, burstRun()), macros());
       paintPace(st.wpm, b.target);
       timer.textContent = 'Round ' + (b.rounds.length + 1) + ' of ' + b.total + ' · ' + clock(burstRun() - elapsed);
-      if (elapsed >= burstRun()) {
-        b.rounds.push({ start: b.start, end: end });
-        var full = FT.bursts.roundStats(words, b.start, end, macros());
-        var res = FT.bursts.step(b.target, full, b.ref);
-        b.last = { stats: full, res: res };
-        b.target = res.after;
-        if (b.rounds.length >= b.total) { finishExercise(); return; }
-        b.phase = 'rest'; b.restEnd = now + burstRest();
-      }
+      if (elapsed >= burstRun()) endRound(end, now);
     } else if (b.phase === 'rest') {
       var left = b.restEnd - now, l = b.last;
       timer.textContent = 'Rest · ' + clock(left);
@@ -211,7 +219,7 @@
     return FT.text.isPrefix(w.typed, w.target + ' ');
   }
   function onText(data, t) {
-    if (ty && ty.stopped) { if (data === 'd') discard(); return; }
+    if (ty && ty.stopped) { hint('Paused: <kbd>Esc</kbd> resumes, <kbd>Enter</kbd> saves, <kbd>Del</kbd> discards.'); return; } // typing never discards
     if (!ty) return;
     if (ty.burst && ty.burst.phase === 'rest') return;
     if (app.settings.errorMode === 'stop' && !correctSoFar()) return;
@@ -279,15 +287,17 @@
   function pause() {
     ty.stopped = true;
     ty.pausedAt = performance.now();
+    // a burst round in progress ends at the pause (its window never holds a pause)
+    if (ty.burst && ty.burst.phase === 'run' && endRound(ty.pausedAt)) return;
     var bar = document.getElementById('stopbar');
     bar.hidden = false;
     bar.innerHTML = '<span>Paused.</span><button class="btn primary" type="button" id="fin">Finish and save <kbd>Enter</kbd></button>' +
       '<button class="btn" type="button" id="res">Resume <kbd>Esc</kbd></button>' +
-      '<button class="btn danger" type="button" id="dis">Discard <kbd>d</kbd></button>';
+      '<button class="btn danger" type="button" id="dis">Discard <kbd>Del</kbd></button>';
     document.getElementById('fin').onclick = finishExercise;
     document.getElementById('res').onclick = resume;
     document.getElementById('dis').onclick = discard;
-    U.announce('Paused. Enter saves, Escape resumes, d discards.');
+    U.announce('Paused. Enter saves, Escape resumes, Delete discards.');
     focusCapture();
   }
   function resume() {

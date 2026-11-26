@@ -95,7 +95,7 @@
       g.setAttribute('visibility', 'visible');
       tip.hidden = false;
       tip.innerHTML = '<b>' + esc(p.word) + '</b> <span class="muted">word ' + p.i + '</span><br>' +
-        fix(p.burst) + ' WPM this word · ' + fix(p.running) + ' average' + (p.error ? '<br><span style="color:var(--err)">× first-attempt error</span>' : '');
+        fix(p.burst) + ' WPM this word · ' + fix(p.running) + ' average' + (p.error ? '<br><span style="color:var(--err)">× error on the first try</span>' : '');
       var r = root.getBoundingClientRect(), px = cx * r.width / W;
       var left = px + 14, w = tip.offsetWidth;
       if (left + w > r.width) left = px - 14 - w;
@@ -228,7 +228,7 @@
       var U = 42, G = 4, W = grid.width * U, H = grid.height * U;
       var vals = heatValues(grid, stats, mode), max = vals.max;
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Keyboard heatmap: ' +
-        (mode === 'err' ? 'first-attempt error rate per key' : 'where wrong presses landed') + '">';
+        (mode === 'err' ? 'error rate per key (first try)' : 'where wrong presses landed') + '">';
       grid.cells.forEach(function (c, i) {
         var v = vals[i], w = c.w * U - G;
         svg += '<g data-i="' + i + '"><rect class="key' + (v.rated ? '' : ' few') + '" x="' + (c.x * U) + '" y="' + (c.y * U) + '" width="' + w + '" height="' + (U - G) + '" rx="6" ' +
@@ -237,7 +237,7 @@
       });
       svg += '</svg>';
       var legend = mode === 'err'
-        ? 'Shade: first-attempt error rate, from 0% (lightest) to ' + (100 * max).toFixed(1) + '% (darkest). Dashed keys: fewer than ' + MIN_PRESSES + ' presses so far. Characters not on your layout are not shown.'
+        ? 'Shade: error rate on the first try, from 0% (lightest) to ' + (100 * max).toFixed(1) + '% (darkest). Dashed keys: fewer than ' + MIN_PRESSES + ' presses so far. Characters not on your layout are not shown.'
         : 'Shade: how many wrong presses landed on each key (darkest: ' + Math.round(max) + ').';
       el.innerHTML = '<div class="tabs" role="group">' +
         '<button type="button" data-mode="err" aria-pressed="' + (mode === 'err') + '">Errors on the intended key</button>' +

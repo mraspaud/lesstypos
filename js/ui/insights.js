@@ -46,7 +46,7 @@
       '<p class="muted">Each sequence is the last one to four characters you typed, spaces included. It is flagged only when it is credibly worse than its shorter version in other words (for example ' + seq('str') + ' against ' + seq('tr') + '), so a single slip never flags anything.</p>' +
       '<div class="tabs" role="group">' +
       [['focus', 'Focus list'], ['kept', 'Consolidating and mastered'], ['all', 'All with enough evidence']].map(function (x) {
-        return '<button type="button" data-tab="' + x[0] + '" aria-pressed="' + (seqTab === x[0]) + '">' + esc(x[1]) + '</button>';
+        return '<button type="button" id="seqtab-' + x[0] + '" data-tab="' + x[0] + '" aria-pressed="' + (seqTab === x[0]) + '">' + esc(x[1]) + '</button>';
       }).join('') + '</div>' +
       '<p class="muted num">' + keys.length + ' sequences observed; ' + counts.insufficient + ' do not have enough observations yet.</p>';
     if (!shown.length) {
@@ -72,10 +72,10 @@
     document.getElementById('allseq').addEventListener('toggle', function (e) { allOpen = e.target.open; });
     var mvd = document.getElementById('moves');
     if (mvd) mvd.addEventListener('toggle', function (e) { moveOpen = e.target.open; });
-    app.$view.querySelectorAll('.focuslist [data-key]').forEach(function (li) { li.onclick = function () { seqSel = li.dataset.key; showWhy(seqSel); markSel(); }; });
+    app.$view.querySelectorAll('.focuslist [data-key]').forEach(function (li) { li.onclick = function () { seqSel = li.dataset.key; showWhy(seqSel, true); markSel(); }; });
     app.$view.querySelectorAll('[data-tab]').forEach(function (b) { b.onclick = function () { seqTab = b.dataset.tab; viewSequences(); }; });
-    app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.onclick = function () { seqSel = r.dataset.key; showWhy(seqSel); markSel(); }; });
-    app.$view.querySelectorAll('#movement [data-key]').forEach(function (b) { b.onclick = function () { seqSel = b.dataset.key; showWhy(seqSel); markSel(); }; });
+    app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.onclick = function () { seqSel = r.dataset.key; showWhy(seqSel, true); markSel(); }; });
+    app.$view.querySelectorAll('#movement [data-key]').forEach(function (b) { b.onclick = function () { seqSel = b.dataset.key; showWhy(seqSel, true); markSel(); }; });
     if (seqSel && all[seqSel]) showWhy(seqSel);
   }
   // Letter pairs grouped by movement type on the declared layout (descriptive).
@@ -106,7 +106,8 @@
     var c = FT.layout.classify(L, toks.slice(-3).join('')) || FT.layout.classify(L, toks.slice(-2).join(''));
     return c ? c.type + (c.tags.length ? ' (' + c.tags.join(', ') + ')' : '') : '';
   }
-  function showWhy(k) {
+  // focus: move focus to the panel (when the user opened it, not on re-render)
+  function showWhy(k, focus) {
     var x = app.trainer.explain(k), el = document.getElementById('why');
     if (!x || !el) return;
     var lines = [];
@@ -138,7 +139,7 @@
     app.keys.p = practise;
     var h = el.querySelector('h2');
     h.setAttribute('tabindex', '-1');
-    h.focus();
+    if (focus) h.focus();
   }
 
   // ---------- errors ----------

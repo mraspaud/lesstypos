@@ -92,7 +92,7 @@
         '<p class="muted">Rest your hands for a moment. Keep the same comfortable pace in the next trial.</p>' +
         '<div class="row"><button class="btn primary" type="button" id="nexttrial">Next trial <kbd>Enter</kbd></button></div></section>');
       b.trial++;
-      app.keys = { Enter: benchTrial };
+      app.keys = { Enter: benchTrial, Escape: function () { go('home'); } };
       document.getElementById('nexttrial').onclick = benchTrial;
       return;
     }
@@ -107,7 +107,7 @@
         ' trials ran their full minute, so this set is not used for your progress or the weekly reminder.</p>' +
         '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button></div></section>');
       document.getElementById('home').onclick = function () { go('home'); };
-      app.keys = { Enter: function () { go('home'); } };
+      app.keys = { Enter: function () { go('home'); }, Escape: function () { go('home'); } };
       return;
     }
     var html = '<section class="stack"><h1>Benchmark result</h1><p class="muted">The median of ' + r.trials + ' trials, so one unusual trial does not move it.</p></section>' +
@@ -115,12 +115,12 @@
       '<div class="tile"><b>' + pct(r.faa) + '</b><span>accuracy (first try)</span></div>' +
       '<div class="tile"><b>' + fix(r.min) + '–' + fix(r.max) + '</b><span>range across trials</span></div></div>';
     if (prev) html += '<p class="notice info">' + (r.wpm - prev.wpm >= 0 ? '+' : '') + fix(r.wpm - prev.wpm, 1) + ' WPM compared with your previous benchmark (' + fix(prev.wpm) + ' WPM on ' + esc(new Date(prev.t).toLocaleDateString()) + ').</p>';
-    html += '<p class="muted">Benchmarks never change your vocabulary level, sequence statistics or training. See them over time on the History page.</p>' +
+    html += '<p class="muted">Benchmarks never change your vocabulary level, sequence statistics or training. See them over time in Insights: Progress.</p>' +
       '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button></div>';
     app.bench = null;
     setView(html);
     document.getElementById('home').onclick = function () { go('home'); };
-    app.keys = { Enter: function () { go('home'); } };
+    app.keys = { Enter: function () { go('home'); }, Escape: function () { go('home'); } };
   }
 
   // ---------- programme ----------
@@ -172,7 +172,7 @@
       if (armed) { act.end(); return; }
       armed = true;
       pend.classList.add('armed');
-      pend.innerHTML = 'Click again to end <kbd>x</kbd>';
+      pend.innerHTML = 'Press again to end <kbd>x</kbd>';
       U.announce('Press x again to end today\'s training.');
       var note = document.getElementById('endnote');
       if (note) note.hidden = false;
@@ -203,6 +203,7 @@
     bindTextForm(function () { runStep(); });
     document.getElementById('tbody').focus();
     document.getElementById('skipprose').onclick = function () { app.run.skip(); saveRun(); viewBetween(); };
+    app.keys = { Escape: function () { go('home'); } };
   }
   function viewProgrammeSummary() {
     app.current = 'summary';
@@ -222,7 +223,7 @@
     saveRun();
     setView(html);
     document.getElementById('home').onclick = function () { go('home'); };
-    app.keys = { Enter: function () { go('home'); } };
+    app.keys = { Enter: function () { go('home'); }, Escape: function () { go('home'); } };
   }
 
   // ---------- effort ----------
@@ -234,7 +235,7 @@
       '<div class="scale">' + EFFORT.map(function (e) {
         return '<button type="button" data-effort="' + e[0] + '"><b>' + e[0] + '</b><span>' + esc(e[1]) + '</span><span class="muted">' + esc(e[2]) + '</span></button>';
       }).join('') + '</div>' +
-      '<p class="muted" id="effortkeys">Press 1–5, or 0 or Enter to skip.</p>' +
+      '<p class="muted" id="effortkeys">Press 1–5, or 0, Enter or Esc to skip.</p>' +
       '<div class="row"><button class="btn" type="button" data-effort="">Skip <kbd>Enter</kbd></button></div></section>');
     var done = false;
     function pick(v, render) {
@@ -250,7 +251,8 @@
     function onKey(e) {
       if (Date.now() < (app.effortGuardUntil || 0)) { e.preventDefault(); return; } // still in flight from typing
       if (/^[1-5]$/.test(e.key)) { e.preventDefault(); pick(+e.key); }
-      else if (e.key === 'Enter' || e.key === '0') { e.preventDefault(); pick(null); }
+      else if (e.key === 'Enter' && e.target && e.target.closest && e.target.closest('[data-effort]')) { e.preventDefault(); var v = e.target.closest('[data-effort]').dataset.effort; pick(v ? +v : null); }
+      else if (e.key === 'Enter' || e.key === '0' || e.key === 'Escape') { e.preventDefault(); pick(null); }
     }
     document.addEventListener('keydown', onKey, true);
     app.$view.querySelectorAll('[data-effort]').forEach(function (b) {

@@ -103,12 +103,15 @@
       return '<div class="row progstep"><input type="checkbox" data-step="' + i + '" aria-label="Include ' + esc(EXERCISES[st.type].name) + '"' + (st.enabled ? ' checked' : '') + '>' +
         '<span style="min-width:9rem">' + esc(EXERCISES[st.type].name) + '</span>' +
         '<input type="number" data-step="' + i + '" min="0.5" max="30" step="0.5" value="' + st.minutes + '" style="max-width:5rem" aria-label="Minutes"> <span class="muted">min</span>' +
-        '<button class="btn" type="button" data-up="' + i + '"' + (i ? '' : ' disabled') + ' aria-label="Move up">↑</button>' +
-        '<button class="btn" type="button" data-down="' + i + '"' + (i < def.steps.length - 1 ? '' : ' disabled') + ' aria-label="Move down">↓</button></div>';
+        '<button class="btn" type="button" id="up-' + i + '" data-up="' + i + '"' + (i ? '' : ' disabled') + ' aria-label="Move ' + esc(EXERCISES[st.type].name) + ' up">↑</button>' +
+        '<button class="btn" type="button" id="down-' + i + '" data-down="' + i + '"' + (i < def.steps.length - 1 ? '' : ' disabled') + ' aria-label="Move ' + esc(EXERCISES[st.type].name) + ' down">↓</button></div>';
     }).join('') + '<p class="help">' + FT.programme.totalMinutes(def) + ' minutes in total. <button class="btn" type="button" id="progreset">Restore default</button></p>';
     function move(i, d) {
       var def2 = JSON.parse(JSON.stringify(programmeDef())), x = def2.steps.splice(i, 1)[0];
       def2.steps.splice(i + d, 0, x); app.settings.programme = def2; saveSettings(); renderProgEdit();
+      // keep focus on the moved step's button in the same direction (or the other one at an end)
+      var j = i + d, same = document.getElementById((d > 0 ? 'down-' : 'up-') + j), other = document.getElementById((d > 0 ? 'up-' : 'down-') + j);
+      (same && !same.disabled ? same : other).focus();
     }
     el.querySelectorAll('[data-up]').forEach(function (b) { b.onclick = function () { move(+b.dataset.up, -1); }; });
     el.querySelectorAll('[data-down]').forEach(function (b) { b.onclick = function () { move(+b.dataset.down, 1); }; });

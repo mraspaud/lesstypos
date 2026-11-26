@@ -87,7 +87,9 @@ test('timing is normalised by population baselines', () => {
   assert.equal(d.ratio, 1);
   const f = r.records[7], e = r.records[6];
   assert.ok(Math.abs(f.ratio / e.ratio - 2) < 1e-9); // twice as slow as its neighbour
-  assert.ok(Math.abs(f.ratio - 200 / (100 * Math.pow(2, 1 / 6))) < 1e-9); // against the geometric mean
+  const kept = FT.stats.vjTrim([100, 100, 100, 100, 100, 200]);
+  const gm = Math.exp(kept.reduce((a, x) => a + Math.log(x), 0) / kept.length);
+  assert.ok(Math.abs(f.ratio - 200 / gm) < 1e-9); // against the geometric mean of the trimmed intervals
 });
 
 test('macro candidates are suggested but never merged automatically', () => {
@@ -237,7 +239,19 @@ test('timing ratios are centred per population on the log scale', () => {
   const r = run(script);
   const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
   const clean = r.records.filter((x) => x.clean);
-  assert.ok(Math.abs(mean(clean.filter((x) => x.wordInitial).map((x) => x.logRatio))) < 1e-9);
-  assert.ok(Math.abs(mean(clean.filter((x) => !x.wordInitial).map((x) => x.logRatio))) < 1e-9);
+  // centred on the intervals that survive trimming
+  for (const init of [true, false]) {
+    const pop = clean.filter((x) => x.wordInitial === init);
+    const kept = FT.stats.vjTrim(pop.map((x) => x.iki));
+    const logs = pop.filter((x) => kept.includes(x.iki)).map((x) => x.logRatio);
+    assert.ok(Math.abs(mean(logs)) < 1e-9, String(init));
+  }
   clean.forEach((x) => assert.ok(Math.abs(x.ratio - Math.exp(x.logRatio)) < 1e-12));
+});
+
+test('the centre of a population is not pulled by an outlier interval', () => {
+  const base = run([['abcdefgh', 'abcdefgh ', [100, 100, 110, 90, 100, 105, 95, 100, 100]]]);
+  const withOutlier = run([['abcdefgh', 'abcdefgh ', [100, 100, 110, 90, 100, 105, 95, 100, 2500]]]);
+  const b = base.records.find((x) => x.ch === 'c'), o = withOutlier.records.find((x) => x.ch === 'c');
+  assert.ok(Math.abs(o.ratio / b.ratio - 1) < 0.02, o.ratio + ' vs ' + b.ratio);
 });
