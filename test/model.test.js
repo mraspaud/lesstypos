@@ -288,3 +288,22 @@ test('a deficit replicated long ago and recently is still confirmed after years 
   assert.deepEqual(plain(levels('q')), plain(levels('e'))); // same level for the same old sessions
   assert.ok(m.evaluate({ day: 250 }).get('q').errSessions >= 2);
 });
+
+// Functionality: after compaction a block's copies in a sequence and in its
+// shorter parent sit at the same place in time, so they get the same weight
+// and "the parent without this sequence" stays exact.
+test('a compacted block weighs the same in a sequence and in its parent', () => {
+  // 'ab' sits in block 0 of 'b', which holds 40 other keystrokes: subtracting
+  // 'ab' from 'b' must leave them, so 'ab' is judged, not "same as shorter".
+  const m = FT.model.create({ exactSessions: 2, block: 4, halfLifeObs: 5 });
+  const rec = (ch, ctx, err) => ({ ch, ctx, err, clean: true, logRatio: 0.1, word: 'w' });
+  for (let s = 1; s <= 6; s++) {
+    const recs = [];
+    if (s <= 4) for (let i = 0; i < 10; i++) recs.push(rec('b', 'x', 0));
+    if (s === 4) for (let i = 0; i < 20; i++) recs.push(rec('b', 'a', 1));
+    if (s > 4) for (let i = 0; i < 10; i++) recs.push(rec('c', 'x', 0));
+    m.ingest(recs, { session: s, day: 0 });
+  }
+  assert.equal(typeof m.state().contexts.b.b[0].blk, 'number'); // block 0 is merged
+  assert.equal(m.explain('ab', { day: 0 }).redundant, false);
+});

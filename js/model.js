@@ -177,13 +177,19 @@
     // Weight of evidence at (session s, day d) from the point of view of
     // context c: exposure decay by c's own later observations, times the
     // FSRS-shaped day decay.
+    // The last session a bucket covers: a merged block's copies in different
+    // contexts share it, while their mean sessions differ.
+    function lastSession(b) {
+      if (typeof b.blk === 'string') return (+b.blk.slice(1) + 1) * cfg.bigBlock;
+      if (b.blk != null) return (b.blk + 1) * cfg.block;
+      return b.s;
+    }
     function weightFn(c, day) {
       var bs = c.b;
       return function (b) {
-        // observations of c strictly after session b.s
-        var l = 0;
-        for (var j = bs.length - 1; j >= 0 && bs[j].s > b.s; j--) l += bs[j].n;
-        return Math.pow(0.5, l / cfg.halfLifeObs) * S.recencyWeight(day - b.d, cfg.stabilityDays);
+        var later = 0, at = lastSession(b);
+        for (var j = bs.length - 1; j >= 0 && lastSession(bs[j]) > at; j--) later += bs[j].n;
+        return Math.pow(0.5, later / cfg.halfLifeObs) * S.recencyWeight(day - b.d, cfg.stabilityDays);
       };
     }
     function aggregateUsing(c, wfn) {
@@ -197,8 +203,9 @@
 
     function aggregate(c, day) { return aggregateUsing(c, weightFn(c, day)); }
     function minus(a, b) {
-      return { n: Math.max(a.n - b.n, 0), e: Math.max(a.e - b.e, 0), ln: Math.max(a.ln - b.ln, 0),
-        ls: a.ls - b.ls, lss: a.lss - b.lss };
+      var ln = Math.max(a.ln - b.ln, 0);
+      return { n: Math.max(a.n - b.n, 0), e: Math.max(a.e - b.e, 0), ln: ln,
+        ls: ln > 0 ? a.ls - b.ls : 0, lss: ln > 0 ? a.lss - b.lss : 0 };
     }
 
     // Judge one context's aggregate g against a parent aggregate (excluding g).
