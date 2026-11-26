@@ -28,8 +28,9 @@
   }
   function currentText() {
     return app.store.listTexts().then(function (list) {
+      var unfinished = function (x) { return x.pos < x.words.length; };
       var t = list.filter(function (x) { return x.id === app.settings.currentText; })[0];
-      return t || list.filter(function (x) { return x.pos < x.words.length; })[0] || null;
+      return t && unfinished(t) ? t : list.filter(unfinished)[0] || null;
     });
   }
   // The book that comes with the app, offered until the user has texts of their own.
@@ -59,45 +60,53 @@
       (n > 1 ? ', starting at ' + b.chapters[b.start].title : '') + '.';
   }
   function bindTextForm(after) {
-    var f = document.getElementById('tform'), fromFile = null;
+    var f = document.getElementById('tform'), fromFile = null, reading = Promise.resolve(), picks = 0;
     var msg = document.getElementById('tmsg'), titleBox = document.getElementById('ttitle'), body = document.getElementById('tbody');
-    function took(book) {
-      fromFile = book;
-      if (!titleBox.value && book.title) titleBox.value = book.title;
-      msg.textContent = describeBook(book);
+    function readFile(file) {
+      if (/\.epub$/i.test(file.name) || file.type === 'application/epub+zip') {
+        return file.arrayBuffer().then(function (b) { return FT.books.fromEpub(new Uint8Array(b)); });
+      }
+      return file.text().then(function (raw) { body.value = raw; return FT.books.fromText(raw); });
     }
     document.getElementById('tfile').onchange = function (e) {
       var file = e.target.files[0]; if (!file) return;
-      if (/\.epub$/i.test(file.name) || file.type === 'application/epub+zip') {
-        file.arrayBuffer().then(function (b) { return FT.books.fromEpub(new Uint8Array(b)); }).then(took)
-          .catch(function (err) { fromFile = null; msg.textContent = 'This EPUB could not be read (' + err.message + ').'; });
-        return;
-      }
-      file.text().then(function (raw) { body.value = raw; took(FT.books.fromText(raw)); });
+      var pick = ++picks;
+      fromFile = null;
+      msg.textContent = 'Reading ' + file.name + '…';
+      reading = readFile(file).then(function (book) {
+        if (pick !== picks) return;   // a later file was chosen meanwhile
+        fromFile = book;
+        if (!titleBox.value && book.title) titleBox.value = book.title;
+        msg.textContent = describeBook(book);
+      }, function (err) {
+        if (pick === picks) msg.textContent = 'This file could not be read (' + err.message + ').';
+      });
     };
     body.addEventListener('input', function () { fromFile = null; });
     f.addEventListener('submit', function (e) {
       e.preventDefault();
-      var book = fromFile || FT.books.fromText(body.value);
-      var t = FT.books.toText(book, 'x' + Date.now().toString(36));
-      if (t.words.length < 20) { msg.textContent = 'That text is too short: paste at least a paragraph.'; return; }
-      if (titleBox.value.trim()) t.title = titleBox.value.trim();
-      app.store.saveText(t).then(function () {
-        app.settings.currentText = t.id;
-        return saveSettings();
-      }).then(function () { after(t); }).catch(storageError);
+      reading.then(function () {
+        var book = fromFile || FT.books.fromText(body.value);
+        var t = FT.books.toText(book, 'x' + Date.now().toString(36));
+        if (t.words.length < 20) { msg.textContent = 'That text is too short: paste at least a paragraph.'; return; }
+        if (titleBox.value.trim()) t.title = titleBox.value.trim();
+        return app.store.saveText(t).then(function () {
+          app.settings.currentText = t.id;
+          return saveSettings();
+        }).then(function () { after(t); });
+      }).catch(storageError);
     });
   }
   function viewTexts() {
     Promise.all([app.store.listTexts(), bundledOffer()]).then(U.onThisScreen(function (got) {
-      var list = got[0], offer = list.length ? null : got[1];
+      var list = got[0], offer = got[1];
       var html = '<section class="stack">' + U.sectionHead('settings') + '<p class="muted">Prose exercises continue the current text from where you stopped. Texts stay in this browser and are included in backups.</p></section>';
       if (list.length) {
         html += '<div class="tablewrap"><table><thead><tr><th>Title</th><th>Words</th><th>Progress</th><th></th></tr></thead><tbody>' +
           list.map(function (t) {
             var cur = t.id === app.settings.currentText;
             return '<tr><td>' + esc(t.title) + (cur ? ' ' + pill('current') : '') + '</td><td class="num">' + t.words.length.toLocaleString() + '</td><td class="num">' +
-              proseProgress(t, t.pos) + chapterChoice(t) + '</td><td><div class="row">' +
+              '<span data-progress="' + esc(t.id) + '">' + proseProgress(t, t.pos) + '</span>' + chapterChoice(t) + '</td><td><div class="row">' +
               (cur ? '' : '<button class="btn" type="button" data-use="' + esc(t.id) + '">Make current</button>') +
               (t.pos < t.words.length ? '<button class="btn" type="button" data-type="' + esc(t.id) + '">Type now</button>'
                 : '<button class="btn" type="button" data-restart="' + esc(t.id) + '">Start over</button>') +
@@ -114,14 +123,15 @@
       if (offer) document.getElementById('usebundled').onclick = function () {
         addBundled().then(U.onThisScreen(function (t) { startExercise('prose', { text: t }); })).catch(storageError);
       };
-      bindTextForm(function () { viewTexts(); });
-      app.$view.querySelectorAll('[data-use]').forEach(function (b) { b.onclick = function () { app.settings.currentText = b.dataset.use; saveSettings().then(viewTexts); }; });
+      bindTextForm(U.onThisScreen(viewTexts));
+      app.$view.querySelectorAll('[data-use]').forEach(function (b) { b.onclick = function () { app.settings.currentText = b.dataset.use; saveSettings().then(U.onThisScreen(viewTexts)); }; });
       app.$view.querySelectorAll('[data-type]').forEach(function (b) {
         b.onclick = function () { app.store.getText(b.dataset.type).then(U.onThisScreen(function (t) { startExercise('prose', { text: t }); })); };
       });
       app.$view.querySelectorAll('select[data-chapter]').forEach(function (sel) {
         sel.onchange = function () {
-          app.store.getText(sel.dataset.chapter).then(function (t) { t.pos = +sel.value; return app.store.saveText(t); }).then(U.onThisScreen(viewTexts));
+          app.store.getText(sel.dataset.chapter).then(function (t) { t.pos = +sel.value; return app.store.saveText(t).then(function () { return t; }); })
+            .then(U.onThisScreen(function (t) { sel.closest('td').querySelector('[data-progress]').textContent = proseProgress(t, t.pos); })).catch(storageError);
         };
       });
       app.$view.querySelectorAll('[data-restart]').forEach(function (b) {
@@ -133,7 +143,7 @@
       app.$view.querySelectorAll('[data-del]').forEach(function (b) {
         b.onclick = function () {
           if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Click again to delete'; return; }
-          app.store.deleteText(b.dataset.del).then(viewTexts);
+          app.store.deleteText(b.dataset.del).then(U.onThisScreen(viewTexts));
         };
       });
     }));

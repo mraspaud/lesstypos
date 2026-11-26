@@ -204,7 +204,9 @@
   }
   function viewNeedText(c) {
     app.current = 'needtext';
+    app.screenGen = (app.screenGen || 0) + 1;
     renderNav();
+    app.keys = { Escape: function () { go('home'); } };
     U.bundledOffer().then(U.onThisScreen(function (offer) {
       setView('<section class="stack"><h1>Prose needs a text</h1>' +
         (offer ? '<div class="row"><button class="btn primary" type="button" id="usebundled">Type ' + esc(U.bundledLabel(offer)) + '</button></div>' +
@@ -219,7 +221,6 @@
         use.focus();
       } else document.getElementById('tbody').focus();
       document.getElementById('skipprose').onclick = function () { app.run.skip(); saveRun(); viewBetween(); };
-      app.keys = { Escape: function () { go('home'); } };
     }));
   }
   function viewProgrammeSummary() {

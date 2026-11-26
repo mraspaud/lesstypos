@@ -930,6 +930,21 @@ await step('the instruction card is shown in full, heading to keys, on desktop a
   }
 });
 
+await step('after a click on the instruction card, one Enter starts', async () => {
+  await page.goto(plainUrl);
+  await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  try {
+    await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
+    await page.locator('#briefing').click();
+    await page.keyboard.press('Enter');
+    assert.equal(await page.locator('#briefing').count(), 0);
+    await page.keyboard.press('Escape');
+  } finally {
+    await page.goto(url);
+    await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  }
+});
+
 await step('an instruction card comes before the exercise; Enter starts, letters before it do nothing', async () => {
   await page.goto(plainUrl);
   await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
@@ -1003,6 +1018,28 @@ await step('with no texts, prose starts in Alice in Wonderland', async () => {
   assert.match(await page.locator('.ex-head').textContent(), /Down the Rabbit-Hole/);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Delete');
+});
+
+await step('the chapter choice steps with the arrow keys and keeps the focus', async () => {
+  await nav('settings/texts');
+  const select = page.locator('select[data-chapter="alice"]');
+  await select.waitFor();
+  await select.focus();
+  const before = +(await select.inputValue());
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowDown');
+  await page.waitForTimeout(200);
+  const options = await select.locator('option').evaluateAll((os) => os.map((o) => +o.value));
+  assert.equal(+(await page.locator('select[data-chapter="alice"]').inputValue()), options[options.indexOf(before) + 2]);
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.chapter), 'alice');
+});
+
+await step('a page that finishes loading after an exercise has started does not replace it', async () => {
+  await page.evaluate(() => { window.FT.ui.viewTexts(); window.FT.ui.startExercise('relaxed', { minutes: 1 }); });
+  await page.waitForTimeout(300);
+  assert.ok(await page.locator('#window').isVisible());
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('1');
 });
 
 await step('"Prose needs a text" offers Alice in Wonderland on Enter, else the text box', async () => {

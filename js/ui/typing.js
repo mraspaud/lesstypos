@@ -30,6 +30,7 @@
   }
   function startExercise(type, opts) {
     stopTyping();
+    app.screenGen = (app.screenGen || 0) + 1; // pages still loading must not paint over the exercise
     opts = opts || {};
     app.current = 'typing';
     document.body.classList.add('typing-mode');
@@ -72,6 +73,7 @@
       onDelete: function () { if (ty && ty.stopped) discard(); },
     });
     ty.win.addEventListener('click', focusCapture);
+    if (ty.briefing) document.getElementById('briefing').addEventListener('click', focusCapture);
     ty.capture.addEventListener('blur', function () { if (ty) { ty.win.classList.add('blurred'); hint('Click here or press any key to continue typing.'); } });
     ty.capture.addEventListener('focus', function () { if (ty) { ty.win.classList.remove('blurred'); hint(ty.first == null && !ty.briefing ? 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.' : ''); } });
     focusCapture();
@@ -354,7 +356,7 @@
   function keyElsewhere(e) {
     if (!ty) return;
     focusCapture();
-    var act = { Escape: onEscape, Delete: ty.stopped ? discard : null, Enter: ty.stopped ? finishExercise : null }[e.key];
+    var act = { Escape: onEscape, Delete: ty.stopped ? discard : null, Enter: ty.briefing ? closeBriefing : ty.stopped ? finishExercise : null }[e.key];
     if (act) { e.preventDefault(); act(); }
   }
   // Leaving while typing (nav, links, Back) pauses instead (user decision).
