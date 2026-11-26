@@ -9,7 +9,9 @@
 //   per-user baseline follows Dhakal et al.; centring each population per
 //   session on its mean log interval (geometric mean) is a design choice: the
 //   model compares log ratios, and a median would leave populations with
-//   different skew offset from each other.
+//   different skew offset from each other. Each population's arithmetic mean
+//   (meanMs, untrimmed: slow keystrokes take real time too) is reported
+//   beside it, since durations add up arithmetically.
 // - Multi-character outputs: a single input event carrying several characters
 //   is one motor event (observed fact). Declared macros typed as separate fast
 //   keystrokes (< FT.presses.MACRO_GAP_MS) are merged too (FT.presses.ids).
@@ -33,7 +35,8 @@
     var intervals = cleanIntervals(records);
     var centre = centreRatios(records, intervals);
     return { records: records, baseline: { within: FT.stats.median(intervals.within), initial: FT.stats.median(intervals.initial) },
-      centreMs: { within: inMs(centre.within), initial: inMs(centre.initial) } };
+      centreMs: { within: inMs(centre.within), initial: inMs(centre.initial) },
+      meanMs: { within: FT.stats.mean(intervals.within), initial: FT.stats.mean(intervals.initial) } };
   }
 
   function characterRecords(words, analyses, pauseMs) {

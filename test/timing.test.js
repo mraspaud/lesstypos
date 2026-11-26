@@ -256,3 +256,20 @@ test('the session reports each population’s centre in ms', () => {
 test('a population without clean intervals has no centre', () => {
   assert.equal(run([['abc', 'abc ', 100]]).centreMs.initial, null);
 });
+
+// Time adds up arithmetically, so the fluency index scales on the arithmetic
+// mean of the clean intervals (all of them: slow ones take real time too).
+test('the session reports each population’s arithmetic mean of clean intervals in ms', () => {
+  const r = run([['abc', 'abc ', [300, 100, 120, 110]], ['abc', 'abc ', [250, 90, 100, 100]], ['abc', 'abc ', [280, 110, 100, 400]]]);
+  const clean = r.records.filter((x) => x.clean);
+  const mean = (ikis) => ikis.reduce((a, b) => a + b, 0) / ikis.length;
+  for (const [population, initial] of [['within', false], ['initial', true]]) {
+    const ikis = clean.filter((x) => x.wordInitial === initial).map((x) => x.iki);
+    assert.ok(Math.abs(r.meanMs[population] - mean(ikis)) < 1e-9, population);
+  }
+  assert.ok(r.meanMs.within > r.centreMs.within);
+});
+
+test('a population without clean intervals has no mean', () => {
+  assert.equal(run([['abc', 'abc ', 100]]).meanMs.initial, null);
+});

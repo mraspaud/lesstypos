@@ -110,6 +110,10 @@
   }
   // Log of a duration in ms, floored at 1 microsecond (two keystrokes can share a timestamp).
   function logOf(ms) { return Math.log(Math.max(ms, 1e-3)); }
+  function mean(a) {
+    if (!a.length) return null;
+    return a.reduce(function (s, x) { return s + x; }, 0) / a.length;
+  }
   function meanLog(a) {
     if (!a.length) return null;
     return a.reduce(function (s, x) { return s + logOf(x); }, 0) / a.length;
@@ -123,5 +127,5 @@
   }
 
   FT.stats = { lgamma: lgamma, betaCdf: betaCdf, normCdf: normCdf, vjTrim: vjTrim,
-    vjCriterion: vjCriterion, recencyWeight: recencyWeight, meanSd: meanSd, median: median, meanLog: meanLog, logOf: logOf };
+    vjCriterion: vjCriterion, recencyWeight: recencyWeight, meanSd: meanSd, median: median, mean: mean, meanLog: meanLog, logOf: logOf };
 })(globalThis.FT);
