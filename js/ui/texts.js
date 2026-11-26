@@ -51,7 +51,7 @@
   }
   function viewTexts() {
     app.store.listTexts().then(function (list) {
-      var html = '<section class="stack"><h1>Texts</h1><p class="muted">Prose exercises continue the current text from where you stopped. Texts stay in this browser and are included in backups.</p></section>';
+      var html = '<section class="stack">' + U.sectionHead('settings') + '<p class="muted">Prose exercises continue the current text from where you stopped. Texts stay in this browser and are included in backups.</p></section>';
       if (list.length) {
         html += '<div class="tablewrap"><table><thead><tr><th>Title</th><th>Words</th><th>Progress</th><th></th></tr></thead><tbody>' +
           list.map(function (t) {

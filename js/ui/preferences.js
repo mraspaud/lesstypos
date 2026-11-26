@@ -16,37 +16,48 @@
   function setView() { return U.setView.apply(null, arguments); }
 
   // ---------- settings ----------
-  function viewSettings() {
+  // Settings come in groups (tabs): typing, daily training, keyboard, appearance.
+  var TEXT_SIZES = [20, 22, 24, 26, 28, 32, 36]; // px
+  function viewSettings(group) {
+    group = group || 'typing';
     var s = app.settings, d = app.trainer.difficulty.state();
-    var html = '<section class="stack"><h1>Settings</h1></section><form class="form" id="sform">' +
-      '<label for="durationMin">Exercise length</label><div><select id="durationMin">' +
-      [1, 2, 3, 5, 7, 10].map(function (m) { return '<option value="' + m + '"' + (s.durationMin === m ? ' selected' : '') + '>' + m + ' min</option>'; }).join('') + '</select></div>' +
-      '<label for="errorMode">After a wrong key</label><div><select id="errorMode">' +
-      '<option value="continue"' + (s.errorMode === 'continue' ? ' selected' : '') + '>Keep going (fix with backspace if you like)</option>' +
-      '<option value="stop"' + (s.errorMode === 'stop' ? ' selected' : '') + '>Stop until it is corrected</option></select></div>' +
-      '<label for="errorStyle">Error highlighting</label><div><select id="errorStyle">' +
-      '<option value="clear"' + (s.errorStyle === 'clear' ? ' selected' : '') + '>Clear</option>' +
-      '<option value="subtle"' + (s.errorStyle === 'subtle' ? ' selected' : '') + '>Subtle (colour only)</option></select></div>' +
-      '<label for="showTimer">Remaining time</label><div><select id="showTimer"><option value="1"' + (s.showTimer ? ' selected' : '') + '>Show</option><option value="0"' + (!s.showTimer ? ' selected' : '') + '>Hide</option></select></div>' +
-      '<label for="macros">Multi-letter keys</label><div><input type="text" id="macros" value="' + esc((s.macros || []).join(' ')) + '" placeholder="th qu">' +
-      '<p class="help">Keys that type several letters at once, separated by spaces. They count fully towards speed and are timed as one movement. Keys in your layout below are included automatically.</p>' +
-      '<p class="help" id="layoutMacros"></p>' +
-      '<label class="row"><input type="checkbox" id="autoMacros"' + (s.autoMacros ? ' checked' : '') + '> Suggest pairs that always arrive almost simultaneously</label><div id="cands" class="help"></div></div>' +
-      '<label for="frontier">Vocabulary</label><div class="row"><select id="vocabMode"><option value="auto"' + (!d.manual ? ' selected' : '') + '>Adapt automatically</option><option value="manual"' + (d.manual ? ' selected' : '') + '>Fixed</option></select>' +
-      '<input type="number" id="frontier" min="100" max="' + app.trainer.corpus.size + '" step="50" value="' + Math.round(d.frontier) + '" style="max-width:8rem"' + (d.manual ? '' : ' disabled') + '> <span class="muted">most common words</span></div>' +
-      '<label for="fontSize">Text size</label><div><input type="number" id="fontSize" min="1" max="3" step="0.1" value="' + s.fontSize + '" style="max-width:6rem"> <span class="muted">rem</span></div>' +
-      '<label>Daily training</label><div class="stack" id="progedit"></div>' +
-      '<label for="accents">Prose characters</label><div><label class="row"><input type="checkbox" id="accents"' + (s.accents !== false ? ' checked' : '') + '> Accept letters without accents (e for é)</label>' +
-      '<p class="help">Curly quotes and long dashes always accept their plain keyboard versions.</p></div>' +
-      '<label for="theme">Theme</label><div><select id="theme">' + ['system', 'light', 'dark'].map(function (v) { return '<option' + (s.theme === v ? ' selected' : '') + '>' + v + '</option>'; }).join('') + '</select></div>' +
-      '<label for="layoutText">Keyboard layout (optional)</label><div><textarea id="layoutText" class="mono" placeholder="q w e r t   y u i o p&#10;a s d f g   h j k l ;&#10;z x c v b   n m , . /&#10;space&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;5">' + esc(s.layoutText || '') + '</textarea>' +
-      '<p class="help">Rows of keys, then the same rows again as finger numbers (0 = left pinky … 3 = left index, 4 = left thumb, 5 = right thumb, 6 = right index … 9 = right pinky). ' +
-      'Write a key that types several letters as one token (<span class="seq">th</span>, <span class="seq">qu</span>) and the space bar as <span class="seq">space</span>. ' +
-      'The layout is only used to describe sequences (same finger, rolls, scissors); training never depends on it. Multi-letter keys are added to the multi-letter keys above.</p><p class="help" id="layoutStatus"></p></div>' +
-      '</form>';
+    var sizePx = Math.round((s.fontSize || 1.6) * 16);
+    var near = TEXT_SIZES.reduce(function (a, b) { return Math.abs(b - sizePx) < Math.abs(a - sizePx) ? b : a; });
+    var fields = {
+      typing:
+        '<label for="durationMin">Exercise length</label><div><select id="durationMin">' +
+        [1, 2, 3, 5, 7, 10].map(function (m) { return '<option value="' + m + '"' + (s.durationMin === m ? ' selected' : '') + '>' + m + ' min</option>'; }).join('') + '</select></div>' +
+        '<label for="errorMode">After a wrong key</label><div><select id="errorMode">' +
+        '<option value="continue"' + (s.errorMode === 'continue' ? ' selected' : '') + '>Keep going (fix with backspace if you like)</option>' +
+        '<option value="stop"' + (s.errorMode === 'stop' ? ' selected' : '') + '>Stop until it is corrected</option></select></div>' +
+        '<label for="errorStyle">Error highlighting</label><div><select id="errorStyle">' +
+        '<option value="clear"' + (s.errorStyle === 'clear' ? ' selected' : '') + '>Clear</option>' +
+        '<option value="subtle"' + (s.errorStyle === 'subtle' ? ' selected' : '') + '>Subtle (colour only)</option></select></div>' +
+        '<label for="showTimer">Remaining time</label><div><select id="showTimer"><option value="1"' + (s.showTimer ? ' selected' : '') + '>Show</option><option value="0"' + (!s.showTimer ? ' selected' : '') + '>Hide</option></select></div>' +
+        '<label for="vocabMode">Vocabulary</label><div class="row"><select id="vocabMode"><option value="auto"' + (!d.manual ? ' selected' : '') + '>Adapt automatically</option><option value="manual"' + (d.manual ? ' selected' : '') + '>Fixed</option></select>' +
+        '<input type="number" id="frontier" min="100" max="' + app.trainer.corpus.size + '" step="50" value="' + Math.round(d.frontier) + '" style="max-width:8rem" aria-label="Number of common words"' + (d.manual ? '' : ' disabled') + '> <span class="muted">most common words</span></div>' +
+        '<label for="accents">Prose characters</label><div><label class="row"><input type="checkbox" id="accents"' + (s.accents !== false ? ' checked' : '') + '> Accept letters without accents (e for é)</label>' +
+        '<p class="help">Curly quotes and long dashes always accept their plain keyboard versions.</p></div>',
+      training:
+        '<label>Exercises</label><div class="stack" id="progedit"></div>',
+      keyboard:
+        '<label for="macros">Multi-letter keys</label><div><input type="text" id="macros" value="' + esc((s.macros || []).join(' ')) + '" placeholder="th qu">' +
+        '<p class="help">Keys that type several letters at once, separated by spaces. They count fully towards speed and are timed as one movement. Keys in your layout below are included automatically.</p>' +
+        '<p class="help" id="layoutMacros"></p>' +
+        '<label class="row"><input type="checkbox" id="autoMacros"' + (s.autoMacros ? ' checked' : '') + '> Suggest pairs that always arrive almost simultaneously</label><div id="cands" class="help"></div></div>' +
+        '<label for="layoutText">Keyboard layout (optional)</label><div><textarea id="layoutText" class="mono" placeholder="q w e r t   y u i o p&#10;a s d f g   h j k l ;&#10;z x c v b   n m , . /&#10;space&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;5">' + esc(s.layoutText || '') + '</textarea>' +
+        '<p class="help">Rows of keys, then the same rows again as finger numbers (0 = left pinky … 3 = left index, 4 = left thumb, 5 = right thumb, 6 = right index … 9 = right pinky). ' +
+        'Write a key that types several letters as one token (<span class="seq">th</span>, <span class="seq">qu</span>) and the space bar as <span class="seq">space</span>. ' +
+        'The layout is only used to describe sequences (same finger, rolls, scissors); training never depends on it. Multi-letter keys are added to the multi-letter keys above.</p><p class="help" id="layoutStatus"></p></div>',
+      appearance:
+        '<label for="theme">Theme</label><div><select id="theme">' + [['system', 'Follow the system'], ['light', 'Canvas (light)'], ['dark', 'Ink (dark)']].map(function (v) { return '<option value="' + v[0] + '"' + (s.theme === v[0] ? ' selected' : '') + '>' + v[1] + '</option>'; }).join('') + '</select></div>' +
+        '<label for="fontSize">Text size</label><div><select id="fontSize">' + TEXT_SIZES.map(function (px) { return '<option value="' + px + '"' + (px === near ? ' selected' : '') + '>' + px + ' px</option>'; }).join('') + '</select></div>',
+    };
+    var html = '<section class="stack">' + U.sectionHead('settings') + '</section><form class="form" id="sform">' + fields[group] + '</form>';
     setView(html);
     function layoutStatus() {
       var el = document.getElementById('layoutStatus'), lm = document.getElementById('layoutMacros');
+      if (!el || !lm) return;
       lm.textContent = app.layout && app.layout.macros.length ? 'From your layout: ' + app.layout.macros.join(' ') : '';
       if (!s.layoutText.trim()) { el.textContent = ''; return; }
       try { var L = FT.layout.parse(s.layoutText); el.textContent = 'Layout read: ' + Object.keys(L.keys).length + ' keys' + (L.macros.length ? ', multi-letter: ' + L.macros.join(' ') : '') + '.'; }
@@ -64,7 +75,7 @@
       else if (id === 'showTimer') s.showTimer = v === '1';
       else if (id === 'macros') s.macros = v.split(/[\s,]+/).filter(function (x) { return Array.from(x).length > 1; });
       else if (id === 'autoMacros') { s.autoMacros = e.target.checked; candidates(); }
-      else if (id === 'fontSize') s.fontSize = Math.min(3, Math.max(1, +v || 1.6));
+      else if (id === 'fontSize') s.fontSize = (+v || 26) / 16;
       else if (id === 'theme') s.theme = v;
       else if (id === 'accents') s.accents = e.target.checked;
       else if (e.target.dataset.step != null) {
@@ -118,7 +129,7 @@
 
   // ---------- data ----------
   function viewData() {
-    var html = '<section class="stack"><h1>Your data</h1>' +
+    var html = '<section class="stack">' + U.sectionHead('settings') +
       '<p class="muted">Everything stays in this browser' + (app.storageOk ? ' (IndexedDB)' : '') + '. Nothing is sent anywhere. Raw keystroke records are kept so statistics can be rebuilt when the method improves.</p>' +
       (app.storageOk ? '' : '<p class="notice">This browser does not allow storage for this page, so progress is lost when you close it. Export before leaving.</p>') +
       '<p class="muted num" id="usage"></p></section>' +

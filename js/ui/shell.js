@@ -55,22 +55,50 @@
   }
 
   // ---------- routing ----------
-  var ROUTES = ['home', 'texts', 'sequences', 'errors', 'history', 'preferences', 'data'];
-  var NAV = [['home', 'Practice', 'p'], ['texts', 'Texts', 't'], ['sequences', 'Sequences', 'q'], ['errors', 'Errors', 'e'],
-    ['history', 'History', 'h'], ['preferences', 'Settings', 's'], ['data', 'Data', 'd']];
+  // Three sections: Train, Insights (tabs) and Settings (tabs). Routes are
+  // "section" or "section/tab"; older page names still work.
+  var SECTIONS = {
+    home: { name: 'Train', key: '1' },
+    insights: { name: 'Insights', key: '2', tabs: [['focus', 'Focus'], ['errors', 'Errors'], ['progress', 'Progress']] },
+    settings: { name: 'Settings', key: '3', tabs: [['typing', 'Typing'], ['training', 'Daily training'], ['keyboard', 'Keyboard'],
+      ['appearance', 'Appearance'], ['texts', 'Texts'], ['data', 'Data']] },
+  };
+  var NAV = ['home', 'insights', 'settings'].map(function (k) { return [k, SECTIONS[k].name, SECTIONS[k].key]; });
+  var ALIASES = { sequences: 'insights/focus', errors: 'insights/errors', history: 'insights/progress', insights: 'insights/focus',
+    preferences: 'settings/typing', settings: 'settings/typing', texts: 'settings/texts', data: 'settings/data' };
+  // direct letters (listed by ?)
+  var LETTERS = { p: 'home', q: 'insights/focus', e: 'insights/errors', h: 'insights/progress', s: 'settings/typing', t: 'settings/texts', d: 'settings/data' };
+  var VIEWS = {
+    home: function () { viewHome(); },
+    'insights/focus': function () { viewSequences(); }, 'insights/errors': function () { viewErrors(); }, 'insights/progress': function () { viewHistory(); },
+    'settings/typing': function () { viewSettings('typing'); }, 'settings/training': function () { viewSettings('training'); },
+    'settings/keyboard': function () { viewSettings('keyboard'); }, 'settings/appearance': function () { viewSettings('appearance'); },
+    'settings/texts': function () { viewTexts(); }, 'settings/data': function () { viewData(); },
+  };
+  function resolve(name) { name = ALIASES[name] || name; return VIEWS[name] ? name : 'home'; }
+  function sectionOf(route) { return String(route || '').split('/')[0]; }
   function go(name) {
-    if (ROUTES.indexOf(name) < 0) name = 'home';
+    name = resolve(name);
     if (location.hash.slice(1) !== name) { try { location.hash = name; } catch (e) { /* ignore */ } }
     show(name);
   }
   function show(name) {
+    name = resolve(name);
     leaveScreen();
     stopTyping();
     app.current = name;
     document.body.classList.remove('typing-mode');
     renderNav();
-    ({ home: viewHome, texts: viewTexts, sequences: viewSequences, errors: viewErrors, history: viewHistory,
-      preferences: viewSettings, data: viewData })[name]();
+    VIEWS[name]();
+  }
+  // The section heading and its tabs, for the top of a tabbed page.
+  function sectionHead(section) {
+    var S = SECTIONS[section], cur = app.current;
+    return '<h1>' + esc(S.name) + '</h1><div class="tabs sectiontabs" role="tablist" aria-label="' + esc(S.name) + '">' +
+      S.tabs.map(function (t) {
+        var r = section + '/' + t[0];
+        return '<button type="button" role="tab" data-stab="' + r + '" aria-selected="' + (cur === r) + '"' + (cur === r ? ' aria-current="page"' : '') + '>' + esc(t[1]) + '</button>';
+      }).join('') + '</div>';
   }
   // Leaving a screen: an exercise waiting for its effort rating is saved
   // without one, and screen-specific key handlers are dropped.
@@ -81,7 +109,7 @@
   }
   function renderNav() {
     app.$nav.innerHTML = NAV.map(function (n) {
-      return '<button type="button" data-go="' + n[0] + '"' + (app.current === n[0] ? ' aria-current="page"' : '') + '>' +
+      return '<button type="button" data-go="' + n[0] + '"' + (sectionOf(app.current) === n[0] ? ' aria-current="page"' : '') + '>' +
         esc(n[1]) + '<kbd>' + n[2] + '</kbd></button>';
     }).join('');
   }
@@ -111,6 +139,7 @@
     app.$view.innerHTML = '<div id="notice" class="notice" hidden></div>' + html;
     document.body.classList.toggle('quiet-nav', app.current === 'typing' || app.current === 'effort');
     renderNotice();
+    app.$view.querySelectorAll('[data-stab]').forEach(function (b) { b.onclick = function () { go(b.dataset.stab); }; });
     var back = had && document.getElementById(had);
     var target = back && app.$view.contains(back) ? back : app.$view.querySelector('h1') || app.$view;
     if (target.tagName === 'H1' || target === app.$view) target.setAttribute('tabindex', '-1');
@@ -130,14 +159,25 @@
     return true;
   }
   function moveTab(dir) {
-    var a = document.activeElement;
-    if (!a || !a.dataset || a.dataset.tab == null) return false;
-    var tabs = Array.prototype.slice.call(a.parentNode.querySelectorAll('[data-tab]'));
+    var a = document.activeElement, attr = a && a.dataset && (a.dataset.tab != null ? 'tab' : a.dataset.stab != null ? 'stab' : null);
+    if (!attr) return false;
+    var sel = '[data-' + attr + ']';
+    var tabs = Array.prototype.slice.call(a.parentNode.querySelectorAll(sel));
     var next = tabs[(tabs.indexOf(a) + dir + tabs.length) % tabs.length];
-    var id = next.dataset.tab;
+    var id = next.dataset[attr];
     next.click();
-    var again = app.$view.querySelector('[data-tab="' + id + '"]');
+    var again = app.$view.querySelector('[data-' + attr + '="' + id + '"]');
     if (again) again.focus();
+    return true;
+  }
+  // [ and ] switch to the previous or next tab of the section.
+  function stepSection(dir) {
+    var sec = SECTIONS[sectionOf(app.current)];
+    if (!sec || !sec.tabs) return false;
+    var names = sec.tabs.map(function (t) { return sectionOf(app.current) + '/' + t[0]; });
+    var i = names.indexOf(app.current);
+    if (i < 0) return false;
+    go(names[(i + dir + names.length) % names.length]);
     return true;
   }
 
@@ -155,8 +195,13 @@
       rows.push([k.textContent, b.textContent.trim()]);
     });
     if (app.$view.querySelector('[data-row]')) rows.push(['j k ↓ ↑', 'Move through the list'], ['Enter', 'Open the selected row']);
-    if (app.$view.querySelector('[data-tab]')) rows.push(['← →', 'Switch tabs (on a tab)']);
+    if (app.$view.querySelector('[data-tab], [data-stab]')) rows.push(['← →', 'Switch tabs (on a tab)']);
+    if (app.$view.querySelector('[data-stab]')) rows.push(['[ ]', 'Previous or next tab']);
     NAV.forEach(function (n) { rows.push([n[2], n[1]]); });
+    Object.keys(LETTERS).forEach(function (k) {
+      var r = LETTERS[k], sec = SECTIONS[sectionOf(r)], tab = sec.tabs && sec.tabs.filter(function (t) { return r === sectionOf(r) + '/' + t[0]; })[0];
+      rows.push([k, sec.name + (tab ? ': ' + tab[1] : '')]);
+    });
     rows.push(['?', 'Show or hide this list'], ['Esc', 'Close this list']);
     var el = document.createElement('div');
     el.id = 'keyhelp'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Keyboard shortcuts');
@@ -168,6 +213,7 @@
   // Letters typed past the end of an exercise must not act as shortcuts.
   function typedJustNow() { return Date.now() - (app.typingEndedAt || 0) < 1500; }
   function onGlobalKey(e) {
+    if (e.defaultPrevented) return; // already handled (e.g. a digit answering the effort question)
     if (app.current === 'typing' || app.current === 'effort') return;
     var tag = (e.target && e.target.tagName) || '';
     if (/INPUT|TEXTAREA|SELECT/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -183,8 +229,10 @@
       e.preventDefault(); app.keys = {}; f(); return;
     }
     if (typedJustNow()) return;
+    if ((e.key === '[' || e.key === ']') && stepSection(e.key === ']' ? 1 : -1)) { e.preventDefault(); return; }
     var n = NAV.filter(function (x) { return x[2] === e.key; })[0];
-    if (n) { e.preventDefault(); go(n[0]); }
+    if (n) { e.preventDefault(); go(n[0]); return; }
+    if (LETTERS[e.key]) { e.preventDefault(); go(LETTERS[e.key]); }
   }
 
   // ---------- boot ----------
@@ -193,7 +241,12 @@
     app.$nav = document.getElementById('nav');
     document.addEventListener('keydown', onGlobalKey);
     app.$nav.addEventListener('click', function (e) { var b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
-    window.addEventListener('hashchange', function () { var h = location.hash.slice(1); if (h !== app.current && ROUTES.indexOf(h) >= 0) show(h); });
+    window.addEventListener('hashchange', function () {
+      var h = location.hash.slice(1);
+      if (!h || resolve(h) === app.current) return;
+      if (h !== resolve(h)) { go(h); return; } // an older page name: show its new place
+      show(h);
+    });
     var adapter;
     var ready = Promise.resolve().then(function () {
       adapter = FT.store.idbAdapter('lesstypos');
@@ -214,7 +267,7 @@
       }).then(function () {
         if (!app.storageOk) app.notice = 'This browser does not allow storage for this page, so progress will be lost when you close it. Use Data → Export to keep it.';
         var h = location.hash.slice(1);
-        show(ROUTES.indexOf(h) >= 0 ? h : 'home');
+        show(resolve(h));
       }).catch(function (e) {
         app.$view.innerHTML = '<p class="notice">LessTypos could not start: ' + esc(e && e.message || e) + '</p>';
       });
@@ -223,5 +276,5 @@
   }
 
 
-  Object.assign(U, { macros: macros, applySettings: applySettings, programmeDef: programmeDef, today: today, saveSettings: saveSettings, saveProfile: saveProfile, storageError: storageError, makeTrainer: makeTrainer, go: go, show: show, renderNav: renderNav, renderNotice: renderNotice, announce: announce, setView: setView, onGlobalKey: onGlobalKey, boot: boot });
+  Object.assign(U, { macros: macros, applySettings: applySettings, programmeDef: programmeDef, today: today, saveSettings: saveSettings, saveProfile: saveProfile, storageError: storageError, makeTrainer: makeTrainer, go: go, show: show, renderNav: renderNav, renderNotice: renderNotice, announce: announce, setView: setView, sectionHead: sectionHead, onGlobalKey: onGlobalKey, boot: boot });
 })(globalThis.FT);

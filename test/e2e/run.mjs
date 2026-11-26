@@ -18,6 +18,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g/.test(m.text())) errors.push(m.text()); });
 
+const nav = (route) => page.evaluate((r) => window.FT.ui.go(r), route);
 async function step(name, fn) {
   try { await fn(); console.log('ok -', name); }
   catch (e) { console.log('not ok -', name); console.log(e); process.exitCode = 1; }
@@ -172,6 +173,7 @@ await step('export, delete everything, import restores the history', async () =>
 
 await step('settings accept a layout and multi-letter keys', async () => {
   await page.keyboard.press('s');
+  await page.getByRole('tab', { name: 'Keyboard' }).click();
   await page.fill('#macros', 'th qu');
   await page.locator('#macros').dispatchEvent('change');
   const thornium = 'z b w h g " : . / j x @\n( s c n t k , a e i m )\n[ f p l d v = u o y th ]\nqu r space \'\n' +
@@ -189,9 +191,9 @@ await step('settings accept a layout and multi-letter keys', async () => {
   await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
   await page.getByText('How much effort did that take?').waitFor();
   await page.keyboard.press('2');
-  await page.locator('[data-go="errors"]').click();
+  await page.keyboard.press('e');
   await page.getByText('Kinds of slips').waitFor();
-  await page.locator('[data-go="preferences"]').click();
+  await page.keyboard.press('s');
   assert.deepEqual(await page.evaluate(() => window.FT.app.settings.macros), ['th', 'qu']);
 });
 
@@ -213,7 +215,7 @@ async function typeUntilEffort(limitMs = 60000) {
 }
 
 await step('a text can be added for prose', async () => {
-  await page.locator('[data-go="texts"]').click();
+  await page.keyboard.press('t');
   await page.fill('#ttitle', 'Test text');
   const body = Array.from({ length: 30 }, (_, i) => (i % 5 === 0 ? 'Don\u2019t' : 'word' + i)).join(' ');
   await page.fill('#tbody', body);
@@ -262,8 +264,9 @@ await step('an interrupted programme can be resumed after a reload', async () =>
 
 // ---- regressions found by the review ----
 await step('the navigation marks the current page', async () => {
-  await page.locator('[data-go="history"]').click();
-  await page.locator('[data-go="history"][aria-current="page"]').waitFor({ timeout: 3000 });
+  await page.keyboard.press('h');
+  await page.locator('[data-go="insights"][aria-current="page"]').waitFor({ timeout: 3000 });
+  await page.locator('[data-stab="insights/progress"][aria-current="page"]').waitFor({ timeout: 3000 });
 });
 
 await step('leaving the effort question saves the exercise and leaves no stray key handler', async () => {
@@ -275,7 +278,7 @@ await step('leaving the effort question saves the exercise and leaves no stray k
   await page.keyboard.type(ws.join(' ') + ' ', { delay: 5 });
   await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
   await page.getByText('How much effort did that take?').waitFor();
-  await page.locator('[data-go="history"]').click();
+  await nav('insights/progress');
   assert.equal(await page.evaluate(() => window.FT.app.trainer.history().length), before + 1);
   // a "1" typed later inside a new exercise is just typing
   await page.locator('[data-go="home"]').click();
@@ -369,7 +372,7 @@ await step('a benchmark set runs three trials and shows the median', async () =>
 });
 
 await step('History shows progress charts with tooltips and tables', async () => {
-  await page.locator('[data-go="history"]').click();
+  await nav('insights/progress');
   for (const title of ['Relaxed speed', 'Benchmark', 'Common-pair timing', 'Accuracy', 'Effort signals (experimental)']) {
     await page.locator('.progress-chart h3', { hasText: title }).waitFor();
   }
@@ -383,7 +386,7 @@ await step('History shows progress charts with tooltips and tables', async () =>
 });
 
 await step('with a layout, the Errors page and summaries show a keyboard heatmap', async () => {
-  await page.locator('[data-go="errors"]').click();
+  await nav('insights/errors');
   const hm = page.locator('.heatmap').first();
   await hm.locator('svg rect.key').first().waitFor();
   assert.ok(await hm.locator('svg rect.key').count() >= 30);
@@ -406,7 +409,7 @@ await step('with a layout, the Errors page and summaries show a keyboard heatmap
 });
 
 await step('with a layout, Sequences shows performance by movement type', async () => {
-  await page.locator('[data-go="sequences"]').click();
+  await nav('insights/focus');
   const t = page.locator('#movement');
   await t.locator('td', { hasText: 'alternation' }).first().waitFor();
   await t.locator('[data-key]').first().click();
@@ -565,6 +568,28 @@ await step('importing a backup with statistics from an older model rebuilds them
   const v = await page.evaluate(() => [window.FT.app.trainer.profile().modelVersion, window.FT.MODEL_VERSION, window.FT.app.trainer.history().some((h) => h.keys)]);
   assert.equal(v[0], v[1]);
   assert.equal(v[2], true);
+});
+
+
+await step('three sections by number keys; tabs by [ ] and arrows; old addresses still work', async () => {
+  await page.keyboard.press('1');
+  await page.locator('[data-go="home"][aria-current="page"]').waitFor();
+  await page.keyboard.press('2');
+  await page.locator('[data-stab="insights/focus"][aria-current="page"]').waitFor();
+  await page.keyboard.press(']');
+  await page.locator('[data-stab="insights/errors"][aria-current="page"]').waitFor();
+  await page.locator('[data-stab="insights/errors"]').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.locator('[data-stab="insights/progress"][aria-current="page"]').waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.stab), 'insights/progress');
+  await page.keyboard.press('3');
+  await page.locator('[data-stab="settings/typing"][aria-current="page"]').waitFor();
+  assert.equal(await page.locator('#nav button').count(), 3);
+  await page.evaluate(() => { location.hash = 'history'; });
+  await page.waitForFunction(() => location.hash === '#insights/progress');
+  await page.locator('[data-stab="insights/progress"][aria-current="page"]').waitFor();
+  await page.evaluate(() => { location.hash = 'texts'; });
+  await page.locator('[data-stab="settings/texts"][aria-current="page"]').waitFor();
 });
 
 await step('phone width has no horizontal scroll', async () => {

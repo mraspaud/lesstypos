@@ -29,5 +29,21 @@
       '; statistics derived from them take ' + size(z.profileBytes) + '.';
   }
 
-  FT.fmt = { storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
+  // One name per thing: a sequence's training stage, and the model's judgement.
+  var STAGES = { weak: 'in training', improving: 'improving', consolidating: 'consolidating', mastered: 'mastered' };
+  var STATES = { weak: 'more errors', hesitant: 'slower', emerging: 'seen in 1 session', ok: 'fine',
+    insufficient: 'too few yet', redundant: 'same as shorter' };
+  function stageLabel(name) { return STAGES[name] || name; }
+  function stateLabel(name) { return STATES[name] || name; }
+  function labelled(name, text) { return name ? '<span class="pill ' + esc(name) + '">' + esc(text) + '</span>' : ''; }
+  function stagePill(name) { return labelled(name, stageLabel(name)); }
+  function statePill(name) { return labelled(name, stateLabel(name)); }
+  function statusLegend() {
+    return '<b>In training</b>: practised often. <b>Improving</b>: no longer worse, still practised. ' +
+      '<b>Consolidating</b>: checked at growing intervals. <b>Mastered</b>: checked rarely. ' +
+      '<b>Slower</b> or <b>more errors</b>: credibly worse than the shorter sequence in other words, in at least 2 sessions. ' +
+      '<b>Seen in 1 session</b>: worse so far, waiting for a second session.';
+  }
+
+  FT.fmt = { stageLabel: stageLabel, stateLabel: stateLabel, stagePill: stagePill, statePill: statePill, statusLegend: statusLegend, storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
 })(globalThis.FT);

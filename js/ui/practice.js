@@ -39,21 +39,21 @@
       '<button class="btn" type="button" id="bench">Benchmark · 3 × 1 min</button><span class="muted">' + benchmarkDue(h) + '</span></div>' +
       '</section>' +
       '<section class="stack"><h3>Where you are</h3><div class="status">' +
-      '<div><b class="num">' + Math.round(d.frontier) + '</b><span>most common words in use' + (d.manual ? ' (manual)' : '') + '</span></div>' +
-      '<div><b class="num">' + t.targets().length + '</b><span>sequences in training</span></div>' +
+      '<div><b class="num">' + Math.round(d.frontier) + '</b><span>common words in use' + (d.manual ? ' (fixed)' : '') + '</span></div>' +
+      '<div><b class="num">' + t.targets().length + '</b><span>in the focus list</span></div>' +
       '<div><b class="num">' + h.length + '</b><span>exercises so far</span></div>' +
       (last ? '<div><b class="num">' + fix(last.wpm) + ' · ' + pct(last.faa) + '</b><span>last relaxed WPM · accuracy</span></div>' : '') +
       '</div></section>';
     if (targets.length) {
-      html += '<section class="stack"><h3>Training focus</h3><div class="row">' +
-        targets.map(function (x) { return seq(x.key) + ' ' + pill(x.stage); }).join('&nbsp;&nbsp;') + '</div>' +
-        '<p class="muted">These sequences will appear inside ordinary words. <a href="#sequences">Why these?</a></p></section>';
+      html += '<section class="stack"><h3>Focus list</h3><div class="row">' +
+        targets.map(function (x) { return seq(x.key) + ' ' + FT.fmt.stagePill(x.stage); }).join('&nbsp;&nbsp;') + '</div>' +
+        '<p class="muted">These sequences will appear inside ordinary words. <a href="#insights/focus">Why these?</a></p></section>';
     } else if (!h.length) {
       html += '<section class="stack panel"><h2>How this works</h2>' +
         '<p>LessTypos watches every keystroke and learns which letter sequences, including those across spaces, cost you errors or hesitation. ' +
         'Later exercises weave those sequences into everyday words, while about a fifth of the words stay random so progress can be measured fairly.</p>' +
-        '<p>Vocabulary grows when your first-attempt accuracy stays above 99.5% and typing feels comfortable. It never asks for a minimum speed.</p>' +
-        '<p class="muted">For the prose exercise, add a text you would like to read on the <a href="#texts">Texts</a> page. If your keyboard has keys that type several letters at once (such as <span class="seq">th</span>), declare them in Settings.</p></section>';
+        '<p>Vocabulary grows when your accuracy (first try) stays above 99.5% and typing feels comfortable. It never asks for a minimum speed.</p>' +
+        '<p class="muted">For the prose exercise, add a text you would like to read in <a href="#settings/texts">Settings: Texts</a>. If your keyboard has keys that type several letters at once (such as <span class="seq">th</span>), declare them in <a href="#settings/keyboard">Settings: Keyboard</a>.</p></section>';
     }
     setView(html);
     document.getElementById('start').onclick = function () { startExercise('relaxed'); };
@@ -84,7 +84,7 @@
     var b = app.bench;
     if (b.trial < BENCH_TRIALS) {
       setView('<section class="stack"><h1>Trial ' + b.trial + ' of ' + BENCH_TRIALS + ' done</h1>' +
-        '<p>' + fix(s.metrics.wpm) + ' WPM at ' + pct(s.metrics.firstAttemptAccuracy) + ' first-attempt accuracy.</p>' +
+        '<p>' + fix(s.metrics.wpm) + ' WPM at ' + pct(s.metrics.firstAttemptAccuracy) + ' accuracy (first try).</p>' +
         '<p class="muted">Rest your hands for a moment. Keep the same comfortable pace in the next trial.</p>' +
         '<div class="row"><button class="btn primary" type="button" id="nexttrial">Next trial <kbd>Enter</kbd></button></div></section>');
       b.trial++;
@@ -108,7 +108,7 @@
     }
     var html = '<section class="stack"><h1>Benchmark result</h1><p class="muted">The median of ' + r.trials + ' trials, so one unusual trial does not move it.</p></section>' +
       '<div class="tiles"><div class="tile"><b>' + fix(r.wpm) + '</b><span>WPM (median of ' + r.trials + ' trials)</span></div>' +
-      '<div class="tile"><b>' + pct(r.faa) + '</b><span>first-attempt accuracy</span></div>' +
+      '<div class="tile"><b>' + pct(r.faa) + '</b><span>accuracy (first try)</span></div>' +
       '<div class="tile"><b>' + fix(r.min) + '–' + fix(r.max) + '</b><span>range across trials</span></div></div>';
     if (prev) html += '<p class="notice info">' + (r.wpm - prev.wpm >= 0 ? '+' : '') + fix(r.wpm - prev.wpm, 1) + ' WPM compared with your previous benchmark (' + fix(prev.wpm) + ' WPM on ' + esc(new Date(prev.t).toLocaleDateString()) + ').</p>';
     html += '<p class="muted">Benchmarks never change your vocabulary level, sequence statistics or training. See them over time on the History page.</p>' +
@@ -147,7 +147,7 @@
     var r = app.run, done = r.results().length, total = done + r.upcoming().length;
     return '<section class="panel stack" id="progbar"><h3>Daily training · ' + Math.min(done, total) + ' of ' + total + ' done</h3>' + nextLine() +
       '<div class="row">' + (r.current() ? '<button class="btn primary" type="button" id="pnext">Continue <kbd>Enter</kbd></button>' +
-        '<button class="btn" type="button" id="pskip">Skip next <kbd>n</kbd></button>' : '<button class="btn primary" type="button" id="pnext">See the session summary <kbd>Enter</kbd></button>') +
+        '<button class="btn" type="button" id="pskip">Skip next <kbd>n</kbd></button>' : '<button class="btn primary" type="button" id="pnext">See today\'s summary <kbd>Enter</kbd></button>') +
       '<button class="btn" type="button" id="prep">Repeat this one <kbd>r</kbd></button>' +
       '<button class="btn" type="button" id="pend">End training <kbd>x</kbd></button></div>' +
       '<p class="muted" id="endnote" hidden>Press x again to end today\'s training.</p>' +
@@ -211,7 +211,7 @@
           : '<td class="num">' + fix(r.ms / 60000, 1) + '</td><td class="num">' + fix(r.wpm) + '</td><td class="num">' + pct(r.faa) + '</td><td class="num">' + (r.effort || '–') + '</td><td>' + esc(r.note || '') + '</td>') + '</tr>';
       }).join('') + '</tbody></table></div>' +
       '<p class="muted">Speeds from different exercises are not comparable: warm-up and bursts use easier words, prose has capitals and punctuation.</p>' +
-      '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button><a href="#history">See history</a></div>';
+      '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button><a href="#insights/progress">See progress</a></div>';
     app.run = null;
     saveRun();
     setView(html);
@@ -286,7 +286,7 @@
       (s.effort ? ', effort ' + s.effort + ' (' + esc(EFFORT[s.effort - 1][1].toLowerCase()) + ')' : '') + '.</p></section>' +
       '<div class="tiles">' +
       '<div class="tile"><b>' + fix(m.wpm) + '</b><span>WPM</span></div>' +
-      '<div class="tile"><b>' + pct(m.firstAttemptAccuracy) + '</b><span>first-attempt accuracy</span></div>' +
+      '<div class="tile"><b>' + pct(m.firstAttemptAccuracy) + '</b><span>accuracy (first try)</span></div>' +
       '<div class="tile"><b>' + pct(s.random.firstAttemptAccuracy) + '</b><span>on the ' + s.random.words + ' random words</span></div>' +
       '<div class="tile"><b>' + pct(s.hesitationRate) + '</b><span>hesitations</span></div>' +
       '<div class="tile"><b>' + fix(s.rhythmCv, 2) + '</b><span>rhythm variation (lower is more even)</span></div>' +
@@ -318,7 +318,7 @@
       notes.push('<li><b>' + esc(verb) + '</b> at the ' + Math.round(s.frontier) + ' most common words: ' + esc(d.reasons.join('; ')) + '.</li>');
     }
     s.stageChanges.slice(0, 8).forEach(function (c) {
-      notes.push('<li>' + seq(c.key) + ' ' + (c.from ? pill(c.from) + ' → ' : 'is now ') + pill(c.to) + '</li>');
+      notes.push('<li>' + seq(c.key) + ' ' + (c.from ? FT.fmt.stagePill(c.from) + ' → ' : 'is now ') + FT.fmt.stagePill(c.to) + '</li>');
     });
     var corrected = m.IF ? m.IF + ' corrected keystrokes, ' : '';
     notes.push('<li>' + corrected + m.F + ' backspaces, ' + fix(m.INF) + ' uncorrected errors.</li>');
@@ -326,7 +326,7 @@
     var showKeys = app.layout && s.keyStats;
     if (showKeys) html += '<section class="stack"><h3>Errors by key</h3><div class="heatmap" id="hmex"></div></section>';
     var tg = app.trainer.targets().slice(0, 6);
-    if (tg.length) html += '<section class="stack"><h3>Next focus</h3><div class="row">' + tg.map(function (x) { return seq(x.key) + ' ' + pill(x.stage); }).join('&nbsp;&nbsp;') + '</div></section>';
+    if (tg.length) html += '<section class="stack"><h3>Focus list</h3><div class="row">' + tg.map(function (x) { return seq(x.key) + ' ' + FT.fmt.stagePill(x.stage); }).join('&nbsp;&nbsp;') + '</div></section>';
     var inProg = info.opts && info.opts.programme && app.run;
     if (inProg) html = programmeBar() + html;
     else html += '<div class="row"><button class="btn primary" type="button" id="again">Practise again <kbd>Enter</kbd></button>' +
@@ -340,8 +340,8 @@
     }
     if (s.timeline && s.timeline.length > 1) FT.chart.timeline(document.getElementById('chart'), s.timeline);
     document.getElementById('again').onclick = function () { startExercise(info.type, info.opts); };
-    document.getElementById('seqs').onclick = function () { go('sequences'); };
-    app.keys = { Enter: function () { startExercise(info.type, info.opts); }, q: function () { go('sequences'); } };
+    document.getElementById('seqs').onclick = function () { go('insights/focus'); };
+    app.keys = { Enter: function () { startExercise(info.type, info.opts); }, q: function () { go('insights/focus'); } };
   }
 
   Object.assign(U, { startBenchmark: startBenchmark, viewBenchResult: viewBenchResult, viewHome: viewHome, saveRun: saveRun, startProgramme: startProgramme, runStep: runStep, nextLine: nextLine, programmeBar: programmeBar, bindProgrammeBar: bindProgrammeBar, viewBetween: viewBetween, viewNeedText: viewNeedText, viewProgrammeSummary: viewProgrammeSummary, viewEffort: viewEffort, complete: complete, viewSummary: viewSummary });
