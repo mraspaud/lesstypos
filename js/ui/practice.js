@@ -68,7 +68,7 @@
         '<section class="stack"><div class="status">' +
         '<div><b class="num">' + Math.round(d.frontier).toLocaleString('en-US') + '</b><span>common words in use' + (d.manual ? ' (fixed)' : '') + '</span></div>' +
         '<div><a class="num big" href="#insights/focus">' + targets.length + '</a><span>in the focus list</span></div>' +
-        '<div><b class="num">' + (last ? fix(last.wpm) + ' · ' + pct(last.faa) : '–') + '</b><span>last relaxed WPM · accuracy</span></div>' +
+        '<div><b class="num">' + (last ? fix(last.wpm) + ' · ' + pct(last.firstAttemptAccuracy) : '–') + '</b><span>last relaxed WPM · accuracy</span></div>' +
         '</div></section>';
       if (!h.length) {
         html += '<section class="stack panel"><h2>How this works</h2>' +
@@ -137,9 +137,9 @@
     }
     var html = '<section class="stack"><h1>Benchmark result</h1><p class="muted">The median of ' + r.trials + ' trials, so one unusual trial does not move it.</p></section>' +
       '<div class="tiles"><div class="tile"><b>' + fix(r.wpm) + '</b><span>WPM (median of ' + r.trials + ' trials)</span></div>' +
-      '<div class="tile"><b>' + pct(r.faa) + '</b><span>accuracy (first try)</span></div>' +
+      '<div class="tile"><b>' + pct(r.firstAttemptAccuracy) + '</b><span>accuracy (first try)</span></div>' +
       '<div class="tile"><b>' + fix(r.min) + '–' + fix(r.max) + '</b><span>range across trials</span></div></div>';
-    if (prev) html += '<p class="notice info">' + (r.wpm - prev.wpm >= 0 ? '+' : '') + fix(r.wpm - prev.wpm, 1) + ' WPM compared with your previous benchmark (' + fix(prev.wpm) + ' WPM on ' + esc(new Date(prev.t).toLocaleDateString()) + ').</p>';
+    if (prev) html += '<p class="notice info">' + (r.wpm - prev.wpm >= 0 ? '+' : '') + fix(r.wpm - prev.wpm, 1) + ' WPM compared with your previous benchmark (' + fix(prev.wpm) + ' WPM on ' + esc(new Date(prev.startedAt).toLocaleDateString()) + ').</p>';
     html += '<p class="muted">Benchmarks never change your vocabulary level, sequence statistics or training. See them over time in Insights: Progress.</p>' +
       '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button></div>';
     app.bench = null;

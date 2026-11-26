@@ -211,25 +211,25 @@
     var charts = [
       { title: 'Relaxed speed', note: 'Median WPM per day of relaxed practice. Fill shows rated effort: hollow = not rated, light = little effort, solid = maximum.',
         label: 'Relaxed WPM', color: '--series-1', min: 1, rows: s.relaxed,
-        point: function (p) { return { t: p.t, y: p.wpm, fill: p.effort == null ? null : (p.effort - 1) / 4,
-          tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.t)) + '<br>' + p.n + ' session' + (p.n > 1 ? 's' : '') + ', effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1) + ' (' + EFFORT[Math.round(p.effort) - 1][1].toLowerCase() + ')') }; },
-        cols: ['Day', 'WPM', 'Accuracy', 'Effort'], cells: function (p) { return [esc(date(p.t)), fix(p.wpm), pct(p.faa), p.effort == null ? '–' : fix(p.effort, 1)]; } },
+        point: function (p) { return { t: p.startedAt, y: p.wpm, fill: p.effort == null ? null : (p.effort - 1) / 4,
+          tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.startedAt)) + '<br>' + p.exercises + ' session' + (p.exercises > 1 ? 's' : '') + ', effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1) + ' (' + EFFORT[Math.round(p.effort) - 1][1].toLowerCase() + ')') }; },
+        cols: ['Day', 'WPM', 'Accuracy', 'Effort'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), pct(p.firstAttemptAccuracy), p.effort == null ? '–' : fix(p.effort, 1)]; } },
       { title: 'Benchmark', note: 'Median of each complete set of 3 one-minute trials; the line shows the range of the trials.',
         label: 'Benchmark WPM', color: '--series-2', min: 1, rows: s.benchmark,
-        point: function (p) { return { t: p.t, y: p.wpm, lo: p.min, hi: p.max, tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.t)) + '<br>trials ' + fix(p.min) + '–' + fix(p.max) + ', accuracy ' + pct(p.faa) }; },
-        cols: ['Day', 'Median WPM', 'Range', 'Accuracy'], cells: function (p) { return [esc(date(p.t)), fix(p.wpm), fix(p.min) + '–' + fix(p.max), pct(p.faa)]; } },
+        point: function (p) { return { t: p.startedAt, y: p.wpm, lo: p.min, hi: p.max, tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.startedAt)) + '<br>trials ' + fix(p.min) + '–' + fix(p.max) + ', accuracy ' + pct(p.firstAttemptAccuracy) }; },
+        cols: ['Day', 'Median WPM', 'Range', 'Accuracy'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.min) + '–' + fix(p.max), pct(p.firstAttemptAccuracy)]; } },
       { title: 'Common-pair timing', note: 'Median time between the letters of the 30 most common pairs inside words, in relaxed practice, weighted by how many such pairs each exercise had. Lower is faster. Pairs typed with a multi-letter key (such as th) are not timed. Log scale.',
-        label: 'Common-pair timing in ms', color: '--series-1', min: 1, rows: s.pairMs, log: true, fmt: function (v) { return Math.round(v) + ''; },
-        point: function (p) { return { t: p.t, y: p.ms, tip: '<b>' + fix(p.ms) + ' ms</b> · ' + esc(date(p.t)) }; },
-        cols: ['Day', 'ms'], cells: function (p) { return [esc(date(p.t)), fix(p.ms)]; } },
+        label: 'Common-pair timing in ms', color: '--series-1', min: 1, rows: s.commonPairMs, log: true, fmt: function (v) { return Math.round(v) + ''; },
+        point: function (p) { return { t: p.startedAt, y: p.commonPairMs, tip: '<b>' + fix(p.commonPairMs) + ' ms</b> · ' + esc(date(p.startedAt)) }; },
+        cols: ['Day', 'ms'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.commonPairMs)]; } },
       { title: 'Accuracy', note: 'Accuracy (first try) per day of relaxed practice: corrected errors count too.',
         label: 'Relaxed accuracy (first try)', color: '--series-1', min: 1, yMax: 1, rows: s.relaxed, fmt: function (v) { return pct(v, 1); },
-        point: function (p) { return { t: p.t, y: p.faa, tip: '<b>' + pct(p.faa) + '</b> · ' + esc(date(p.t)) }; },
-        cols: ['Day', 'Accuracy'], cells: function (p) { return [esc(date(p.t)), pct(p.faa)]; } },
+        point: function (p) { return { t: p.startedAt, y: p.firstAttemptAccuracy, tip: '<b>' + pct(p.firstAttemptAccuracy) + '</b> · ' + esc(date(p.startedAt)) }; },
+        cols: ['Day', 'Accuracy'], cells: function (p) { return [esc(date(p.startedAt)), pct(p.firstAttemptAccuracy)]; } },
       { title: 'Effort signals (experimental)', note: 'Measured signals that tend to fall as typing becomes automatic: the extra time before the first letter of each word (charted, research: Crump et al. 2019) and how uneven your keystroke timing is (rhythm, in the table and tooltip; Kalfaoglu & Stafford 2014). They are proxies, not a validated measure of effort: compare them with your own ratings.',
-        label: 'Extra time at word starts in ms', color: '--series-2', min: 1, rows: s.relaxed.filter(function (p) { return p.startMs != null; }), fmt: function (v) { return Math.round(v) + ''; },
-        point: function (p) { return { t: p.t, y: p.startMs, tip: '<b>+' + fix(p.startMs) + ' ms</b> at word starts · ' + esc(date(p.t)) + '<br>rhythm variation ' + fix(p.cv, 2) + ', rated effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1)) }; },
-        cols: ['Day', 'Word starts (ms)', 'Rhythm', 'Rated effort'], cells: function (p) { return [esc(date(p.t)), fix(p.startMs), fix(p.cv, 2), p.effort == null ? '–' : fix(p.effort, 1)]; } },
+        label: 'Extra time at word starts in ms', color: '--series-2', min: 1, rows: s.relaxed.filter(function (p) { return p.wordStartMs != null; }), fmt: function (v) { return Math.round(v) + ''; },
+        point: function (p) { return { t: p.startedAt, y: p.wordStartMs, tip: '<b>+' + fix(p.wordStartMs) + ' ms</b> at word starts · ' + esc(date(p.startedAt)) + '<br>rhythm variation ' + fix(p.rhythmCv, 2) + ', rated effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1)) }; },
+        cols: ['Day', 'Word starts (ms)', 'Rhythm', 'Rated effort'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wordStartMs), fix(p.rhythmCv, 2), p.effort == null ? '–' : fix(p.effort, 1)]; } },
     ];
     // charts without enough data are named once instead of shown empty
     var waiting = charts.filter(function (c) { return c.rows.length < c.min; }).map(function (c) { return c.title; });
@@ -260,12 +260,12 @@
     if (!h.length) html += '<p class="panel">No exercises yet.</p>';
     else html += '<div class="tablewrap"><table id="alltable"><thead><tr><th>When</th><th>Exercise</th><th>Min</th><th>WPM</th><th>Accuracy</th><th>Random words</th><th>Effort</th><th>Hesitation</th><th>Rhythm</th><th>Vocabulary</th></tr></thead><tbody>' +
       h.map(function (x) {
-        var d = new Date(x.t);
+        var d = new Date(x.startedAt);
         return '<tr class="clickable"><td class="num nowrap"><button type="button" class="rowbtn" data-row data-past="' + esc(x.id) + '">' +
           esc(d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</button></td>' +
-          '<td>' + esc(FT.exercises.name(x.type)) + '</td><td class="num">' + fix(x.ms / 60000, 1) + '</td>' +
-          '<td class="num">' + fix(x.wpm) + '</td><td class="num">' + pct(x.faa) + '</td><td class="num">' + pct(x.randomFaa) + '</td>' +
-          '<td class="num">' + (x.effort || '–') + '</td><td class="num">' + pct(x.hes) + '</td><td class="num">' + fix(x.cv, 2) + '</td>' +
+          '<td>' + esc(FT.exercises.name(x.type)) + '</td><td class="num">' + fix(x.durationMs / 60000, 1) + '</td>' +
+          '<td class="num">' + fix(x.wpm) + '</td><td class="num">' + pct(x.firstAttemptAccuracy) + '</td><td class="num">' + pct(x.randomFirstAttemptAccuracy) + '</td>' +
+          '<td class="num">' + (x.effort || '–') + '</td><td class="num">' + pct(x.hesitationRate) + '</td><td class="num">' + fix(x.rhythmCv, 2) + '</td>' +
           '<td class="num">' + Math.round(x.frontier) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
     setView(html);

@@ -7,7 +7,7 @@ const { load, plain } = require('./helpers/load');
 // speed at lower effort counts as progress, like more speed at the same effort.
 
 const FT = load();
-const h = (wpm, effort, faa = 0.99, type = 'relaxed') => ({ type, wpm, effort, faa, words: 200 });
+const h = (wpm, effort, firstAttemptAccuracy = 0.99, type = 'relaxed') => ({ type, wpm, effort, firstAttemptAccuracy, words: 200 });
 
 test('compares speed with recent sessions at the same effort', () => {
   const hist = [h(50, 2), h(52, 2), h(51, 2), h(60, 4)];
@@ -39,18 +39,18 @@ test('no comparison without enough comparable sessions or an effort rating', () 
 // summarise each day by its median.
 const D = (d, h = 9) => Date.UTC(2026, 0, d, h);
 const HIST = [
-  { type: 'relaxed', t: D(1), wpm: 50, faa: 0.98, effort: 3, words: 200, pairMs: 120, startMs: 90, cv: 0.5 },
-  { type: 'relaxed', t: D(1, 18), wpm: 54, faa: 0.99, effort: 2, words: 200, pairMs: 110, startMs: 80, cv: 0.4 },
-  { type: 'bursts', t: D(1), wpm: 80, faa: 0.95, words: 100, pairMs: 70 },
-  { type: 'relaxed', t: D(3), wpm: 56, faa: 0.99, effort: null, words: 200, pairMs: 105, startMs: 70, cv: 0.4 },
-  { type: 'relaxed', t: D(4), wpm: 99, faa: 1, words: 20 },                         // too short to count
-  ...[60, 64, 62].map((wpm, i) => ({ type: 'benchmark', set: 'a', t: D(2, 9 + i), wpm, faa: 0.98, pairMs: 100 })),
-  ...[70, 66].map((wpm, i) => ({ type: 'benchmark', set: 'b', t: D(5, 9 + i), wpm, faa: 0.98 })), // incomplete set
+  { type: 'relaxed', startedAt: D(1), wpm: 50, firstAttemptAccuracy: 0.98, effort: 3, words: 200, commonPairMs: 120, wordStartMs: 90, rhythmCv: 0.5 },
+  { type: 'relaxed', startedAt: D(1, 18), wpm: 54, firstAttemptAccuracy: 0.99, effort: 2, words: 200, commonPairMs: 110, wordStartMs: 80, rhythmCv: 0.4 },
+  { type: 'bursts', startedAt: D(1), wpm: 80, firstAttemptAccuracy: 0.95, words: 100, commonPairMs: 70 },
+  { type: 'relaxed', startedAt: D(3), wpm: 56, firstAttemptAccuracy: 0.99, effort: null, words: 200, commonPairMs: 105, wordStartMs: 70, rhythmCv: 0.4 },
+  { type: 'relaxed', startedAt: D(4), wpm: 99, firstAttemptAccuracy: 1, words: 20 },                         // too short to count
+  ...[60, 64, 62].map((wpm, i) => ({ type: 'benchmark', benchmarkSet: 'a', startedAt: D(2, 9 + i), wpm, firstAttemptAccuracy: 0.98, commonPairMs: 100 })),
+  ...[70, 66].map((wpm, i) => ({ type: 'benchmark', benchmarkSet: 'b', startedAt: D(5, 9 + i), wpm, firstAttemptAccuracy: 0.98 })), // incomplete set
 ];
 
 test('relaxed practice is summarised per day', () => {
   const r = plain(FT.progress.series(HIST).relaxed);
-  assert.deepEqual(r.map((p) => [p.day, p.wpm, p.n]), [['2026-01-01', 52, 2], ['2026-01-03', 56, 1]]);
+  assert.deepEqual(r.map((p) => [p.day, p.wpm, p.exercises]), [['2026-01-01', 52, 2], ['2026-01-03', 56, 1]]);
   assert.equal(r[0].effort, 2.5);
   assert.equal(r[1].effort, null);
 });
@@ -61,13 +61,13 @@ test('benchmarks count only complete sets of three trials', () => {
 });
 
 test('common-pair timing per day comes from relaxed practice', () => {
-  const p = plain(FT.progress.series(HIST).pairMs);
-  assert.deepEqual(p.map((x) => [x.day, x.ms]), [['2026-01-01', 110], ['2026-01-03', 105]]);
+  const p = plain(FT.progress.series(HIST).commonPairMs);
+  assert.deepEqual(p.map((x) => [x.day, x.commonPairMs]), [['2026-01-01', 110], ['2026-01-03', 105]]);
 });
 
 // Benchmark sets: only complete sets of 3 full-length trials count, for the
 // series, the "due" state and the comparison with the previous benchmark.
-const trial = (set, d, wpm, ms = 60000) => ({ type: 'benchmark', set, t: D(d, 10), wpm, faa: 0.98, ms, planMs: 60000 });
+const trial = (benchmarkSet, d, wpm, durationMs = 60000) => ({ type: 'benchmark', benchmarkSet, startedAt: D(d, 10), wpm, firstAttemptAccuracy: 0.98, durationMs, plannedMs: 60000 });
 
 test('a trial stopped early does not count, so its set is incomplete', () => {
   const h = [trial('a', 1, 60), trial('a', 1, 62), trial('a', 1, 99, 900)];
@@ -93,16 +93,16 @@ test('the previous benchmark is the last complete set before this one', () => {
 
 test('common-pair timing comes from relaxed practice only, weighted by intervals', () => {
   const h = [
-    { type: 'relaxed', t: D(10), words: 200, pairMs: 100, pairN: 200 },
-    { type: 'relaxed', t: D(10, 12), words: 200, pairMs: 140, pairN: 20 },
-    { type: 'warmup', t: D(10, 8), words: 100, pairMs: 60, pairN: 300 },
-    { type: 'warmup', t: D(10, 9), words: 100, pairMs: 50, pairN: 300 },
+    { type: 'relaxed', startedAt: D(10), words: 200, commonPairMs: 100, commonPairIntervals: 200 },
+    { type: 'relaxed', startedAt: D(10, 12), words: 200, commonPairMs: 140, commonPairIntervals: 20 },
+    { type: 'warmup', startedAt: D(10, 8), words: 100, commonPairMs: 60, commonPairIntervals: 300 },
+    { type: 'warmup', startedAt: D(10, 9), words: 100, commonPairMs: 50, commonPairIntervals: 300 },
   ];
-  assert.deepEqual(plain(FT.progress.series(h).pairMs.map((p) => p.ms)), [100]);
+  assert.deepEqual(plain(FT.progress.series(h).commonPairMs.map((p) => p.commonPairMs)), [100]);
 });
 
 test('an exercise too short to count gets no comparison', () => {
-  const h = [50, 52, 51].map((wpm) => ({ type: 'relaxed', wpm, faa: 0.99, effort: 3, words: 200 }));
-  const cur = { type: 'relaxed', wpm: 90, faa: 1, effort: 3, words: 3 };
+  const h = [50, 52, 51].map((wpm) => ({ type: 'relaxed', wpm, firstAttemptAccuracy: 0.99, effort: 3, words: 200 }));
+  const cur = { type: 'relaxed', wpm: 90, firstAttemptAccuracy: 1, effort: 3, words: 3 };
   assert.equal(FT.progress.compare(h, cur), null);
 });

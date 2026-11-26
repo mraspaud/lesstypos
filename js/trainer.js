@@ -183,15 +183,11 @@
     }
 
     function historyEntry(raw, m, summary) {
-      return {
-        id: raw.id, type: raw.type, t: raw.startedAt, ms: raw.durationMs, effort: raw.effort, set: raw.set || undefined, planMs: raw.planMs || undefined,
-        wpm: m.metrics.wpm, faa: m.metrics.firstAttemptAccuracy, randomFaa: m.random.firstAttemptAccuracy,
-        hes: summary.hesitationRate, cv: summary.rhythmCv, roll: summary.rollover, frontier: summary.frontier,
-        pairMs: m.pairs.ms, pairN: m.pairs.n, startMs: FT.timing.wordStartMs(m.tm.records),
-        keys: summary.keyStats.keys, land: Object.keys(summary.keyStats.land).length ? summary.keyStats.land : undefined,
-        words: m.metrics.words,
-        decision: summary.difficulty || undefined, rounds: summary.rounds || undefined,
-      };
+      return FT.history.entry(raw, {
+        metrics: m.metrics, random: m.random, commonPairs: m.pairs, wordStartMs: FT.timing.wordStartMs(m.tm.records),
+        hesitationRate: summary.hesitationRate, rhythmCv: summary.rhythmCv, rollover: summary.rollover, keyStats: summary.keyStats,
+        frontier: summary.frontier, vocabularyDecision: summary.difficulty, burstRounds: summary.rounds,
+      });
     }
 
     // A past exercise's summary again, from its raw record: measured anew,
@@ -199,8 +195,8 @@
     // Nothing is learned.
     function summarize(raw) {
       var entry = history.filter(function (h) { return h.id === raw.id; })[0] || {};
-      var summary = describe(raw, measure(raw), { hesitationRate: entry.hes });
-      return withOutcome(summary, { stageChanges: [], difficulty: entry.decision || null, rounds: entry.rounds }, entry.frontier);
+      var summary = describe(raw, measure(raw), { hesitationRate: entry.hesitationRate });
+      return withOutcome(summary, { stageChanges: [], difficulty: entry.vocabularyDecision || null, rounds: entry.burstRounds }, entry.frontier);
     }
 
     return {

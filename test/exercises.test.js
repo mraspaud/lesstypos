@@ -115,17 +115,17 @@ test('a benchmark changes no statistics, difficulty or targets', () => {
   assert.equal(summary.difficulty, null);
   assert.equal(JSON.stringify({ m: tr.profile().model, s: tr.profile().subs, d: tr.profile().difficulty }), before);
   assert.equal(tr.history()[0].type, 'benchmark');
-  assert.equal(tr.history()[0].set, 'b1');
+  assert.equal(tr.history()[0].benchmarkSet, 'b1');
 });
 
 test('a benchmark set is scored by the median of its trials', () => {
   const h = [
-    { type: 'benchmark', set: 'b1', wpm: 60, faa: 0.97, t: 1 },
-    { type: 'benchmark', set: 'b1', wpm: 70, faa: 0.99, t: 2 },
-    { type: 'benchmark', set: 'b1', wpm: 64, faa: 0.98, t: 3 },
-    { type: 'relaxed', wpm: 99, faa: 1, t: 4 },
+    { type: 'benchmark', benchmarkSet: 'b1', wpm: 60, firstAttemptAccuracy: 0.97, startedAt: 1 },
+    { type: 'benchmark', benchmarkSet: 'b1', wpm: 70, firstAttemptAccuracy: 0.99, startedAt: 2 },
+    { type: 'benchmark', benchmarkSet: 'b1', wpm: 64, firstAttemptAccuracy: 0.98, startedAt: 3 },
+    { type: 'relaxed', wpm: 99, firstAttemptAccuracy: 1, startedAt: 4 },
   ];
-  assert.deepEqual(plain(FT.progress.benchmarkResult(h, 'b1')), { set: 'b1', trials: 3, wpm: 64, faa: 0.98, min: 60, max: 70, t: 1 });
+  assert.deepEqual(plain(FT.progress.benchmarkResult(h, 'b1')), { set: 'b1', trials: 3, wpm: 64, firstAttemptAccuracy: 0.98, min: 60, max: 70, startedAt: 1 });
 });
 
 test('restarting a benchmark gives a fresh sample', () => {

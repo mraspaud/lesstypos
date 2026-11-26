@@ -121,7 +121,7 @@ test('rebuild does not depend on the current accent setting: each raw session ke
   assert.equal(summary.metrics.firstAttemptAccuracy, 1);
   assert.equal(raw.accents, true);
   const rebuilt = FT.trainer.rebuild([JSON.parse(JSON.stringify(raw))], { seed: 12, settings: { accents: false } });
-  assert.equal(rebuilt.history()[0].faa, 1);
+  assert.equal(rebuilt.history()[0].firstAttemptAccuracy, 1);
 });
 
 test('a fixed vocabulary level survives a rebuild', () => {
@@ -215,8 +215,8 @@ test('history entries carry common-pair timing and the word-start penalty', () =
   for (const w of s.state().words.slice(0, 150)) for (const [k, ch] of Array.from(w.target + ' ').entries()) s.input({ kind: 'text', data: ch, t: (t += k === 0 ? 300 : 100) });
   tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
   const h = tr.history()[0];
-  assert.equal(h.pairMs, 100);
-  assert.equal(h.startMs, 200);
+  assert.equal(h.commonPairMs, 100);
+  assert.equal(h.wordStartMs, 200);
 });
 
 test('exercises record per-key statistics with the multi-letter keys they were typed with', () => {
@@ -226,12 +226,12 @@ test('exercises record per-key statistics with the multi-letter keys they were t
   for (const ch of 'the tgen art ') s.input({ kind: 'text', data: ch, t: (t += 100) });
   const { summary } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
   assert.deepEqual(plain(summary.keyStats.keys.th), [2, 1]);
-  assert.deepEqual(plain(tr.history()[0].keys.th), [2, 1]);
-  assert.deepEqual(plain(tr.history()[0].land), { g: 1 });
+  assert.deepEqual(plain(tr.history()[0].keyPresses.th), [2, 1]);
+  assert.deepEqual(plain(tr.history()[0].wrongPressLandings), { g: 1 });
 });
 
 test('key statistics add up across history', () => {
-  const total = plain(FT.progress.sumKeys([{ keys: { a: [2, 1] }, land: { x: 1 } }, { keys: { a: [3, 0], b: [1, 1] } }, {}]));
+  const total = plain(FT.progress.sumKeys([{ keyPresses: { a: [2, 1] }, wrongPressLandings: { x: 1 } }, { keyPresses: { a: [3, 0], b: [1, 1] } }, {}]));
   assert.deepEqual(total, { keys: { a: [5, 1], b: [1, 1] }, land: { x: 1 } });
 });
 

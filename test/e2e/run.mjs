@@ -385,7 +385,7 @@ await step('a benchmark set runs three trials and shows the median', async () =>
   await page.getByText('Benchmark result').waitFor();
   await page.getByText('WPM (median of 3 trials)').waitFor();
   if (shots) await page.screenshot({ path: shots + '/benchmark.png', fullPage: true });
-  const n = await page.evaluate(() => { const b = window.FT.app.trainer.history().filter((h) => h.type === 'benchmark'); const last = b[b.length - 1].set; return b.filter((h) => h.set === last).length; });
+  const n = await page.evaluate(() => { const b = window.FT.app.trainer.history().filter((h) => h.type === 'benchmark'); const last = b[b.length - 1].benchmarkSet; return b.filter((h) => h.benchmarkSet === last).length; });
   assert.equal(n, 3);
   await page.keyboard.press('Enter');
   await page.getByRole('button', { name: /Benchmark/ }).waitFor();
@@ -597,9 +597,9 @@ await step('? lists the shortcuts of the current screen', async () => {
 
 await step('importing a backup with statistics from an older model rebuilds them at once', async () => {
   const dump = JSON.parse(await page.evaluate(() => window.FT.app.store.exportAll().then((d) => JSON.stringify(d))));
-  dump.profile.modelVersion = 1; dump.profile.history.forEach((h) => { delete h.keys; });
+  dump.profile.modelVersion = 1; dump.profile.history.forEach((h) => { delete h.keyPresses; });
   await page.evaluate(async (d) => { await window.FT.app.store.importAll(d, { mode: 'replace' }); await window.FT.ui.reloadFromStore(false); }, dump);
-  const v = await page.evaluate(() => [window.FT.app.trainer.profile().modelVersion, window.FT.MODEL_VERSION, window.FT.app.trainer.history().some((h) => h.keys)]);
+  const v = await page.evaluate(() => [window.FT.app.trainer.profile().modelVersion, window.FT.MODEL_VERSION, window.FT.app.trainer.history().some((h) => h.keyPresses)]);
   assert.equal(v[0], v[1]);
   assert.equal(v[2], true);
 });
@@ -1070,6 +1070,33 @@ await step('home continues the book with c, in free reading: no time limit, the 
   await page.keyboard.type(await page.locator('.w').first().textContent(), { delay: 20 });
   await page.waitForTimeout(1200);
   assert.match(await page.locator('#timer').textContent(), /^0:0[1-9]$/);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Delete');
+});
+
+await step('reading from home continues exactly where the book was left, also after prose read another way', async () => {
+  const readAndSave = async (n) => {
+    await page.locator('.w').first().waitFor();
+    const words = await page.$$eval('.w', (els) => els.slice(0, n).map((e) => e.textContent.replace('¶', '')));
+    for (const w of words) await page.keyboard.type(w.replace(/[\u2018\u2019]/g, "'") + ' ', { delay: 8 });
+    await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
+    await page.getByText('How much effort did that take?').waitFor();
+    await effortReady(); await page.keyboard.press('0');
+  };
+  await page.keyboard.press('1');
+  await page.getByRole('button', { name: /Continue reading/ }).waitFor();
+  await page.keyboard.press('c');
+  await readAndSave(3);
+  await nav('settings/texts');
+  await page.locator('tr', { hasText: 'current' }).getByRole('button', { name: /Type now/ }).click();
+  await readAndSave(4);
+  const pos = await page.evaluate(async () => { const a = window.FT.app; return (await a.store.getText(a.settings.currentText)).pos; });
+  const expected = await page.evaluate(async () => { const a = window.FT.app; const t = await a.store.getText(a.settings.currentText); return t.words[t.pos]; });
+  await page.keyboard.press('1');
+  await page.getByRole('button', { name: /Continue reading/ }).waitFor();
+  await page.keyboard.press('c');
+  await page.locator('.w').first().waitFor();
+  assert.equal((await page.locator('.w').first().textContent()).replace('¶', ''), expected, 'starts at word ' + pos);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Delete');
 });

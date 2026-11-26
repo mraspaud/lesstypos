@@ -54,7 +54,10 @@
       var t = got[0], offer = got[1];
       if (t) {
         var c = FT.books.chapterAt(t, t.pos);
-        return { label: 'Continue reading: ' + t.title + (c ? ' · ' + c.title : ''), act: function () { startExercise('prose', { text: t, free: true }); } };
+        var resume = function () {   // the place as stored now: it may have moved since home was drawn
+          app.store.getText(t.id).then(U.onThisScreen(function (now) { startExercise('prose', { text: now || t, free: true }); })).catch(storageError);
+        };
+        return { label: 'Continue reading: ' + t.title + (c ? ' · ' + c.title : ''), act: resume };
       }
       if (offer) return { label: 'Read ' + offer.title, act: function () { addBundled().then(function (b) { startExercise('prose', { text: b, free: true }); }).catch(storageError); } };
       return null;
