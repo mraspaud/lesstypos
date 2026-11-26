@@ -50,5 +50,5 @@
   // stored settings are ignored); opts: overrides, for tests.
   function fromJSON(j, opts) { return create(opts, j.state); }
 
-  FT.model = { create: create, fromJSON: fromJSON, MAX_ORDER: FT.evidence.MAX_ORDER };
+  FT.model = { create: create, fromJSON: fromJSON, DEFAULTS: DEFAULTS, MAX_ORDER: FT.evidence.MAX_ORDER };
 })(globalThis.FT);

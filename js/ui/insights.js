@@ -37,7 +37,7 @@
               FT.fmt.stagePill(x.stage) + ' <span class="muted">' + FT.fmt.focusReason(c, x.stage) + '</span></li>';
           }).join('') + '</ol>' +
           '<details><summary>What the statuses mean</summary><p class="muted">' + FT.fmt.statusLegend() + '</p></details>'
-        : '<p class="panel">Nothing needs extra practice yet. Sequences appear here once the evidence shows they cost errors or time in at least 2 sessions.</p>') +
+        : '<p class="panel">Nothing needs extra practice yet. Sequences appear here once the evidence shows they cost errors or time in at least ' + FT.model.DEFAULTS.minSessions + ' sessions.</p>') +
       (ev.late.length ? '<p class="muted" id="latenote">' + FT.fmt.lateNote(ev.late) + '</p>' : '') +
       '</section><section id="why"></section>' +
       '<details id="allseq" class="stack"' + (allOpen ? ' open' : '') + '><summary>All sequences</summary>' +
@@ -210,7 +210,7 @@
         label: 'Benchmark WPM', color: '--series-2', min: 1, rows: s.benchmark,
         point: function (p) { return { t: p.startedAt, y: p.wpm, lo: p.min, hi: p.max, tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.startedAt)) + '<br>trials ' + fix(p.min) + '–' + fix(p.max) + ', accuracy ' + pct(p.firstAttemptAccuracy) }; },
         cols: ['Day', 'Median WPM', 'Range', 'Accuracy'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.min) + '–' + fix(p.max), pct(p.firstAttemptAccuracy)]; } },
-      { title: 'Common-pair timing', note: 'Median time between the letters of the 30 most common pairs inside words, in relaxed practice, weighted by how many such pairs each exercise had. Lower is faster. Pairs typed with a multi-letter key (such as th) are not timed. Log scale.',
+      { title: 'Common-pair timing', note: 'Median time between the letters of the ' + FT.timing.COMMON_PAIRS.length + ' most common pairs inside words, in relaxed practice, weighted by how many such pairs each exercise had. Lower is faster. Pairs typed with a multi-letter key (such as th) are not timed. Log scale.',
         label: 'Common-pair timing in ms', color: '--series-1', min: 1, rows: s.commonPairMs, log: true, fmt: function (v) { return Math.round(v) + ''; },
         point: function (p) { return { t: p.startedAt, y: p.commonPairMs, tip: '<b>' + fix(p.commonPairMs) + ' ms</b> · ' + esc(date(p.startedAt)) }; },
         cols: ['Day', 'ms'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.commonPairMs)]; } },
@@ -266,7 +266,7 @@
   function conditionsSection(rows) {
     var signed = function (x, digits, unit) { return (x >= 0 ? '+' : '−') + fix(Math.abs(x), digits) + unit; };
     var interval = function (d, scale, digits, unit) { return signed(d.difference * scale, digits, unit) + ' <span class="muted">(' + signed(d.low * scale, digits, '') + ' to ' + signed(d.high * scale, digits, unit) + ')</span>'; };
-    return '<section class="stack"><h2>Conditions</h2><p class="muted">Relaxed practice with each tag of yours, or at each time of day, against the rest: the difference, and the range it lies in with 95% confidence (bootstrap; Efron &amp; Tibshirani 1993). ' +
+    return '<section class="stack"><h2>Conditions</h2><p class="muted">Relaxed practice with each tag of yours, or at each time of day, against the rest: the difference, and the range it lies in with ' + pct(FT.conditions.CONFIDENCE, 0) + ' confidence (bootstrap; Efron &amp; Tibshirani 1993). ' +
       'Tags that always come together, or that changed along with your progress, cannot be told apart.</p>' +
       (rows.length ? H.table(['Condition', 'Exercises with / without', 'WPM', 'Accuracy (first try)'], rows.map(function (r) {
         return H.row([H.cell(r.automatic ? esc(r.tag) + ' <span class="muted">(time of day)</span>' : '#' + esc(r.tag)), H.cell(r.with.n + ' / ' + r.without.n, 'num'),

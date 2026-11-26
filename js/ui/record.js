@@ -76,5 +76,5 @@
     return { type: draft.raw.type, raw: draft.raw, opts: opts };
   }
 
-  Object.assign(U, { recordExercise: recordExercise, saveExercise: saveExercise, draftOf: draftOf, infoFromDraft: infoFromDraft });
+  Object.assign(U, { MIN_WORDS: MIN_WORDS, recordExercise: recordExercise, saveExercise: saveExercise, draftOf: draftOf, infoFromDraft: infoFromDraft });
 })(globalThis.FT);

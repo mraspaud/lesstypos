@@ -459,7 +459,7 @@
     function tooShort() {
       if (opts.programme && app.run) U.viewBetween();
       else U.go('home');
-      U.flash('That exercise was too short to analyse (fewer than 10 words), so nothing was saved.');
+      U.flash('That exercise was too short to analyse (fewer than ' + U.MIN_WORDS + ' words), so nothing was saved.');
     }
 
     return { render: render, stop: stop, keyElsewhere: keyElsewhere, holdForLeave: holdForLeave };

@@ -5,7 +5,7 @@
   'use strict';
   var SITTING_GAP_MS = 3600e3;   // design choice: an hour without typing starts a new sitting
   var MIN_EACH = 5;              // design choice: exercises needed on each side of a comparison
-  var RESAMPLES = 2000;
+  var RESAMPLES = 2000, CONFIDENCE = 0.95;
 
   var TAG = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
   function isTag(t) { return typeof t === 'string' && TAG.test(t) && t === t.toLowerCase(); }
@@ -62,7 +62,7 @@
   }
 
   function mean(xs) { return xs.reduce(function (a, b) { return a + b; }, 0) / xs.length; }
-  // Difference of means with a 95% percentile bootstrap interval
+  // Difference of means with a CONFIDENCE percentile bootstrap interval
   // (Efron & Tibshirani 1993), resampling each group independently.
   function difference(a, b, rng) {
     var diffs = [];
@@ -72,7 +72,8 @@
       diffs.push(mean(ra) - mean(rb));
     }
     diffs.sort(function (x, y) { return x - y; });
-    return { difference: mean(a) - mean(b), low: diffs[Math.floor(0.025 * RESAMPLES)], high: diffs[Math.ceil(0.975 * RESAMPLES) - 1] };
+    var tail = (1 - CONFIDENCE) / 2;
+    return { difference: mean(a) - mean(b), low: diffs[Math.floor(tail * RESAMPLES)], high: diffs[Math.ceil((1 - tail) * RESAMPLES) - 1] };
   }
   // Each tag (and time of day) against the relaxed exercises without it.
   // Keyed 'tag:<name>' and 'time:<time of day>', so a tag may share a name
@@ -100,5 +101,5 @@
     }).filter(Boolean);
   }
 
-  FT.conditions = { isTag: isTag, parseTags: parseTags, cleanTags: cleanTags, lastTags: lastTags, sittingTags: sittingTags, sittingOf: sittingOf, timeOfDay: timeOfDay, compare: compare, MIN_EACH: MIN_EACH };
+  FT.conditions = { isTag: isTag, parseTags: parseTags, cleanTags: cleanTags, lastTags: lastTags, sittingTags: sittingTags, sittingOf: sittingOf, timeOfDay: timeOfDay, compare: compare, MIN_EACH: MIN_EACH, CONFIDENCE: CONFIDENCE };
 })(globalThis.FT);

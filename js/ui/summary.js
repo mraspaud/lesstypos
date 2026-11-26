@@ -110,7 +110,7 @@
     if (s.rounds) {
       html += '<section class="stack"><h3>Rounds</h3>' + H.table(['Round', 'WPM', 'Accuracy', 'Target', 'Result'], s.rounds.map(function (r) {
         return H.row([H.cell(r.round, 'num'), H.cell(fix(r.wpm), 'num'), H.cell(pct(r.accuracy), 'num'), H.cell(Math.round(r.before) + ' → ' + Math.round(r.after), 'num'), H.cell(esc(r.reason))]);
-      })) + '<p class="muted">The target rises a little after each round that meets it with at least 95% accuracy and eases otherwise, so it settles where you reach it about half the time. Bursts never change your vocabulary level or the sequence statistics.</p></section>';
+      })) + '<p class="muted">The target rises a little after each round that meets it with at least ' + pct(FT.bursts.MIN_ACC, 0) + ' accuracy and eases otherwise, so it settles where you reach it about half the time. Bursts never change your vocabulary level or the sequence statistics.</p></section>';
     }
     html += '<details id="details" class="stack"><summary>Details ' + U.shortcut({ key: 'd', label: 'Details', act: toggleDetails }) + '</summary>' + details(s, m, cmp) + '</details>';
     U.paint(html);

@@ -7,6 +7,7 @@
   var U = FT.ui, app = U.app, exerciseName = FT.exercises.name;
   var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, H = FT.html;
   var TABS = ['typing', 'training', 'keyboard', 'appearance'];
+  var MIN_MINUTES = FT.programme.MIN_MINUTES, MAX_MINUTES = FT.programme.MAX_MINUTES;
   var TEXT_SIZES = [20, 22, 24, 26, 28, 32, 36]; // px
   var THEMES = [['system', 'Follow the system'], ['light', 'Canvas (light)'], ['dark', 'Ink (dark)']];
   var LAYOUT_EXAMPLE = 'q w e r t   y u i o p&#10;a s d f g   h j k l ;&#10;z x c v b   n m , . /&#10;space&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;0 1 2 3 3   6 6 7 8 9&#10;5';
@@ -139,7 +140,7 @@
   function changeStep(input) {
     editedProgramme(function (def) {
       var st = def.steps[+input.dataset.step];
-      if (input.type === 'checkbox') st.enabled = input.checked; else st.minutes = Math.max(0.5, Math.min(30, +input.value || st.minutes));
+      if (input.type === 'checkbox') st.enabled = input.checked; else st.minutes = Math.max(MIN_MINUTES, Math.min(MAX_MINUTES, +input.value || st.minutes));
     });
   }
   function moveStep(i, d) {
@@ -156,7 +157,7 @@
       var name = esc(exerciseName(st.type));
       return '<div class="row progstep"><input type="checkbox" data-step="' + i + '" aria-label="Include ' + name + '"' + (st.enabled ? ' checked' : '') + '>' +
         '<span style="min-width:9rem">' + name + '</span>' +
-        '<input type="number" data-step="' + i + '" min="0.5" max="30" step="0.5" value="' + esc(String(st.minutes)) + '" style="max-width:5rem" aria-label="Minutes"> <span class="muted">min</span>' +
+        '<input type="number" data-step="' + i + '" min="' + MIN_MINUTES + '" max="' + MAX_MINUTES + '" step="' + MIN_MINUTES + '" value="' + esc(String(st.minutes)) + '" style="max-width:5rem" aria-label="Minutes"> <span class="muted">min</span>' +
         '<button class="btn" type="button" id="up-' + i + '" data-up="' + i + '"' + U.action(function () { moveStep(i, -1); }) + (i ? '' : ' disabled') + ' aria-label="Move ' + name + ' up">↑</button>' +
         '<button class="btn" type="button" id="down-' + i + '" data-down="' + i + '"' + U.action(function () { moveStep(i, 1); }) + (i < def.steps.length - 1 ? '' : ' disabled') + ' aria-label="Move ' + name + ' down">↓</button></div>';
     }).join('') + '<p class="help">' + FT.programme.totalMinutes(def) + ' minutes in total. <button class="btn" type="button" id="progreset"' + U.action(restoreDefault) + '>Restore default</button></p>');

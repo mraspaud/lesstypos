@@ -20,7 +20,7 @@
     app.bench = { set: 'set-' + Date.now().toString(36), trial: 1 };
     startTrial();
   }
-  function startTrial() { U.startExercise('benchmark', { minutes: U.testing.benchmarkMinutes || 1, bench: true }); }
+  function startTrial() { U.startExercise('benchmark', { minutes: U.testing.benchmarkMinutes || FT.exercises.BENCHMARK_MINUTES, bench: true }); }
   // After each trial: rest, then the next one; after the last, the result.
   function viewBenchStep(summary) {
     var b = app.bench;

@@ -103,5 +103,5 @@
     return o.trainedToday ? 'read' : 'train';
   }
 
-  FT.programme = { homeDefault: homeDefault, DEFAULT: DEFAULT, STEP_TYPES: STEP_TYPES, runner: runner, resume: resume, totalMinutes: totalMinutes, clean: clean, cleanRun: cleanRun };
+  FT.programme = { MIN_MINUTES: MIN_MINUTES, MAX_MINUTES: MAX_MINUTES, homeDefault: homeDefault, DEFAULT: DEFAULT, STEP_TYPES: STEP_TYPES, runner: runner, resume: resume, totalMinutes: totalMinutes, clean: clean, cleanRun: cleanRun };
 })(globalThis.FT);

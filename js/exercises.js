@@ -2,7 +2,7 @@
 // where its words come from, and which learners its typing feeds.
 (function (FT) {
   'use strict';
-  var BURST_ROUND_MS = 15000, BURST_REST_MS = 10000, BENCHMARK_TRIALS = 3;
+  var BURST_ROUND_MS = 15000, BURST_REST_MS = 10000, BENCHMARK_TRIALS = 3, BENCHMARK_MINUTES = 1;
   // Benchmark: a fresh, unbiased sample of the most common words.
   var BENCHMARK_RANKS = 5000;
   var FAMILIAR_FLOOR = 60, FIRST_BATCH = 400, MAX_TARGETS = 10;
@@ -113,7 +113,7 @@
       build: benchmark,
       feeds: {},
       card: function () {
-        return ['A steady, comfortable pace, as in relaxed practice. ' + BENCHMARK_TRIALS + ' trials of one minute.',
+        return ['A steady, comfortable pace, as in relaxed practice. ' + BENCHMARK_TRIALS + ' trials of ' + (BENCHMARK_MINUTES === 1 ? 'one minute' : BENCHMARK_MINUTES + ' minutes') + '.',
           'Measurement only: the same kind of text every time, compared week to week. It never changes your training.'];
       },
     },
@@ -137,6 +137,6 @@
   function feeds(type, learner) { return !!(TYPES[type] && TYPES[type].feeds[learner]); }
   function build(ctx, o) { return TYPES[o.type].build(ctx, o); }
 
-  FT.exercises = { name: name, instructions: instructions, feeds: feeds, build: build,
-    BURST_ROUND_MS: BURST_ROUND_MS, BURST_REST_MS: BURST_REST_MS, BENCHMARK_TRIALS: BENCHMARK_TRIALS };
+  FT.exercises = { name: name, instructions: instructions, feeds: feeds, build: build, TYPE_NAMES: Object.keys(TYPES),
+    BURST_ROUND_MS: BURST_ROUND_MS, BURST_REST_MS: BURST_REST_MS, BENCHMARK_TRIALS: BENCHMARK_TRIALS, BENCHMARK_MINUTES: BENCHMARK_MINUTES };
 })(globalThis.FT);

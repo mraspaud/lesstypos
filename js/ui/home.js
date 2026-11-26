@@ -49,7 +49,7 @@
       (reading && reading.chapterStart ? U.keyButton({ label: esc(reading.chapterStart.label), id: 'chapterstart', onClick: reading.chapterStart.act }) : '') + '</div>' +
       '<div class="row more"><span class="muted">More:</span>' +
       U.keyButton({ label: 'Relaxed practice only · ' + esc(String(app.settings.durationMin)) + ' min', key: 'r', id: 'start', onClick: function () { U.startExercise('relaxed'); } }) +
-      U.keyButton({ label: 'Benchmark · 3 × 1 min', key: 'b', id: 'bench', onClick: U.startBenchmark }) +
+      U.keyButton({ label: 'Benchmark · ' + FT.exercises.BENCHMARK_TRIALS + ' × ' + FT.exercises.BENCHMARK_MINUTES + ' min', key: 'b', id: 'bench', onClick: U.startBenchmark }) +
       (first ? U.keyButton({ label: 'Practise ' + seq(first.key) + ' · 3 min', key: 'f', id: 'one', onClick: practiseFirst }) : '') +
       '<span class="muted">' + U.benchmarkDue(h) + '</span></div>' +
       '</section>' +
@@ -63,7 +63,7 @@
       html += '<section class="stack panel"><h2>How this works</h2>' +
         '<p>LessTypos watches every keystroke and learns which letter sequences, including those across spaces, cost you errors or hesitation. ' +
         'Later exercises weave those sequences into everyday words, while about a fifth of the words stay random so progress can be measured fairly.</p>' +
-        '<p>Vocabulary grows when your accuracy (first try) stays above 99.5% and typing feels comfortable. It never asks for a minimum speed.</p>' +
+        '<p>Vocabulary grows when your accuracy (first try) stays above ' + pct(FT.difficulty.TUNING.high) + ' and typing feels comfortable. It never asks for a minimum speed.</p>' +
         '<p class="muted">For the prose exercise, add a text you would like to read in <a href="#settings/texts">Settings: Texts</a>. If your keyboard has keys that type several letters at once (such as <span class="seq">th</span>), declare them in <a href="#settings/keyboard">Settings: Keyboard</a>. Press <kbd>?</kbd> for all shortcuts.</p></section>';
     }
     return html;

@@ -41,7 +41,7 @@
   function statusLegend() {
     return '<b>In training</b>: practised often. <b>Improving</b>: no longer worse, still practised. ' +
       '<b>Consolidating</b>: checked at growing intervals. <b>Mastered</b>: checked rarely. ' +
-      '<b>Slower</b> or <b>more errors</b>: credibly worse than the shorter sequence in other words, in at least 2 sessions. ' +
+      '<b>Slower</b> or <b>more errors</b>: credibly worse than the shorter sequence in other words, in at least ' + FT.model.DEFAULTS.minSessions + ' sessions. ' +
       '<b>Seen in 1 session</b>: worse so far, waiting for a second session.';
   }
 

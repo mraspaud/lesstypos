@@ -119,10 +119,10 @@
     return k.ev.every(function (x, i) { return isInt(x) && (i % 2 || (x >= 0 && x >> 1 < k.codes.length)); });
   }
   function validTags(tags) { return tags == null || (Array.isArray(tags) && tags.every(FT.conditions.isTag)); }
-  var EXERCISE_TYPES = ['warmup', 'relaxed', 'bursts', 'prose', 'targeted', 'benchmark'];
   // Whether a session, encoded or plain, is whole enough to store and replay.
+  // (FT.exercises loads after this file, so its types are read when asked.)
   function validSession(s) {
-    if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !Number.isFinite(s.startedAt) || EXERCISE_TYPES.indexOf(s.type) < 0) return false;
+    if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !Number.isFinite(s.startedAt) || FT.exercises.TYPE_NAMES.indexOf(s.type) < 0) return false;
     return Array.isArray(s.words) && s.words.every(validWord) && validKeys(s.keys) && validTags(s.tags);
   }
 
