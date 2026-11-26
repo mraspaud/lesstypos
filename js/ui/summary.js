@@ -111,14 +111,8 @@
       (s.difficulty ? '<p>' + esc(FT.fmt.vocabSentence(s.difficulty, s.frontier)) + '</p>' : '') +
       (past ? '' : '<p>' + focusSentence(s, app.trainer.targets()) + '</p>') +
       '</section>';
-    var sitting = !past && !inProg && FT.conditions.sittingTags(h.slice(0, at), s.startedAt);
-    var askTags = sitting && (sitting.ask || !sitting.tags.length);
-    var editTags = function () {
-      U.fill(document.getElementById('conditions'), tagBox(sitting.tags));
-      bindTagBox([s.id], document.getElementById('again'), true);
-    };
-    if (sitting) html += '<section class="stack" id="conditions">' + (askTags ? tagBox(sitting.tags)
-      : '<p>Conditions: ' + esc(tagText(sitting.tags)) + ' <span class="muted">(same sitting)</span> ' + U.keyButton({ label: 'Change', key: '#', id: 'edittags', onClick: editTags }) + '</p>') + '</section>';
+    var conditions = inProg || at < 0 ? null : conditionsSection(s, h, at, past);
+    if (conditions) html += '<section class="stack" id="conditions">' + conditions.html + '</section>';
     if (s.rounds) {
       html += '<section class="stack"><h3>Rounds</h3>' + H.table(['Round', 'WPM', 'Accuracy', 'Target', 'Result'], s.rounds.map(function (r) {
         return H.row([H.cell(r.round, 'num'), H.cell(fix(r.wpm), 'num'), H.cell(pct(r.accuracy), 'num'), H.cell(Math.round(r.before) + ' → ' + Math.round(r.after), 'num'), H.cell(esc(r.reason))]);
@@ -135,7 +129,25 @@
     }
     function toggleDetails() { det.open = !det.open; draw(); }
     det.addEventListener('toggle', draw);
-    if (askTags) bindTagBox([s.id], document.getElementById('again'), false);
+    if (conditions && conditions.bind) conditions.bind();
+  }
+  // The conditions on a summary: asked at the start of a sitting, otherwise
+  // shown with a way to change them. A past exercise's change is its own; a
+  // new one's retags its whole sitting.
+  function conditionsSection(s, h, at, past) {
+    var next = function () { return document.getElementById(past ? 'backlog' : 'again'); };
+    var shown = function (tags, note, ids) {
+      var edit = function () {
+        U.fill(document.getElementById('conditions'), tagBox(tags));
+        bindTagBox(ids, next(), true);
+      };
+      return { html: '<p>Conditions: ' + (tags.length ? esc(tagText(tags)) : '<span class="muted">none</span>') + note + ' ' +
+        U.keyButton({ label: 'Change', key: '#', id: 'edittags', onClick: edit }) + '</p>' };
+    };
+    if (past) return shown(h[at].tags || [], '', [s.id]);
+    var sitting = FT.conditions.sittingTags(h.slice(0, at), s.startedAt);
+    if (sitting.ask || !sitting.tags.length) return { html: tagBox(sitting.tags), bind: function () { bindTagBox([s.id], next(), false); } };
+    return shown(sitting.tags, ' <span class="muted">(same sitting)</span>', FT.conditions.sittingOf(h, s.id));
   }
   function focusSentence(s, targets) {
     var changes = s.stageChanges || [];

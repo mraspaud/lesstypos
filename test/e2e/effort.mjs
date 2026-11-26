@@ -6,6 +6,10 @@ import { step, freshPage, closePage, nav, reload, startExercise, typeWords, fini
 
 const lastEffort = (page) => page.evaluate(() => window.FT.app.trainer.history().slice(-1)[0].effort);
 const storedTags = (page) => page.evaluate(async () => (await window.FT.app.store.getSession(window.FT.app.trainer.history().at(-1).id)).tags);
+// The last exercise, as if done hours ago.
+const hoursAgo = (page, hours) => page.evaluate((ms) => { const last = window.FT.app.trainer.history().at(-1); last.startedAt -= ms; last.endedAt -= ms; }, hours * 3600e3);
+const storedTagsOf = (page, ids) => page.evaluate((list) => Promise.all(list.map(async (id) => (await window.FT.app.store.getSession(id)).tags || null)), ids);
+const lastIds = (page, n) => page.evaluate((count) => window.FT.app.trainer.history().slice(-count).map((h) => h.id), n);
 // Pauses and saves the exercise on view; waits for the effort question.
 async function saveAndAsk(page) {
   await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
@@ -104,7 +108,7 @@ export default async function effort() {
   });
 
   await step('an exercise starting a new sitting asks for its conditions, offering the last ones', async () => {
-    await page.evaluate(() => { const h = window.FT.app.trainer.history(); h.at(-1).startedAt -= 3 * 3600e3; });   // as if hours ago
+    await hoursAgo(page, 3);
     await practise(page);
     await page.locator('#tags').waitFor();
     assert.equal(await page.locator('#tags').inputValue(), '#home #wrist-rest');
@@ -122,6 +126,32 @@ export default async function effort() {
       const s = await window.FT.app.store.getSession(window.FT.app.trainer.history().at(-1).id);
       return JSON.stringify(s.tags) === '["desk"]';
     });
+  });
+
+  await step('Change on a summary in the same sitting retags every exercise of the sitting', async () => {
+    await practise(page);
+    await page.getByText(/Conditions: #desk/).waitFor();
+    await page.keyboard.press('#');
+    await page.locator('#tags').waitFor();
+    assert.equal(await page.locator('#tags').inputValue(), '#desk');
+    await page.locator('#tags').fill('#desk #tired');
+    await page.locator('#tags').press('Enter');
+    await page.getByText(/Saved: #desk #tired/).waitFor();
+    const [earlier, before, last] = await lastIds(page, 3);
+    assert.deepEqual(await storedTagsOf(page, [before, last]), [['desk', 'tired'], ['desk', 'tired']]);
+    assert.deepEqual(await storedTagsOf(page, [earlier]), [['home', 'wrist-rest']]);   // another sitting
+  });
+
+  await step('a past summary shows its exercise’s conditions and changes them for it only', async () => {
+    const [earlier, before] = await lastIds(page, 3);
+    await nav(page, 'insights/progress');
+    await page.locator('[data-past="' + earlier + '"]').click();
+    await page.getByText(/Conditions: #home #wrist-rest/).waitFor();
+    await page.getByRole('button', { name: /Change/ }).click();
+    await page.locator('#tags').fill('#office');
+    await page.locator('#tags').press('Enter');
+    await page.getByText(/Saved: #office/).waitFor();
+    assert.deepEqual(await storedTagsOf(page, [earlier, before]), [['office'], ['desk', 'tired']]);
   });
 
   await closePage(page);
