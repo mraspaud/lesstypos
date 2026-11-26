@@ -8,11 +8,22 @@
   function isSeparator(ch) { return ch === ' ' || ch === PARAGRAPH; }
   function separatorOf(w) { return (w.meta && w.meta.sep) || ' '; }
   function targetOf(w) { return w.target + separatorOf(w); }
+  // All the word's letters, or all its key presses (a multi-letter key is one),
+  // typed before the separator just typed, right or wrong.
+  function complete(w, macros) {
+    if (Array.from(w.typed).length - 1 >= Array.from(w.target).length) return true;
+    if (!macros || !macros.length) return false;
+    var flags = FT.align.flagStream(w.stream), ids = FT.presses.ids(w.stream, macros), typed = {};
+    for (var i = 0; i < w.stream.length - 1; i++) if (flags[i] && ids[i] != null) typed[ids[i]] = true;
+    var target = FT.presses.ofTarget(w.target, macros);
+    return Object.keys(typed).length >= (target.length ? target[target.length - 1] + 1 : 0);
+  }
 
   // opts: { reach, equivalence (FT.text.equivalence) }.
   function create(targets, opts) {
     var reach = (opts && opts.reach) || REACH;
     var equivalence = (opts && opts.equivalence) || FT.text.equivalence();
+    var macros = (opts && opts.macros) || [];
     var words = [];
     function errorWithin(from) {
       for (var i = from; i >= 0 && i > from - reach; i--) {
@@ -78,7 +89,7 @@
         var entry = { k: 'c', ch: ch, t: ev.t, g: g };
         if (ev.auto) entry.auto = true; // inserted by the app (end of a text), not typed
         w.stream.push(entry);
-        if (isSeparator(ch)) commit();
+        if (isSeparator(ch) && complete(w, macros)) commit();   // earlier, a space is a typo in place (user decision)
       }
     }
 

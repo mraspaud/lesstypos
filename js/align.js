@@ -361,7 +361,10 @@
     var macros = opts && opts.macros, same = equivalenceOf(opts).same;
     var target = Array.from(word);
     var flags = flagStream(stream), ids = FT.presses.ids(stream, macros);
-    var shown = stream.map(function (e, i) { return i; }).filter(function (i) { return flags[i] && !/^[ \n]$/.test(stream[i].ch); });
+    var alive = stream.map(function (e, i) { return i; }).filter(function (i) { return flags[i]; });
+    var last = alive[alive.length - 1];
+    var endsWord = last != null && /^[ \n]$/.test(stream[last].ch) && alive.length - 1 >= target.length;
+    var shown = endsWord ? alive.slice(0, -1) : alive;   // a space before the end is a typed letter
     var typedPresses = groupBy(shown.map(function (i) { return stream[i]; }), shown.map(function (i) { return ids[i]; }));
     var targetPresses = groupBy(target.map(function (ch) { return { ch: ch }; }), FT.presses.ofTarget(word, macros));
     var positions = target.map(function () { return { status: 'untyped', group: null, press: false }; });

@@ -196,6 +196,10 @@ test('display: a multi-letter key spelled out letter by letter is compared lette
   assert.deepEqual(DW('The', 'The', ['th']).extras, []);
 });
 
+test('display: a space typed before the end of the word shows as a wrong letter where it was typed', () => {
+  assert.equal(statuses(DW('the', 'th ', [])), 'ok ok bad');
+});
+
 test('display: letters on either side of an erased one are separate presses', () => {
   const stream = [{ k: 'c', ch: 't', t: 100, g: 1 }, { k: 'c', ch: 'x', t: 105, g: 2 }, { k: 'b', t: 110 }, { k: 'c', ch: 'h', t: 115, g: 3 }];
   assert.equal(statuses(plain(FT.align.displayWord('tea', stream, { macros: ['th'] }))), 'ok bad untyped');

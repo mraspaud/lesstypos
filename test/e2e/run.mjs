@@ -1216,6 +1216,20 @@ await step('a click anywhere in a row of the exercise log opens that exercise', 
   await page.keyboard.press('Escape');
 });
 
+await step('a space before the end of a word stays in it as a red letter; Backspace fixes it', async () => {
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
+  await page.locator('.w').first().waitFor();
+  const first = page.locator('.w').first();
+  const word = await first.textContent();
+  await page.keyboard.type(word.slice(0, -1) + ' ', { delay: 20 });
+  assert.equal(await first.locator('.l.bad').count(), 1);
+  assert.equal(await page.locator('.w').nth(1).locator('.l.ok, .l.bad').count(), 0);   // still in the first word
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type(word.slice(-1) + ' ', { delay: 20 });
+  assert.equal(await first.locator('.l.bad').count(), 0);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Delete');
+});
+
 await step('Insights: Progress has a Conditions section', async () => {
   await nav('insights/progress');
   await page.getByRole('heading', { name: 'Conditions' }).waitFor();

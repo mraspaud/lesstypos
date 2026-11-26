@@ -143,3 +143,37 @@ test('backspace removes a whole character, even outside the basic plane', () => 
   s.input({ kind: 'back', t: 3 });
   assert.equal(s.current().typed, 'a');
 });
+
+// Functionality: a space before the word has all its letters is a typo in
+// place (user decision): the word stays open until it is complete.
+test('a space typed before the end of a word stays in the word as a wrong character', () => {
+  const FT = load();
+  const s = FT.session.create(['the', 'cat']);
+  typeString(s, 'th ');
+  assert.equal(s.state().wordIndex, 0);
+  assert.equal(s.state().words[0].typed, 'th ');
+  typeString(s, '<e ', 1000);
+  assert.equal(s.state().wordIndex, 1);
+  assert.equal(s.state().words[0].typed, 'the ');
+});
+
+test('a word with all its letters typed, right or wrong, ends at the space', () => {
+  const FT = load();
+  const s = FT.session.create(['the', 'cat']);
+  typeString(s, 'teh ');
+  assert.equal(s.state().wordIndex, 1);
+});
+
+test('an early Enter at a paragraph end is a typo in place too', () => {
+  const FT = load();
+  const s = FT.session.create([{ word: 'end.', sep: '\n' }, 'Next']);
+  typeString(s, 'end\n');
+  assert.equal(s.state().wordIndex, 0);
+});
+
+test('with a multi-letter key, a word is complete when it has as many presses as the word needs', () => {
+  const FT = load();
+  const s = FT.session.create(['the', 'cat'], { macros: ['th'] });
+  typeString(s, 'xe ');   // one key where the th key was meant, then e: two presses, as "the" needs
+  assert.equal(s.state().wordIndex, 1);
+});

@@ -65,7 +65,7 @@
         '<div id="stopbar" class="stopbar" hidden></div>' +
         '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"' + (briefing ? ' aria-describedby="briefing"' : '') + '></textarea>' +
         '</section>');
-      session = FT.session.create(ex.words.slice(0, WORDS_SHOWN), { equivalence: U.equivalence() });
+      session = FT.session.create(ex.words.slice(0, WORDS_SHOWN), { equivalence: U.equivalence(), macros: U.macros() });
       pending = ex.words.slice(WORDS_SHOWN);
       inner = document.getElementById('inner'); caret = document.getElementById('caret');
       win = document.getElementById('window'); capture = document.getElementById('capture');

@@ -133,7 +133,6 @@ tbody tr { cursor: default; }
 tbody tr.clickable { cursor: pointer; }
 tbody tr.clickable:hover, tbody tr.selected { background: var(--surface); }
 td.ex { color: var(--muted); max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#alltable .rowbtn { text-decoration: underline; text-decoration-color: var(--muted); text-underline-offset: 4px; }
 details.tableview summary { cursor: pointer; color: var(--muted); }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .tabs button { border: 1px solid var(--line); background: none; padding: 4px 12px; border-radius: 999px; cursor: pointer; color: var(--muted); }
