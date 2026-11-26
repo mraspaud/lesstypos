@@ -109,8 +109,7 @@
     }).filter(Boolean);
     function errors(key) {
       var e = rows.filter(function (r) { return r[key] != null; }).map(function (r) { return r[key] - r.measured; });
-      var mean = function (v) { return v.reduce(function (a, b) { return a + b; }, 0) / v.length; };
-      return e.length ? { sets: e.length, meanAbsoluteError: mean(e.map(Math.abs)), meanError: mean(e) } : null;
+      return e.length ? { sets: e.length, meanAbsoluteError: FT.stats.mean(e.map(Math.abs)), meanError: FT.stats.mean(e) } : null;
     }
     return { rows: rows, fluency: errors('fluencyWpm'), effortless: errors('effortlessWpm') };
   }
@@ -123,10 +122,7 @@
   //   fluency       the experimental fluency index, A and B, with its coverage.
   function series(history) {
     var relaxed = history.filter(FT.history.isComparableRelaxed);
-    var effort = function (l) {
-      var v = l.map(function (h) { return h.effort; }).filter(function (x) { return x != null; });
-      return v.length ? v.reduce(function (a, b) { return a + b; }, 0) / v.length : null;
-    };
+    var effort = function (l) { return FT.stats.mean(l.map(function (h) { return h.effort; }).filter(function (x) { return x != null; })); };
     return {
       relaxed: byDay(relaxed, function (l) {
         return { exercises: l.length, wpm: med(l, 'wpm'), firstAttemptAccuracy: med(l, 'firstAttemptAccuracy'), effort: effort(l),

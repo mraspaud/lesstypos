@@ -54,8 +54,8 @@
   // Predicted WPM on the reference (FT.metrics' WPM: characters / 5 per
   // minute) and its coverage, the share of keystrokes timed from a context of
   // two characters or more (the rest rests on single letters, or on nothing).
-  // evaluation: FT.judgement.evaluate's; scale: { within, initial } in ms;
-  // scale: { within, initial, errorCostMs } in ms (see scale);
+  // evaluation: FT.judgement.evaluate's; scale: { within, initial,
+  // errorCostMs } in ms (see scale);
   // opts.minN: timed keystrokes a context needs (the model's).
   // A keystroke takes exp(mu) x scale of its population, plus its error rate
   // x the cost of an error; one without a timed context takes the scale and
@@ -86,11 +86,11 @@
       return FT.history.isComparableRelaxed(h) && h.meanMs && h.meanMs.within != null && h.meanMs.initial != null && (!filter || filter(h));
     }).slice(-SCALE_EXERCISES);
     if (picked.length < MIN_SCALE_EXERCISES) return null;
-    var meanOf = function (values) { return FT.stats.mean(values.filter(function (v) { return v != null; })); };
+    var meanOf = function (value) { return FT.stats.mean(picked.map(value).filter(function (v) { return v != null; })); };
     return {
-      within: meanOf(picked.map(function (h) { return h.meanMs.within; })),
-      initial: meanOf(picked.map(function (h) { return h.meanMs.initial; })),
-      errorCostMs: FT.valueOr(meanOf(picked.map(function (h) { return h.errorCostMs; })), 0),
+      within: meanOf(function (h) { return h.meanMs.within; }),
+      initial: meanOf(function (h) { return h.meanMs.initial; }),
+      errorCostMs: FT.valueOr(meanOf(function (h) { return h.errorCostMs; }), 0),
     };
   }
   // Variant B's exercises: rated effort 1 or 2 of 5.
