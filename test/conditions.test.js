@@ -66,25 +66,35 @@ test('a tag is compared once each side has 5 relaxed exercises: the difference a
   assert.ok(home.wpm.low > 0 && home.wpm.high > home.wpm.low);
   assert.ok(home.accuracy.difference > 0);
   assert.ok(!rows.some((r) => r.tag === 'rare'));
-  assert.ok(rows.some((r) => r.tag === 'morning' && r.automatic) === false);   // every exercise was in the morning: no comparison
+  assert.equal(rows.some((r) => r.tag === 'morning' && r.automatic), false);   // every exercise was in the morning: no comparison
 });
 
-test('a history entry carries the tags of its exercise', () => {
+// A relaxed exercise of 20 words typed correctly at 9:00, processed by tr.
+function finishedExercise(tr, extra) {
+  const { words, t } = typeCorrectly(FT, tr.newExercise({ type: 'relaxed' }).words.slice(0, 20));
+  return tr.finish(Object.assign({ type: 'relaxed', startedAt: at(9), durationMs: t, words }, extra)).raw;
+}
+
+test('tags typed after an exercise reach its history entry', () => {
   const tr = FT.trainer.create({ seed: 3 });
-  const s = FT.session.create(tr.newExercise({ type: 'relaxed' }).words.slice(0, 20));
-  let t = 0;
-  for (const w of s.state().words.slice(0, 20)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 100) });
-  const { raw } = tr.finish({ type: 'relaxed', startedAt: at(9), durationMs: t, words: s.state().words.filter((w) => w.committed) });
+  const raw = finishedExercise(tr);
   tr.tag([raw.id], ['home']);
   assert.deepEqual(plain(tr.history().at(-1).tags), ['home']);
-  raw.tags = ['home'];
+});
+
+test('a rebuilt history keeps the tags of the raw records', () => {
+  const raw = finishedExercise(FT.trainer.create({ seed: 3 }), { tags: ['home'] });
   assert.deepEqual(plain(FT.trainer.rebuild([raw], { seed: 3 }).history()[0].tags), ['home']);
 });
 
+test('the bootstrap interval of a condition is the same each time it is computed', () => {
+  const h = [];
+  for (let i = 0; i < 12; i++) h.push(relaxed(at(9) + i * 24 * HOUR, 50 + (i % 3) * 4, 0.97 + (i % 2) / 100, i < 6 ? ['home'] : ['office']));
+  assert.deepEqual(plain(C().compare(h)), plain(C().compare(h.map((x) => Object.assign({}, x)))));
+});
+
 test('a history entry keeps only well-formed tags, each once', () => {
-  const tr = FT.trainer.create({ seed: 3 });
-  const { words, t } = typeCorrectly(FT, tr.newExercise({ type: 'relaxed' }).words.slice(0, 20));
-  const raw = tr.record({ type: 'relaxed', startedAt: at(9), durationMs: t, words });
+  const raw = finishedExercise(FT.trainer.create({ seed: 3 }));
   const entryTags = (tags) => FT.trainer.rebuild([Object.assign({}, raw, { tags })], { seed: 3 }).history()[0].tags;
   assert.equal(entryTags('home'), undefined);
   assert.deepEqual(plain(entryTags(['home', 5, 'home', 'office'])), ['home', 'office']);

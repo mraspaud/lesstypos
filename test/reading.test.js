@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load } = require('./helpers/load');
+const { typeCorrectly } = require('./helpers/typing');
 
 // Functionality: reading a book between daily trainings, and prose that ends
 // at a sentence end when its time is up.
@@ -24,10 +25,8 @@ test('a day counts as trained when an exercise of a daily training was done that
 
 test('a history entry records the daily training it belonged to', () => {
   const tr = FT.trainer.create({ seed: 3 });
-  const s = FT.session.create(tr.newExercise({ type: 'relaxed' }).words.slice(0, 20));
-  let t = 0;
-  for (const w of s.state().words.slice(0, 20)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 100) });
-  tr.finish({ type: 'relaxed', startedAt: new Date(2026, 10, 26, 9).getTime(), durationMs: t, run: 'r7', words: s.state().words.filter((w) => w.committed) });
+  const { words, t } = typeCorrectly(FT, tr.newExercise({ type: 'relaxed' }).words.slice(0, 20));
+  tr.finish({ type: 'relaxed', startedAt: new Date(2026, 10, 26, 9).getTime(), durationMs: t, run: 'r7', words });
   assert.equal(tr.history().at(-1).run, 'r7');
 });
 
