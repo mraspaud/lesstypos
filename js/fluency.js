@@ -63,5 +63,24 @@
     return { wpm: n / 5 / (totalMs / 60000), coverage: covered / n };
   }
 
-  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, REFERENCE_WORDS: REFERENCE_WORDS };
+  // The scale: per population, the geometric mean of the session centres
+  // (FT.timing centreMs) of the last SCALE_EXERCISES comparable relaxed
+  // exercises that pass filter; null before MIN_SCALE_EXERCISES of them.
+  // Design choices: 5 and 3. Relaxed practice is the pace the index is about.
+  var SCALE_EXERCISES = 5, MIN_SCALE_EXERCISES = 3;
+  function scale(history, filter) {
+    var picked = history.filter(function (h) {
+      return FT.history.isComparableRelaxed(h) && h.centreMs && h.centreMs.within != null && h.centreMs.initial != null && (!filter || filter(h));
+    }).slice(-SCALE_EXERCISES);
+    if (picked.length < MIN_SCALE_EXERCISES) return null;
+    var geometricMean = function (population) {
+      return Math.exp(FT.stats.meanLog(picked.map(function (h) { return h.centreMs[population]; })));
+    };
+    return { within: geometricMean('within'), initial: geometricMean('initial') };
+  }
+  // Variant B's exercises: rated effort 1 or 2 of 5.
+  function effortless(h) { return h.effort != null && h.effort <= 2; }
+
+  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, scale: scale, effortless: effortless,
+    REFERENCE_WORDS: REFERENCE_WORDS };
 })(globalThis.FT);

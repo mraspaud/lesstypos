@@ -69,3 +69,29 @@ test('a keystroke with no timed context takes the centre and the overall error r
 test('coverage is the share of keystrokes timed from a context of two characters or more', () => {
   assert.equal(FT.fluency.predict(withLetters({ ab: {} }), evenly(200), AB).coverage, 2 / 6);
 });
+
+// History entries of relaxed practice with their centres (ms).
+const relaxed = (within, initial, more = {}) => Object.assign({ type: 'relaxed', words: 100, wpm: 50, effort: 3, centreMs: { within, initial } }, more);
+
+test('the scale is the geometric mean of the centres of the last 5 relaxed exercises', () => {
+  const history = [relaxed(999, 999), relaxed(100, 200), relaxed(400, 800), relaxed(100, 200), relaxed(400, 800), relaxed(200, 400)];
+  const s = FT.fluency.scale(history);
+  near(s.within, 200);
+  near(s.initial, 400);
+});
+
+test('the scale leaves out other exercise types and exercises under 50 words', () => {
+  const history = [relaxed(200, 400), relaxed(200, 400), relaxed(200, 400),
+    relaxed(50, 50, { type: 'warmup' }), relaxed(50, 50, { words: 49 }), relaxed(50, 50, { centreMs: undefined })];
+  near(FT.fluency.scale(history).within, 200);
+});
+
+test('there is no scale before 3 such exercises', () => {
+  assert.equal(FT.fluency.scale([relaxed(200, 400), relaxed(200, 400)]), null);
+});
+
+test('the effortless scale takes only exercises rated effort 1 or 2', () => {
+  const history = [relaxed(100, 100, { effort: 1 }), relaxed(100, 100, { effort: 2 }), relaxed(900, 900, { effort: 3 }), relaxed(100, 100, { effort: null })];
+  assert.equal(FT.fluency.scale(history, FT.fluency.effortless), null);
+  near(FT.fluency.scale(history.concat(relaxed(100, 100, { effort: 2 })), FT.fluency.effortless).within, 100);
+});
