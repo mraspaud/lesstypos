@@ -2,6 +2,9 @@
 // per-word timeline and the per-key error counts.
 (function (FT) {
   'use strict';
+  // Words per minute, a word being 5 characters.
+  function wpm(chars, ms) { return chars / 5 / (ms / 60000); }
+
   // Per-word timeline: each word's speed (its characters and the following
   // space, from the previous word's last keystroke to its own; the first word
   // from its first keystroke, so over the characters after it), the running
@@ -18,11 +21,11 @@
       var start = prevEnd === null ? first : prevEnd;
       var chars = Array.from(w.target).length + 1 - (prevEnd === null ? 1 : 0);
       correct += an.counts.C - (prevEnd === null ? 1 : 0); // the first keystroke starts the clock
-      var dur = end - start, el = end - t0;
+      var duration = end - start, elapsed = end - t0;
       out.push({
         i: out.length + 1, word: w.target, t: end - t0,
-        burst: dur > 0 ? chars / 5 / (dur / 60000) : null,
-        running: el > 0 ? correct / 5 / (el / 60000) : null,
+        burst: duration > 0 ? wpm(chars, duration) : null,
+        running: elapsed > 0 ? wpm(correct, elapsed) : null,
         error: an.targets.some(function (x) { return x.err > 0; }),
       });
       prevEnd = end;
@@ -40,35 +43,43 @@
   // with opts ({ macros, equivalence }).
   function keyStats(words, analyses, opts) {
     var macros = opts && opts.macros, canon = (opts && opts.equivalence || FT.text.equivalence()).canon;
-    var ms = (macros || []).map(function (m) { return m.toLowerCase(); });
     var keys = {}, land = {};
-    words.forEach(function (w, wi) {
-      var an = analyses[wi];
-      var P = an.targets.map(function (x) { return x.ch; });
-      var tp = FT.presses.ofTarget(P.join(''), macros), byPress = {};
-      P.forEach(function (ch, i) {
-        var b = byPress[tp[i]] || (byPress[tp[i]] = { chars: '', err: 0 });
-        b.chars += ch; b.err += an.targets[i].err;
-      });
-      Object.keys(byPress).forEach(function (p) {
-        var b = byPress[p], tok = Array.from(b.chars).length > 1 ? b.chars.toLowerCase() : b.chars;
-        var k = keys[tok] || (keys[tok] = [0, 0]);
-        k[0] += 1; k[1] += Math.min(1, b.err); // one press: at most one error
-      });
-      var groups = {}, presses = an.presses.typed;
-      an.events.forEach(function (e) {
-        if (e.type !== 'sub' && e.type !== 'transpose') return;
-        var g = presses[e.idx];
-        var whole = g != null ? w.stream.filter(function (x, i) { return presses[i] === g; }).map(function (x) { return x.ch; }).join('').toLowerCase() : '';
-        if (whole.length > 1 && ms.indexOf(whole) >= 0) {
-          if (!groups[g]) { groups[g] = true; land[whole] = (land[whole] || 0) + e.w; }
-          return;
-        }
-        var a = canon(e.actual);
-        land[a] = (land[a] || 0) + e.w;
-      });
+    words.forEach(function (w, i) {
+      countPresses(keys, analyses[i], macros);
+      countLandings(land, w, analyses[i], (macros || []).map(function (m) { return m.toLowerCase(); }), canon);
     });
     return { keys: keys, land: land };
+  }
+  // The word's target presses, each with its first-attempt errors (one press:
+  // at most one error).
+  function countPresses(keys, analysis, macros) {
+    var letters = analysis.targets.map(function (x) { return x.ch; });
+    var pressOf = FT.presses.ofTarget(letters.join(''), macros), byPress = {};
+    letters.forEach(function (ch, i) {
+      var press = byPress[pressOf[i]] || (byPress[pressOf[i]] = { chars: '', err: 0 });
+      press.chars += ch; press.err += analysis.targets[i].err;
+    });
+    Object.keys(byPress).forEach(function (id) {
+      var press = byPress[id], name = Array.from(press.chars).length > 1 ? press.chars.toLowerCase() : press.chars;
+      var counts = keys[name] || (keys[name] = [0, 0]);
+      counts[0] += 1; counts[1] += Math.min(1, press.err);
+    });
+  }
+  // Where the word's wrong presses landed: a declared multi-letter key once
+  // per press, otherwise the character typed.
+  function countLandings(land, word, analysis, multiLetterKeys, canon) {
+    var counted = {}, typedPress = analysis.presses.typed;
+    analysis.events.forEach(function (e) {
+      if (e.type !== 'sub' && e.type !== 'transpose') return;
+      var press = typedPress[e.idx];
+      var whole = press != null ? word.stream.filter(function (x, i) { return typedPress[i] === press; }).map(function (x) { return x.ch; }).join('').toLowerCase() : '';
+      if (whole.length > 1 && multiLetterKeys.indexOf(whole) >= 0) {
+        if (!counted[press]) { counted[press] = true; land[whole] = (land[whole] || 0) + e.w; }
+        return;
+      }
+      var typed = canon(e.actual);
+      land[typed] = (land[typed] || 0) + e.w;
+    });
   }
 
   FT.exerciseStats = { timeline: timeline, keyStats: keyStats };
