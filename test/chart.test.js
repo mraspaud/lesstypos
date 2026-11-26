@@ -86,3 +86,41 @@ test('log ticks never loop on non-positive values', () => {
   assert.ok(Array.isArray(FT.chart.logTicks(0, 100)));
   assert.ok(Array.isArray(FT.chart.logTicks(-5, 10)));
 });
+
+// Geometry used by the hover tooltips and the drawn marks.
+const word = (i, burst, running, error = false) => ({ i, word: 'w' + i, burst, running, error });
+
+test('the timeline picks the word under the pointer, clamped to the first and last', () => {
+  const g = FT.chart.timelineGeometry([word(1, null, 40), word(2, 50, 45), word(3, 60, 50, true)], 600);
+  assert.equal(g.x(1), g.left);
+  assert.equal(g.x(3), g.right);
+  assert.equal(g.pointAt(g.x(2) + 10).i, 2);
+  assert.equal(g.pointAt(-100).i, 1);
+  assert.equal(g.pointAt(10000).i, 3);
+  assert.deepEqual(plain(g.errorMarks), [{ x: g.right, y: g.top - 11 }]);
+  assert.equal(g.endLabel.text, '50');
+});
+
+test('a progress chart picks the point nearest the pointer', () => {
+  const day = 864e5, t0 = Date.UTC(2026, 0, 1);
+  const g = FT.chart.progressGeometry({ points: [0, 3, 10].map((d) => ({ t: t0 + d * day, y: 50 + d })) }, 480);
+  assert.equal(g.pointAt(g.x(t0 + 2 * day)).t, t0 + 3 * day);
+  assert.equal(g.pointAt(0).t, t0);
+  assert.ok(g.trendPath.startsWith('M'));
+});
+
+test('a tooltip sits right of its point unless it would overflow, and stays inside the box', () => {
+  assert.equal(FT.chart.tipBeside(100, 12, 80, 400), 112);
+  assert.equal(FT.chart.tipBeside(350, 12, 80, 400), 258);
+  assert.equal(FT.chart.tipBeside(20, 12, 80, 90), 0);
+  assert.equal(FT.chart.tipWithin(380, 80, 400), 320);
+  assert.equal(FT.chart.tipWithin(-5, 80, 400), 0);
+});
+
+test('heatmap keys are laid out in key units with a gap between them', () => {
+  const grid = { cells: [{ key: 'a', label: 'a', x: 0, y: 0, w: 1 }, { key: ' ', label: '␣', x: 1, y: 1, w: 3 }], width: 4, height: 2 };
+  const g = plain(FT.chart.heatCells(grid, [{ rated: true, shade: 1 }, { rated: false, shade: 0 }]));
+  assert.deepEqual([g.width, g.height], [168, 84]);
+  assert.deepEqual(g.cells[0], { x: 0, y: 0, width: 38, height: 38, labelX: 19, labelY: 24, opacity: 1, onDark: true });
+  assert.deepEqual([g.cells[1].x, g.cells[1].width, g.cells[1].opacity, g.cells[1].onDark], [42, 122, 1, false]);
+});

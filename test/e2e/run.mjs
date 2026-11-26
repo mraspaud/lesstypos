@@ -86,7 +86,7 @@ await step('typing an exercise with a corrected error, stopping and rating effor
   await page.locator('#chart svg path.run').waitFor();
   const box = await page.locator('#chart svg').boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.locator('#tip:not([hidden])').waitFor();
+  await page.locator('#chart .tip:not([hidden])').waitFor();
   if (shots) await page.screenshot({ path: shots + '/summary.png', fullPage: true });
 });
 
