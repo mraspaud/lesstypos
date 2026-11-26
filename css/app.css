@@ -274,8 +274,8 @@ details > summary { cursor: pointer; font-weight: 600; }
 .status a.big { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
 
 /* instruction card over the text */
-.window { position: relative; }
-.briefing { position: absolute; inset: 0; margin: auto; max-width: 34rem; height: fit-content; background: var(--surface);
+.stage { position: relative; }
+.briefing { position: absolute; top: 0; left: 0; right: 0; margin: 0 auto; max-width: 34rem; background: var(--surface);
   border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
   font-family: var(--font-ui); font-size: 1rem; line-height: 1.5; z-index: 2; }
 .briefing h2 { margin: 0 0 8px; font-size: 1.1rem; }

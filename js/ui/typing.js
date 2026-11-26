@@ -46,7 +46,7 @@
       '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' ? '' : ' hidden') + '>' + (type === 'bursts' ? 'Round 1 of ' + nRounds : clock(durationMs)) + '</span></div>' +
       (type === 'bursts' ? '<div class="pace" id="pace" aria-hidden="true"><div class="pace-fill" id="pacefill"></div><div class="pace-target" id="pacetarget"></div></div>' +
         '<div class="pace-label muted num" id="pacelabel">Target ' + Math.round(app.trainer.bursts.target()) + ' WPM</div>' : '') +
-      '<div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div>' +
+      '<div class="stage"><div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div></div>' +
       (withCard ? briefing(exDef, nRounds, type) : '') + '</div>' +
       '<div class="focus-hint" id="hint">' + (withCard ? '' : 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.') + '</div>' +
       '<div id="stopbar" class="stopbar" hidden></div>' +

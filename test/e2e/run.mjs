@@ -907,6 +907,29 @@ await step('a rebuild finishing after you left does not touch the new screen', a
 });
 
 
+await step('the instruction card is shown in full, heading to keys, on desktop and phone', async () => {
+  await page.goto(plainUrl);
+  await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  const shownInFull = (sel) => page.evaluate((s) => {
+    const el = document.querySelector(s), r = el.getBoundingClientRect();
+    return [[r.left + 2, r.top + 2], [r.right - 2, r.bottom - 2]].every(([x, y]) => el.contains(document.elementFromPoint(x, y)));
+  }, sel);
+  try {
+    for (const width of [1100, 390]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.evaluate(() => window.FT.ui.startExercise('bursts', { minutes: 3 }));
+      await page.locator('#briefing').waitFor();
+      assert.ok(await shownInFull('#briefing h2'), 'heading at ' + width);
+      assert.ok(await shownInFull('#briefing p:last-child'), 'keys at ' + width);
+      await page.keyboard.press('Escape');
+    }
+  } finally {
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.goto(url);
+    await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  }
+});
+
 await step('an instruction card comes before the exercise; Enter starts, letters before it do nothing', async () => {
   await page.goto(plainUrl);
   await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
