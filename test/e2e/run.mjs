@@ -949,11 +949,13 @@ await step('an instruction card comes before the exercise; Enter starts, letters
     const card = page.locator('#briefing');
     await card.waitFor();
     assert.match(await card.textContent(), /95%/);
+    assert.equal(await page.locator('#capture').getAttribute('aria-describedby'), 'briefing');   // read out to screen readers
     await page.keyboard.type('abc');
     assert.equal(await page.locator('.w .l.ok, .w .l.bad').count(), 0);
     assert.ok(await card.isVisible());
     await page.keyboard.press('Enter');
     assert.equal(await card.isVisible(), false);
+    assert.equal(await page.locator('#capture').getAttribute('aria-describedby'), null);
     await typeWords(1);
     assert.ok(await page.locator('.w .l.ok, .w .l.bad').count() > 0);
     await page.keyboard.press('Escape'); await page.keyboard.press('Delete');

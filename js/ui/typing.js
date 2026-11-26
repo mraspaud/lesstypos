@@ -51,7 +51,7 @@
       (withCard ? briefing(exDef, nRounds, type) : '') + '</div>' +
       '<div class="focus-hint" id="hint">' + (withCard ? '' : 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.') + '</div>' +
       '<div id="stopbar" class="stopbar" hidden></div>' +
-      '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"></textarea>' +
+      '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"' + (withCard ? ' aria-describedby="briefing"' : '') + '></textarea>' +
       '</section>');
     var session = FT.session.create(ex.words.slice(0, 120));
     var fed = 120;
@@ -250,6 +250,7 @@
     ty.briefing = false;
     var el = document.getElementById('briefing');
     if (el) el.remove();
+    ty.capture.removeAttribute('aria-describedby');
     hint('Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.');
     focusCapture();
   }
