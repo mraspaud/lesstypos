@@ -8,7 +8,7 @@ const { load, plain } = require('./helpers/load');
 // intervals) -> mastered (rare retention checks); failures send it back.
 
 const FT = load();
-const next = (stage, obs) => plain(FT.model.nextStage(stage, Object.assign(
+const next = (stage, obs) => plain(FT.stages.next(stage, Object.assign(
   { flagged: false, suspect: false, localN: 0, localWords: 0, session: 10 }, obs)));
 const GOOD = { localN: 12, localWords: 4 };
 
@@ -62,7 +62,7 @@ test('a credible deficit sends any stage back to weak', () => {
 });
 
 test('training demand reflects stage and due reviews', () => {
-  const d = (s, session = 10) => FT.model.demand(s, session);
+  const d = (s, session = 10) => FT.stages.demand(s, session);
   assert.ok(d({ name: 'weak' }) > d({ name: 'improving' }));
   assert.ok(d({ name: 'improving' }) > d({ name: 'consolidating', interval: 2, due: 10 }));
   assert.equal(d({ name: 'consolidating', interval: 2, due: 12 }), 0);

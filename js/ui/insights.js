@@ -62,7 +62,7 @@
             '<td class="num">' + pct(c.errorRate) + ' <span class="muted">vs ' + pct(c.parentErrorRate) + '</span></td>' +
             '<td class="num">×' + fix(c.latRel, 2) + '</td>' +
             (app.layout ? '<td>' + esc(movement(k)) + '</td>' : '') +
-            '<td class="ex">' + esc(ctxs[k].ex.slice(-3).reverse().join(', ')) + '</td></tr>';
+            '<td class="ex">' + esc(ctxs[k].examples.slice(-3).reverse().join(', ')) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
     }
     html += '</details>';

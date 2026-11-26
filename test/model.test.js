@@ -142,7 +142,7 @@ test('long histories are compacted without changing judgements materially', () =
   const m = FT.model.create({ exactSessions: 6, block: 4 });
   const words = [...FILLER, ...RN, ...N_WORDS];
   for (let s = 0; s < 30; s++) m.ingest(makeRecords(words, 60, errRn, 200 + s), { session: s + 1, day: s });
-  assert.ok(m.state().contexts.rn.b.length <= 12);
+  assert.ok(m.state().contexts.rn.buckets.length <= 12);
   const ref = FT.model.create({ exactSessions: 1000 });
   for (let s = 0; s < 30; s++) ref.ingest(makeRecords(words, 60, errRn, 200 + s), { session: s + 1, day: s });
   const a = m.explain('rn', { day: 30 }), b = ref.explain('rn', { day: 30 });
@@ -241,7 +241,7 @@ test('a model stored compactly and loaded again judges the same, at about half t
   assert.equal(again.evaluate({ day: 5 }).get('str').state, 'hesitant');
   // and the reloaded model keeps learning
   again.ingest(makeRecords(FILLER, 50, () => null, 99), { session: 6, day: 6 });
-  assert.ok(again.state().contexts.th.b.length >= 6);
+  assert.ok(again.state().contexts.th.buckets.length >= 6);
 });
 
 test('a model state stored before compaction still loads', () => {
@@ -258,18 +258,18 @@ test('a model state stored before compaction still loads', () => {
 test('after 400 sessions a context keeps a bounded number of buckets and judgements still work', () => {
   const m = FT.model.create();
   for (let s = 1; s <= 400; s++) m.ingest(makeRecords([...FILLER, ...TR, ...STR], 40, slowStr, 1000 + s), { session: s, day: s });
-  const b = m.state().contexts.th.b;
+  const b = m.state().contexts.th.buckets;
   assert.ok(b.length <= 45, String(b.length));
-  assert.ok(b.some((x) => typeof x.blk === 'string')); // 64-session blocks exist
+  assert.ok(b.some((x) => typeof x.block === 'string')); // 64-session blocks exist
   const ev = m.evaluate({ day: 400 });
   assert.equal(ev.get('str').state, 'hesitant');
   assert.ok(ev.get('str').latSessions >= 2);
   assert.notEqual(ev.get('tr').state, 'hesitant');
   // parent and child buckets stay aligned: same block keys
-  const keys = (k) => m.state().contexts[k].b.filter((x) => typeof x.blk === 'string').map((x) => x.blk);
+  const keys = (k) => m.state().contexts[k].buckets.filter((x) => typeof x.block === 'string').map((x) => x.block);
   assert.deepEqual(plain(keys('str')), plain(keys('tr')).filter((k) => keys('str').includes(k)));
   const saved = plain(m.toJSON());
-  assert.deepEqual(plain(FT.model.create(saved.cfg, saved.state).state().contexts.th.b.map((x) => x.blk ?? null)), plain(b.map((x) => x.blk ?? null)));
+  assert.deepEqual(plain(FT.model.create(saved.cfg, saved.state).state().contexts.th.buckets.map((x) => x.block ?? null)), plain(b.map((x) => x.block ?? null)));
 });
 
 // Review findings: contexts typed in different sessions must sit at the same
@@ -284,7 +284,7 @@ test('a deficit replicated long ago and recently is still confirmed after years 
     m.ingest(makeRecords(words, 40, errQ, 2000 + s), { session: s, day: s });
   }
   const st = m.state().contexts;
-  const levels = (k) => st[k].b.filter((b) => b.s <= 64).map((b) => typeof b.blk);
+  const levels = (k) => st[k].buckets.filter((b) => b.session <= 64).map((b) => typeof b.block);
   assert.deepEqual(plain(levels('q')), plain(levels('e'))); // same level for the same old sessions
   assert.ok(m.evaluate({ day: 250 }).get('q').errSessions >= 2);
 });
@@ -304,6 +304,6 @@ test('a compacted block weighs the same in a sequence and in its parent', () => 
     if (s > 4) for (let i = 0; i < 10; i++) recs.push(rec('c', 'x', 0));
     m.ingest(recs, { session: s, day: 0 });
   }
-  assert.equal(typeof m.state().contexts.b.b[0].blk, 'number'); // block 0 is merged
+  assert.equal(typeof m.state().contexts.b.buckets[0].block, 'number'); // block 0 is merged
   assert.equal(m.explain('ab', { day: 0 }).redundant, false);
 });
