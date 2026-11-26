@@ -106,3 +106,15 @@ test('a tag named like a time of day is a condition apart from that time of day'
   const rows = C().compare(h).filter((r) => r.tag === 'morning');
   assert.deepEqual(plain(rows.map((r) => [r.key, r.automatic, r.with.n])), [['tag:morning', false, 6], ['time:morning', true, 6]]);
 });
+
+test('the comparison is computed once per change of the history or its tags', () => {
+  const tr = FT.trainer.create({ seed: 3 });
+  const raw = finishedExercise(tr);
+  const first = tr.conditions();
+  assert.equal(tr.conditions(), first);
+  tr.tag([raw.id], ['home']);
+  const retagged = tr.conditions();
+  assert.notEqual(retagged, first);
+  finishedExercise(tr);
+  assert.notEqual(tr.conditions(), retagged);
+});

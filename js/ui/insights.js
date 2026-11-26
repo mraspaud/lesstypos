@@ -247,7 +247,7 @@
     var h = app.trainer.history().slice().reverse();
     var pc = progressCharts(app.trainer.history());
     var html = '<section class="stack">' + U.sectionHead('insights') + '</section>' + pc.html +
-      conditionsSection(app.trainer.history()) +
+      conditionsSection(app.trainer.conditions()) +
       '<section class="stack"><h2>All exercises</h2><p class="muted">Newest first; open a row for its summary. “Random words” is the unbiased sample that targeted practice never influences.</p></section>';
     if (!h.length) html += '<p class="panel">No exercises yet.</p>';
     else html += H.table(['When', 'Exercise', 'Min', 'WPM', 'Accuracy', 'Random words', 'Effort', 'Hesitation', 'Rhythm', 'Vocabulary'], h.map(function (x) {
@@ -263,8 +263,7 @@
     pc.draw();
   }
   // How relaxed practice differs with and without each condition (measurement only).
-  function conditionsSection(history) {
-    var rows = FT.conditions.compare(history);
+  function conditionsSection(rows) {
     var signed = function (x, digits, unit) { return (x >= 0 ? '+' : '−') + fix(Math.abs(x), digits) + unit; };
     var interval = function (d, scale, digits, unit) { return signed(d.difference * scale, digits, unit) + ' <span class="muted">(' + signed(d.low * scale, digits, '') + ' to ' + signed(d.high * scale, digits, unit) + ')</span>'; };
     return '<section class="stack"><h2>Conditions</h2><p class="muted">Relaxed practice with each tag of yours, or at each time of day, against the rest: the difference, and the range it lies in with 95% confidence (bootstrap; Efron &amp; Tibshirani 1993). ' +

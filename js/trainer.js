@@ -40,6 +40,15 @@
       return model.trainingTargets({ session: clock.sessionFor(run), day: FT.days.number(now()), freq: corpus.freqWeight });
     }
 
+    // The conditions' comparison (thousands of resamples) changes only with
+    // the history or its tags.
+    var tagChanges = 0, comparison = null;
+    function conditions() {
+      var key = history.length + ':' + tagChanges;
+      if (!comparison || comparison.key !== key) comparison = { key: key, rows: FT.conditions.compare(history) };
+      return comparison.rows;
+    }
+
     var exercisesMade = 0;
     function exerciseSeed() { return seed + 7919 * (++exercisesMade) + 31 * history.length; }
 
@@ -211,7 +220,11 @@
         reference: function () { return FT.bursts.relaxedMedian(history); } },
       history: function () { return history; },
       // Tags typed after the exercises were processed (the raw records get them too).
-      tag: function (ids, tags) { history.forEach(function (h) { if (ids.indexOf(h.id) >= 0) h.tags = tags.length ? tags.slice() : undefined; }); },
+      tag: function (ids, tags) {
+        tagChanges++;
+        history.forEach(function (h) { if (ids.indexOf(h.id) >= 0) h.tags = tags.length ? tags.slice() : undefined; });
+      },
+      conditions: conditions,
       profile: function () {
         return { lang: lang, modelVersion: FT.MODEL_VERSION, sessionCount: clock.sessionCount(), lastRun: clock.lastRun(), model: model.toJSON(), subs: subs.toJSON(),
           difficulty: difficulty.toJSON(), bursts: bursts.toJSON(), history: history };
