@@ -180,8 +180,8 @@ export default async function insights() {
 }
 
 // The experimental fluency index: its chart (two series, coverage in the
-// tooltip, a table) and the benchmark check, once relaxed practice covers
-// enough of the reference text.
+// tooltip, a table), the measured breakdown of recent typing time and the
+// benchmark check, once relaxed practice covers enough of the reference text.
 async function fluencyIndex() {
   const page = await freshPage();
   await seedExercises(page, { count: 6, words: 120, effort: 2, seed: 3 });
@@ -192,6 +192,9 @@ async function fluencyIndex() {
     const chart = page.locator('.progress-chart', { has: page.locator('h3', { hasText: 'Fluency (experimental)' }) });
     await chart.locator('svg circle.pt.second').waitFor();             // one day: points, no lines
     assert.match(await chart.locator('p.muted').first().textContent(), /experimental prediction, not a measurement/);
+    assert.match(await chart.locator('p.muted').first().textContent(), /Kalfaoğlu & Stafford 2014/);
+    assert.match(await chart.locator('#timebreakdown').textContent(),
+      /^Flow speed \d+ WPM \(keystrokes without errors\) · corrections cost \d+% of your typing time \(about [\d.]+ s each\)/);
     await chart.locator('svg').scrollIntoViewIfNeeded();
     const box = await chart.locator('svg').boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

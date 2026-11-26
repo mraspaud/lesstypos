@@ -213,14 +213,15 @@
         cols: ['Day', 'Median WPM', 'Range', 'Accuracy'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.min) + '–' + fix(p.max), pct(p.firstAttemptAccuracy)]; } },
       { title: 'Fluency (experimental)',
         note: 'An experimental prediction, not a measurement: the relaxed speed your current sequence statistics predict on a fixed text of ' + FT.fluency.REFERENCE_WORDS.toLocaleString('en') + ' common words. ' +
-          'Our own method (design choice), not a validated one: each keystroke takes the time your statistics give it after the letters before it, as in keystroke-level models (Card, Moran & Newell 1980) with context-dependent timing (Gentner 1983; Salthouse 1986), and each error adds a slip and its backspace (Soukoreff & MacKenzie 2003). ' +
+          'Our own method (design choice), not a validated one: each keystroke takes the time your statistics give it after the letters before it, as in keystroke-level models (Card, Moran & Newell 1980) with context-dependent timing (Gentner 1983; Salthouse 1986), and each error costs what your corrections cost in your recent relaxed practice (measured below). ' +
+          'Errors cost time around the mistake, not just a keystroke (Salthouse 1986; post-error slowing, Kalfaoğlu & Stafford 2014), and faster typists mainly make fewer errors (Dhakal et al. 2018). ' +
           'Solid: predicted speed, at the pace of your recent relaxed practice. Dashed: effortless speed, at the pace of the practice you rated effort ' + EFFORTLESS + '. ' +
           'Shown once ' + pct(FT.progress.FLUENCY_MIN_COVERAGE, 0) + ' of the text is timed from sequences of two letters or more (coverage). Trust it only as far as the benchmark check below shows.',
         label: 'Predicted WPM', color: '--series-1', min: 1, rows: series.fluency,
         point: function (p) { return { t: p.startedAt, y: p.wpm, tip: '<b>' + fix(p.wpm) + ' WPM predicted</b> · ' + esc(date(p.startedAt)) + '<br>effortless ' + (p.effortlessWpm == null ? 'not yet (needs ' + FT.fluency.MIN_SCALE_EXERCISES + ' relaxed exercises rated ' + EFFORTLESS + ')' : fix(p.effortlessWpm) + ' WPM') + ', coverage ' + pct(p.coverage, 0) }; },
         second: { color: '--series-2', points: series.fluency.filter(function (p) { return p.effortlessWpm != null; }).map(function (p) { return { t: p.startedAt, y: p.effortlessWpm }; }) },
         cols: ['Day', 'Predicted WPM', 'Effortless WPM', 'Coverage'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.effortlessWpm), pct(p.coverage, 0)]; },
-        after: fluencyCheckSection(FT.progress.fluencyCheck(history), date) },
+        after: timeBreakdownLine(FT.progress.timeBreakdown(history)) + fluencyCheckSection(FT.progress.fluencyCheck(history), date) },
       { title: 'Common-pair timing', note: 'Median time between the letters of the ' + FT.timing.COMMON_PAIRS.length + ' most common pairs inside words, in relaxed practice, weighted by how many such pairs each exercise had. Lower is faster. Pairs typed with a multi-letter key (such as th) are not timed. Log scale.',
         label: 'Common-pair timing in ms', color: '--series-1', min: 1, rows: series.commonPairMs, log: true, fmt: function (v) { return Math.round(v) + ''; },
         point: function (p) { return { t: p.startedAt, y: p.commonPairMs, tip: '<b>' + fix(p.commonPairMs) + ' ms</b> · ' + esc(date(p.startedAt)) }; },
@@ -251,6 +252,14 @@
         if (el) FT.chart.progress(el, { points: c.rows.map(c.point), second: c.second, log: c.log, yMax: c.yMax, color: c.color, fmt: c.fmt, label: c.label });
       });
     } };
+  }
+
+  // Where recent relaxed typing time goes, measured (FT.progress.timeBreakdown).
+  function timeBreakdownLine(b) {
+    if (!b) return '';
+    return '<p id="timebreakdown">Flow speed ' + fix(b.flowWpm) + ' WPM (keystrokes without errors) · corrections cost ' + pct(b.correctionShare, 0) + ' of your typing time' +
+      (b.errorCostMs == null ? '' : ' (about ' + fix(b.errorCostMs / 1000, 1) + ' s each)') +
+      '<span class="muted"> · measured over your last ' + b.exercises + ' relaxed exercise' + (b.exercises > 1 ? 's' : '') + ', not predicted.</span></p>';
   }
 
   // The fluency index against each benchmark set (FT.progress.fluencyCheck):
