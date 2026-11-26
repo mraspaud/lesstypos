@@ -136,3 +136,37 @@ test('a benchmark predicted with too little coverage is not checked', () => {
   assert.deepEqual(check.rows, []);
   assert.equal(check.fluency, null);
 });
+
+// Functionality: where the time of recent relaxed typing goes, measured: the
+// flow of keystrokes without errors, and the time corrections cost
+// (FT.timing correction) with their cost per error.
+const typed = (wpm, durationMs, correctionMs, errorCostMs, more = {}) => Object.assign({ type: 'relaxed', words: 200, wpm, durationMs,
+  meanMs: { within: 150, initial: 200 }, correctionMs, errorCostMs }, more);
+
+test('recent relaxed typing splits into flow speed and the share of time corrections cost', () => {
+  const b = plain(FT.progress.timeBreakdown([typed(60, 60000, 6000, 1000), typed(50, 120000, 24000, 1200)]));
+  assert.equal(b.exercises, 2);
+  assert.equal(b.flowWpm, (60 * 60000 + 50 * 120000) / (54000 + 96000));   // the same characters without the correction time
+  assert.equal(b.correctionShare, 30000 / 180000);
+  assert.equal(b.errorCostMs, 1100);
+});
+
+test('the breakdown takes the last 5 comparable relaxed exercises', () => {
+  const old = typed(10, 60000, 30000, 9000), other = { type: 'warmup' }, short = { words: 20 };
+  const b = FT.progress.timeBreakdown([old].concat([1, 2, 3, 4, 5].map(() => typed(60, 60000, 6000, 1000)),
+    [typed(10, 60000, 30000, 9000, other), typed(10, 60000, 30000, 9000, short)]));
+  assert.equal(b.exercises, 5);
+  assert.equal(b.correctionShare, 0.1);
+  assert.equal(b.errorCostMs, 1000);
+});
+
+test('typing without errors has no cost per error', () => {
+  const b = FT.progress.timeBreakdown([typed(60, 60000, 0, null)]);
+  assert.equal(b.correctionShare, 0);
+  assert.equal(b.flowWpm, 60);
+  assert.equal(b.errorCostMs, null);
+});
+
+test('there is no breakdown before a relaxed exercise was measured', () => {
+  assert.equal(FT.progress.timeBreakdown([typed(60, 60000, 6000, 1000, { meanMs: undefined, correctionMs: undefined })]), null);
+});
