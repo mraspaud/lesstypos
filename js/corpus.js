@@ -16,6 +16,9 @@
       cache.set(key, out);
       return out;
     }
+    // Frequency per million words: from the Zipf scale (log10 per billion,
+    // van Heuven et al. 2014) when the list has it; design choice otherwise:
+    // a Zipf-like law on the rank, 1e6 / (rank + 10).
     function perMillion(i) { return zipf ? Math.pow(10, zipf[i] - 3) : 1e6 / (i + 10); }
     function occurrences(s, key) {
       var n = 0, at = s.indexOf(key);
@@ -28,6 +31,9 @@
       return null;
     }
     var fcache = new Map();
+    // Per million words. Design choice: a context across a word boundary is
+    // as frequent as its two halves would be if neighbouring words were
+    // independent (the product of the end of one word and the start of the next).
     function freq(key) {
       if (fcache.has(key)) return fcache.get(key);
       var sp = split(key), f = 0;

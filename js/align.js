@@ -22,6 +22,9 @@
 // Keystroke classes (C/INF/IF/F) stay per character.
 (function (FT) {
   'use strict';
+  // Design choice: the optimal alignments enumerated per word are capped, so a
+  // long garbled word cannot blow up; the 1/N weights then come from the first
+  // MAX_ALIGNMENTS found.
   var MAX_ALIGNMENTS = 32;
   // Characters compare up to typographic equivalence (opts.equivalence, from
   // FT.text.equivalence; accents accepted by default).

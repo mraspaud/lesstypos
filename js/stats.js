@@ -37,11 +37,15 @@
   }
 
   // Regularized incomplete beta I_x(a, b) = CDF of Beta(a, b) at x.
+  // Design choice: when both parameters exceed NORMAL_BETA_ABOVE, the normal
+  // approximation with the beta's mean and variance replaces the continued
+  // fraction (its error there is far below the 0.95 decision threshold, and
+  // the continued fraction converges slowly for large parameters).
+  var NORMAL_BETA_ABOVE = 500;
   function betaCdf(x, a, b) {
     if (x <= 0) return 0;
     if (x >= 1) return 1;
-    if (a > 500 && b > 500) {
-      // normal approximation, accurate when both parameters are large
+    if (a > NORMAL_BETA_ABOVE && b > NORMAL_BETA_ABOVE) {
       var mean = a / (a + b), v = a * b / ((a + b) * (a + b) * (a + b + 1));
       return normCdf((x - mean) / Math.sqrt(v));
     }
@@ -64,8 +68,9 @@
 
   // Van Selst & Jolicoeur (1994) non-recursive procedure with moving criterion.
   // Criterion values by sample size: anchor points as used in CrumpLab's
-  // implementation (1.458 at n=4 rising to 2.5 at n>=100), linearly
-  // interpolated. NOTE: not re-verified against the original 1994 table.
+  // implementation (1.458 at n=4 rising to 2.5 at n>=100). Design choice:
+  // linear interpolation between the anchors. NOTE (open caveat): the anchors
+  // are not re-verified against the original 1994 table.
   var VJ = [[4, 1.458], [5, 1.68], [6, 1.841], [7, 1.961], [8, 2.05], [9, 2.12],
     [10, 2.173], [11, 2.22], [12, 2.246], [13, 2.274], [14, 2.31], [15, 2.326],
     [20, 2.391], [25, 2.41], [30, 2.4305], [35, 2.45], [50, 2.48], [100, 2.5]];
@@ -84,6 +89,8 @@
     var s = 0; for (i = 0; i < v.length; i++) s += (v[i] - m) * (v[i] - m);
     return [m, Math.sqrt(s / Math.max(v.length - 1, 1))];
   }
+  // Design choice: one pass; the bounds come from the sample without its
+  // largest value and apply to every value (low and high outliers alike).
   function vjTrim(values) {
     var n = values.length;
     if (n < 4) return values.slice();
