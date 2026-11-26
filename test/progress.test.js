@@ -138,6 +138,13 @@ test('each complete benchmark set is checked against the prediction made before 
   assert.deepEqual(check.effortless, { sets: 1, meanAbsoluteError: 8, meanError: 8 });
 });
 
+test('a benchmark taken before the index had a scale is not checked', () => {
+  const check = plain(FT.progress.fluencyCheck([60, 62, 64].map((wpm) => trial('a', 1, wpm))));
+  assert.deepEqual(check.rows, []);
+  assert.equal(check.fluency, null);
+  assert.equal(check.effortless, null);
+});
+
 test('a benchmark predicted with too little coverage is not checked', () => {
   const h = [60, 62, 64].map((wpm) => predicted(trial('a', 1, wpm), 66, 70, 0.4));
   const check = plain(FT.progress.fluencyCheck(h));
