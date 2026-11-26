@@ -215,5 +215,5 @@
   }
 
   FT.timing = { wordStartMs: wordStartMs, extract: extract, pauseTime: pauseTime, macroCandidates: macroCandidates,
-    hesitationRate: hesitationRate, rhythmCv: rhythmCv, COMMON_PAIRS: COMMON_PAIRS, commonPairStats: commonPairStats };
+    hesitationRate: hesitationRate, rhythmCv: rhythmCv, COMMON_PAIRS: COMMON_PAIRS, commonPairStats: commonPairStats, PAUSE_MS: PAUSE_MS };
 })(globalThis.FT);

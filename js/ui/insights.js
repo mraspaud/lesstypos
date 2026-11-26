@@ -199,6 +199,8 @@
   // Progress over time: one small chart per measure, each on its own axis,
   // comparing only comparable sessions (FT.progress.series).
   var EFFORTLESS = FT.fluency.EFFORTLESS_MAX > 1 ? '1–' + FT.fluency.EFFORTLESS_MAX : '1';
+  var PAUSES = 'pauses over ' + FT.timing.PAUSE_MS / 1000 + ' s';
+  var EFFORTLESS_NEEDS = FT.fluency.MIN_SCALE_EXERCISES + ' relaxed exercises of ' + FT.history.MIN_WORDS + '+ words rated ' + EFFORTLESS;
   function progressCharts(history) {
     var series = FT.progress.series(history), date = function (t) { return new Date(t).toLocaleDateString(); };
     var charts = [
@@ -215,10 +217,11 @@
         note: 'An experimental prediction, not a measurement: the relaxed speed your current sequence statistics predict on a fixed text of ' + FT.fluency.REFERENCE_WORDS.toLocaleString('en') + ' common words. ' +
           'Our own method (design choice), not a validated one: each keystroke takes the time your statistics give it after the letters before it, as in keystroke-level models (Card, Moran & Newell 1980) with context-dependent timing (Gentner 1983; Salthouse 1986), and each error costs what your corrections cost in your recent relaxed practice (measured below). ' +
           'Errors cost time around the mistake, not just a keystroke (Salthouse 1986; post-error slowing, Kalfaoğlu & Stafford 2014), and faster typists mainly make fewer errors (Dhakal et al. 2018). ' +
-          'Solid: predicted speed, at the pace of your recent relaxed practice. Dashed: effortless speed, at the pace of the practice you rated effort ' + EFFORTLESS + '. ' +
+          'Solid: predicted speed, at the pace of your recent relaxed practice. Dashed: effortless speed, where the error rates still come from all your practice; only its speed scale and correction cost come from the exercises you rated effort ' + EFFORTLESS + '. ' +
+          'Both add your share of ' + PAUSES + ', since measured speed includes them. ' +
           'Shown once ' + pct(FT.progress.FLUENCY_MIN_COVERAGE, 0) + ' of the text is timed from sequences of two letters or more (coverage). Trust it only as far as the benchmark check below shows.',
         label: 'Predicted WPM', color: '--series-1', min: 1, rows: series.fluency,
-        point: function (p) { return { t: p.startedAt, y: p.wpm, tip: '<b>' + fix(p.wpm) + ' WPM predicted</b> · ' + esc(date(p.startedAt)) + '<br>effortless ' + (p.effortlessWpm == null ? 'not yet (needs ' + FT.fluency.MIN_SCALE_EXERCISES + ' relaxed exercises rated ' + EFFORTLESS + ')' : fix(p.effortlessWpm) + ' WPM') + ', coverage ' + pct(p.coverage, 0) }; },
+        point: function (p) { return { t: p.startedAt, y: p.wpm, tip: '<b>' + fix(p.wpm) + ' WPM predicted</b> · ' + esc(date(p.startedAt)) + '<br>effortless ' + (p.effortlessWpm == null ? 'not yet (needs ' + EFFORTLESS_NEEDS + ')' : fix(p.effortlessWpm) + ' WPM') + ', coverage ' + pct(p.coverage, 0) }; },
         second: { color: '--series-2', points: series.fluency.filter(function (p) { return p.effortlessWpm != null; }).map(function (p) { return { t: p.startedAt, y: p.effortlessWpm }; }) },
         cols: ['Day', 'Predicted WPM', 'Effortless WPM', 'Coverage'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.effortlessWpm), pct(p.coverage, 0)]; },
         after: timeBreakdownLine(FT.progress.timeBreakdown(history)) + fluencyCheckSection(FT.progress.fluencyCheck(history), date) },
@@ -257,8 +260,9 @@
   // Where recent relaxed typing time goes, measured (FT.progress.timeBreakdown).
   function timeBreakdownLine(b) {
     if (!b) return '';
-    return '<p id="timebreakdown">Flow speed ' + fix(b.flowWpm) + ' WPM (keystrokes without errors) · corrections cost ' + pct(b.correctionShare, 0) + ' of your typing time' +
-      (b.errorCostMs == null ? '' : ' (about ' + fix(b.errorCostMs / 1000, 1) + ' s each)') +
+    return '<p id="timebreakdown">Flow speed ' + fix(b.flowWpm) + ' WPM: your speed if corrections took no extra time, without ' + PAUSES + ' · ' +
+      PAUSES + ' and corrections take ' + pct(b.pauseShare + b.correctionShare, 0) + ' of your typing time' +
+      (b.errorCostMs == null ? '' : ' (about ' + fix(b.errorCostMs / 1000, 1) + ' s per error)') +
       '<span class="muted"> · measured over your last ' + b.exercises + ' relaxed exercise' + (b.exercises > 1 ? 's' : '') + ', not predicted.</span></p>';
   }
 

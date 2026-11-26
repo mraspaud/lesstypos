@@ -193,8 +193,9 @@ async function fluencyIndex() {
     await chart.locator('svg circle.pt.second').waitFor();             // one day: points, no lines
     assert.match(await chart.locator('p.muted').first().textContent(), /experimental prediction, not a measurement/);
     assert.match(await chart.locator('p.muted').first().textContent(), /Kalfaoğlu & Stafford 2014/);
+    assert.match(await chart.locator('p.muted').first().textContent(), /error rates still come from all your practice; only its speed scale and correction cost come from the exercises you rated effort 1–2/);
     assert.match(await chart.locator('#timebreakdown').textContent(),
-      /^Flow speed \d+ WPM \(keystrokes without errors\) · corrections cost \d+% of your typing time \(about [\d.]+ s each\)/);
+      /^Flow speed \d+ WPM: your speed if corrections took no extra time, without pauses over 5 s · pauses over 5 s and corrections take \d+% of your typing time \(about [\d.]+ s per error\)/);
     await chart.locator('svg').scrollIntoViewIfNeeded();
     const box = await chart.locator('svg').boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

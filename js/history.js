@@ -42,5 +42,5 @@
     return history.some(function (h) { return h.run && FT.days.number(h.startedAt) === day; });
   }
 
-  FT.history = { trainedOn: trainedOn, entry: entry, withFluency: withFluency, isComparable: isComparable, isComparableRelaxed: isComparableRelaxed };
+  FT.history = { trainedOn: trainedOn, entry: entry, withFluency: withFluency, isComparable: isComparable, isComparableRelaxed: isComparableRelaxed, MIN_WORDS: MIN_WORDS };
 })(globalThis.FT);
