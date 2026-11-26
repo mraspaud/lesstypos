@@ -18,9 +18,8 @@
   function viewEffort() { return U.viewEffort.apply(null, arguments); }
 
   // ---------- typing ----------
-  var BURST_RUN = U.BURST_RUN, BURST_REST = U.BURST_REST;
-  function burstRun() { return app.burstRun || BURST_RUN; }   // overridable for tests
-  function burstRest() { return app.burstRest || BURST_REST; }
+  function burstRun() { return app.burstRun || FT.exercises.BURST_ROUND_MS; }   // overridable for tests
+  function burstRest() { return app.burstRest || FT.exercises.BURST_REST_MS; }
   var ty = null; // active typing state
   function stopTyping() {
     if (ty) { clearInterval(ty.timer); if (ty.detach) ty.detach(); ty = null; }
@@ -36,7 +35,7 @@
     app.current = 'typing';
     document.body.classList.add('typing-mode');
     renderNav();
-    var exDef = U.exerciseText(type, app.settings);
+    var exDef = FT.exercises.instructions(type, app.settings);
     var ex = app.trainer.newExercise({ type: type, pinned: opts.pinned, text: opts.text, run: opts.run });
     var durationMs = (opts.minutes || app.settings.durationMin) * 60000;
     var nRounds = Math.max(1, Math.floor(durationMs / (2 * burstRun())));
@@ -212,8 +211,8 @@
     if (!prev || (cur && cur.typed.length)) return false;
     return FT.text.endsSentence(prev.target) || FT.session.separatorOf(prev) === FT.session.PARAGRAPH;
   }
-  // Speed bursts: rounds of BURST_RUN ms, each started by the first keystroke
-  // after a BURST_REST ms rest. A live pace bar compares the round's speed
+  // Speed bursts: rounds of BURST_ROUND_MS, each started by the first keystroke
+  // after a BURST_REST_MS rest. A live pace bar compares the round's speed
   // with the adaptive target (FT.bursts).
   // Closes the current burst round at `end` (keystroke clock); returns true
   // when that finished the exercise.

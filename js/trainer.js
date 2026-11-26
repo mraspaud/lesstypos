@@ -3,11 +3,24 @@
 // when rebuilding the profile from stored raw sessions.
 (function (FT) {
   'use strict';
-  var MODEL_TYPES = { relaxed: true, warmup: true, targeted: true, prose: true };
-  var DIFFICULTY_TYPES = { relaxed: true };
+  var feeds = FT.exercises.feeds;
 
   function dayOf(t) { return Math.floor((t - new Date(t).getTimezoneOffset() * 60000) / 864e5); }
   function uid() { return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  // A session, for the sequence statistics, is one programme run or one
+  // standalone exercise (user decision). Only exercises that feed the
+  // sequence model advance the clock.
+  function sessionClock(saved) {
+    var count = saved.sessionCount || 0, lastRun = saved.lastRun || null;
+    function sessionFor(run) { return run && run === lastRun ? count : count + 1; }
+    return {
+      sessionFor: sessionFor,
+      advance: function (run) { count = sessionFor(run); lastRun = run; return count; },
+      sessionCount: function () { return count; },
+      lastRun: function () { return lastRun; },
+    };
+  }
 
   function create(opts) {
     opts = opts || {};
@@ -19,81 +32,24 @@
     var subs = FT.subs.create(p.subs || null);
     var difficulty = FT.difficulty.create(p.difficulty, { max: corpus.size });
     var bursts = FT.bursts.create(p.bursts || null);
-    // A session, for the sequence statistics, is one programme run or one
-    // standalone exercise (user decision). Only exercises that feed the
-    // model advance it.
-    var sessionCount = p.sessionCount || 0;
-    var lastRun = p.lastRun || null;
-    function sessionFor(run) { return run && run === lastRun ? sessionCount : sessionCount + 1; }
+    var clock = sessionClock(p);
     var seed = opts.seed || 1;
     var history = p.history || []; // compact per-exercise summaries
     var now = opts.now || function () { return Date.now(); };
 
     function targets(run) {
-      return model.trainingTargets({ session: sessionFor(run), day: dayOf(now()), freq: corpus.freqWeight });
+      return model.trainingTargets({ session: clock.sessionFor(run), day: dayOf(now()), freq: corpus.freqWeight });
     }
 
-    // o.pinned: contexts chosen by the user; they replace the model's targets
-    // and get a larger share of the text.
-    // Word sources per exercise type:
-    //   relaxed   frontier mix with training targets (the default generator);
-    //   targeted  denser in training targets (or the user's pinned sequences);
-    //   warmup    familiar words: frontier 0.5x (look-ahead stays below it);
-    //   bursts    familiar words: frontier 0.6x;
-    //   prose     the next words of the current text, from its saved position.
-    // Every exercise gets its own stream of words.
     var exercisesMade = 0;
     function exerciseSeed() { return seed + 7919 * (++exercisesMade) + 31 * history.length; }
 
+    // o: { type, pinned, text, batch, run }; FT.exercises builds the words.
     function newExercise(o) {
-      var type = o.type, F = difficulty.state().frontier;
-      if (type === 'prose') return proseExercise(o);
-      if (type === 'benchmark') return benchmarkExercise();
-      var pinned = o.pinned && o.pinned.length;
-      var shares, frontier = F, tg = [];
-      if (type === 'warmup' || type === 'bursts') {
-        frontier = Math.max(type === 'warmup' ? 0.5 * F : 0.6 * F, 60);
-        shares = { random: 0.2, target: 0, maintenance: 0 };
-      } else if (pinned) {
-        tg = o.pinned.map(function (k) { return { key: k, priority: 1, stage: 'weak' }; });
-        shares = { random: 0.2, target: 0.5, maintenance: 0 };
-      } else {
-        tg = targets(o.run).slice(0, 10);
-        if (type === 'targeted') shares = { random: 0.2, target: 0.5, maintenance: 0.15 };
-      }
-      var gen = FT.generator.create({ corpus: corpus, seed: exerciseSeed(), shares: shares });
-      var ctx = { frontier: frontier, targets: tg };
-      return { type: type, words: gen.next(400, ctx), more: function (n) { return gen.next(n, ctx); }, targets: tg,
-        noTargets: type === 'targeted' && !pinned && !tg.length };
-    }
-    // Benchmark: a fresh, unbiased sample of the 5,000 most common words.
-    var BENCH_RANKS = 5000;
-    function benchmarkExercise() {
-      var rng = FT.rng(exerciseSeed()), last = null;
-      function take(n) {
-        var out = [];
-        while (out.length < n) {
-          var w = corpus.words[Math.floor(rng() * Math.min(BENCH_RANKS, corpus.size))];
-          if (w === last && corpus.size > 1) continue;
-          out.push({ word: w, source: 'benchmark' }); last = w;
-        }
-        return out;
-      }
-      return { type: 'benchmark', words: take(400), more: take, targets: [] };
-    }
-    function proseExercise(o) {
-      var text = o.text, at = text.pos || 0, batch = o.batch || 400, ends = {};
-      (text.breaks || []).forEach(function (i) { ends[i] = true; });
-      function take(n) {
-        var out = text.words.slice(at, at + n).map(function (w, k) {
-          var item = { word: w, source: 'prose' };
-          if (ends[at + k]) item.sep = FT.session.PARAGRAPH;
-          return item;
-        });
-        at += out.length;
-        return out;
-      }
-      return { type: 'prose', words: take(batch), more: take, targets: [], text: { id: text.id, from: text.pos || 0 } };
+      return FT.exercises.build({
+        corpus: corpus, frontier: difficulty.state().frontier, nextSeed: exerciseSeed,
+        trainingTargets: function () { return targets(o.run); },
+      }, o);
     }
 
     // The raw record of an exercise (its identity fixed here); processing it
@@ -126,17 +82,11 @@
     // record a history entry. Deterministic, so replaying raw sessions
     // rebuilds the same profile.
     function process(raw) {
-      var session = sessionCount;
-      if (MODEL_TYPES[raw.type]) {
-        session = sessionFor(raw.run || raw.id);
-        sessionCount = session;
-        lastRun = raw.run || raw.id;
-      }
+      var session = feeds(raw.type, 'sequences') ? clock.advance(raw.run || raw.id) : clock.sessionCount();
       if (raw.vocab) applyVocabulary(raw.vocab);
       var m = measure(raw);
       var summary = describe(raw, m);
-      learn(raw, session, m, summary);
-      summary.frontier = difficulty.state().frontier;
+      withOutcome(summary, learn(raw, session, m, summary), difficulty.state().frontier);
       history.push(historyEntry(raw, m, summary));
       return summary;
     }
@@ -203,23 +153,34 @@
         timeline: FT.progress.timeline(m.words, m.analyses),
         keyStats: FT.progress.keyStats(m.words, m.analyses, m.options),
         baseline: m.tm.baseline,
-        sources: sources, stageChanges: [], difficulty: null,
+        sources: sources,
       };
     }
 
-    function learn(raw, session, m, summary) {
-      if (MODEL_TYPES[raw.type]) {
+    // The learners an exercise feeds update from it; returns what they
+    // decided: stage changes, burst rounds and the vocabulary decision.
+    function learn(raw, session, m, description) {
+      var outcome = { stageChanges: [], difficulty: null };
+      if (feeds(raw.type, 'sequences')) {
         model.ingest(m.tm.records, { session: session, day: raw.day, late: m.late });
-        summary.stageChanges = model.endSession({ session: session, day: raw.day });
+        outcome.stageChanges = model.endSession({ session: session, day: raw.day });
       }
-      if (raw.type !== 'benchmark') subs.ingest(m.analyses, { equivalence: m.options.equivalence, exercise: raw.type, session: session, t: raw.startedAt });
-      if (raw.type === 'bursts' && raw.rounds) summary.rounds = bursts.apply(m.words, m.analyses, raw.rounds, history, raw.startedAt);
-      if (DIFFICULTY_TYPES[raw.type]) {
-        summary.difficulty = difficulty.update({
+      if (feeds(raw.type, 'substitutions')) subs.ingest(m.analyses, { equivalence: m.options.equivalence, exercise: raw.type, session: session, t: raw.startedAt });
+      if (feeds(raw.type, 'burstTarget') && raw.rounds) outcome.rounds = bursts.apply(m.words, m.analyses, raw.rounds, history, raw.startedAt);
+      if (feeds(raw.type, 'difficulty')) {
+        outcome.difficulty = difficulty.update({
           words: m.metrics.words, firstAttemptAccuracy: m.metrics.firstAttemptAccuracy,
-          hesitationRate: summary.hesitationRate, rhythmCv: summary.rhythmCv, effort: raw.effort, at: raw.startedAt,
+          hesitationRate: description.hesitationRate, rhythmCv: description.rhythmCv, effort: raw.effort, at: raw.startedAt,
         });
       }
+      return outcome;
+    }
+    function withOutcome(summary, outcome, frontier) {
+      summary.stageChanges = outcome.stageChanges;
+      summary.difficulty = outcome.difficulty;
+      if (outcome.rounds) summary.rounds = outcome.rounds;
+      summary.frontier = frontier;
+      return summary;
     }
 
     function historyEntry(raw, m, summary) {
@@ -240,10 +201,7 @@
     function summarize(raw) {
       var entry = history.filter(function (h) { return h.id === raw.id; })[0] || {};
       var summary = describe(raw, measure(raw), { hesitationRate: entry.hes });
-      summary.difficulty = entry.decision || null;
-      summary.frontier = entry.frontier;
-      if (entry.rounds) summary.rounds = entry.rounds;
-      return summary;
+      return withOutcome(summary, { stageChanges: [], difficulty: entry.decision || null, rounds: entry.rounds }, entry.frontier);
     }
 
     return {
@@ -257,7 +215,7 @@
         reference: function () { return FT.bursts.relaxedMedian(history); } },
       history: function () { return history; },
       profile: function () {
-        return { lang: lang, modelVersion: FT.MODEL_VERSION, sessionCount: sessionCount, lastRun: lastRun, model: model.toJSON(), subs: subs.toJSON(),
+        return { lang: lang, modelVersion: FT.MODEL_VERSION, sessionCount: clock.sessionCount(), lastRun: clock.lastRun(), model: model.toJSON(), subs: subs.toJSON(),
           difficulty: difficulty.toJSON(), bursts: bursts.toJSON(), history: history };
       },
     };

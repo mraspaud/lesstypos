@@ -2,7 +2,7 @@
 (function (FT) {
   'use strict';
   if (typeof document === 'undefined') return;
-  var U = FT.ui, app = U.app, EXERCISES = U.EXERCISES, EFFORT = U.EFFORT;
+  var U = FT.ui, app = U.app, EFFORT = U.EFFORT, exerciseName = FT.exercises.name;
   var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, fix = FT.fmt.fix, pill = FT.fmt.pill;
   // defined in other ui files
   function bindTextForm() { return U.bindTextForm.apply(null, arguments); }
@@ -28,7 +28,7 @@
     if (choice === 'read' && reading) return reading;
     if (run) {
       var done = run.results().length, total = done + run.upcoming().length;
-      return { label: 'Resume: ' + EXERCISES[run.current().type].name.toLowerCase() + ' (' + (done + 1) + ' of ' + total + ')', act: function () { startProgramme(run); } };
+      return { label: 'Resume: ' + exerciseName(run.current().type).toLowerCase() + ' (' + (done + 1) + ' of ' + total + ')', act: function () { startProgramme(run); } };
     }
     return { label: 'Start daily training · ' + FT.programme.totalMinutes(def) + ' min', act: function () { startProgramme(null); } };
   }
@@ -53,7 +53,7 @@
       var readingFirst = main === reading;
       var html = '<section class="home-start">' +
         '<h1>Daily training</h1>' +
-        (steps.length ? '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + esc(String(x.minutes)) + ' min'; }).join(' · ') + '.</p>'
+        (steps.length ? '<p class="lead">' + steps.map(function (x) { return esc(exerciseName(x.type).toLowerCase()) + ' ' + esc(String(x.minutes)) + ' min'; }).join(' · ') + '.</p>'
           : '<p class="lead">No exercises are switched on for the daily training.</p>') +
         '<div class="row"><button class="btn primary" type="button" id="primary">' + esc(main.label) + ' <kbd>Enter</kbd></button>' +
         (run ? '<button class="btn" type="button" id="restart">Start over</button>' : '') +
@@ -95,7 +95,7 @@
 
   // ---------- benchmark ----------
   // A weekly yardstick: 3 trials on unbiased common words, scored by the median.
-  var BENCH_TRIALS = U.BENCH_TRIALS;
+  var BENCHMARK_TRIALS = FT.exercises.BENCHMARK_TRIALS;
   function benchmarkDue(h) {
     var s = FT.progress.benchmarkStatus(h, Date.now());
     if (!s.last) return 'not taken yet';
@@ -111,8 +111,8 @@
     app.current = 'summary';
     renderNav();
     var b = app.bench;
-    if (b.trial < BENCH_TRIALS) {
-      setView('<section class="stack"><h1>Trial ' + b.trial + ' of ' + BENCH_TRIALS + ' done</h1>' +
+    if (b.trial < BENCHMARK_TRIALS) {
+      setView('<section class="stack"><h1>Trial ' + b.trial + ' of ' + BENCHMARK_TRIALS + ' done</h1>' +
         '<p>' + fix(s.metrics.wpm) + ' WPM at ' + pct(s.metrics.firstAttemptAccuracy) + ' accuracy (first try).</p>' +
         '<p class="muted">Rest your hands for a moment. Keep the same comfortable pace in the next trial.</p>' +
         '<div class="row"><button class="btn primary" type="button" id="nexttrial">Next trial <kbd>Enter</kbd></button></div></section>');
@@ -126,9 +126,9 @@
   function viewBenchResult(set) {
     var h = app.trainer.history(), r = FT.progress.benchmarkResult(h, set);
     var prev = FT.progress.previousSet(h, set);
-    if (!r || r.trials < BENCH_TRIALS) {
+    if (!r || r.trials < BENCHMARK_TRIALS) {
       app.bench = null;
-      setView('<section class="stack"><h1>Benchmark incomplete</h1><p>Only ' + (r ? r.trials : 0) + ' of ' + BENCH_TRIALS +
+      setView('<section class="stack"><h1>Benchmark incomplete</h1><p>Only ' + (r ? r.trials : 0) + ' of ' + BENCHMARK_TRIALS +
         ' trials ran their full minute, so this set is not used for your progress or the weekly reminder.</p>' +
         '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button></div></section>');
       document.getElementById('home').onclick = function () { go('home'); };
@@ -170,7 +170,7 @@
   function nextLine() {
     var c = app.run.current();
     if (!c) return '<p>That was the last exercise.</p>';
-    return '<p><b>Next: ' + esc(EXERCISES[c.type].name) + '</b>, ' + esc(String(c.minutes)) + ' min. <span class="muted">' + esc(U.exerciseText(c.type, app.settings).goal) + '</span></p>';
+    return '<p><b>Next: ' + esc(exerciseName(c.type)) + '</b>, ' + esc(String(c.minutes)) + ' min. <span class="muted">' + esc(FT.exercises.instructions(c.type, app.settings).goal) + '</span></p>';
   }
   function programmeBar() {
     var r = app.run, done = r.results().length, total = done + r.upcoming().length;
@@ -248,7 +248,7 @@
       res.filter(function (r) { return !r.skipped; }).length + ' exercises.</p></section>' +
       '<div class="tablewrap"><table><thead><tr><th>Exercise</th><th>Min</th><th>WPM</th><th>Accuracy</th><th>Effort</th><th>Note</th></tr></thead><tbody>' +
       res.map(function (r) {
-        return '<tr><td>' + esc(EXERCISES[r.type].name) + '</td>' + (r.skipped ? '<td colspan="4" class="muted">skipped</td><td></td>'
+        return '<tr><td>' + esc(exerciseName(r.type)) + '</td>' + (r.skipped ? '<td colspan="4" class="muted">skipped</td><td></td>'
           : '<td class="num">' + fix(r.ms / 60000, 1) + '</td><td class="num">' + fix(r.wpm) + '</td><td class="num">' + pct(r.faa) + '</td><td class="num">' + (r.effort || '–') + '</td><td>' + esc(r.note || '') + '</td>') + '</tr>';
       }).join('') + '</tbody></table></div>' +
       '<p class="muted">Speeds from different exercises are not comparable: warm-up and bursts use easier words, prose has capitals and punctuation.</p>' +
@@ -346,7 +346,7 @@
     var tg = app.trainer.targets();
     var when = new Date(s.startedAt);
     var html = (inProg ? programmeBar() : '') +
-      '<section class="stack"><h1>' + esc(EXERCISES[s.type].name) + (past ? ' · ' + esc(when.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' +
+      '<section class="stack"><h1>' + esc(exerciseName(s.type)) + (past ? ' · ' + esc(when.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' +
         when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : ' finished') + '</h1>' +
       (past ? '<div class="row"><button class="btn" type="button" id="backlog">Back to the log <kbd>Esc</kbd></button></div>'
         : inProg ? '' : '<div class="row"><button class="btn primary" type="button" id="again">Practise again <kbd>Enter</kbd></button>' +

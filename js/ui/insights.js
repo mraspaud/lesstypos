@@ -2,7 +2,7 @@
 (function (FT) {
   'use strict';
   if (typeof document === 'undefined') return;
-  var U = FT.ui, app = U.app, EXERCISES = U.EXERCISES, EFFORT = U.EFFORT;
+  var U = FT.ui, app = U.app, EFFORT = U.EFFORT;
   var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, fix = FT.fmt.fix, pill = FT.fmt.pill;
   // defined in other ui files
   function setView() { return U.setView.apply(null, arguments); }
@@ -263,7 +263,7 @@
         var d = new Date(x.t);
         return '<tr class="clickable"><td class="num nowrap"><button type="button" class="rowbtn" data-row data-past="' + esc(x.id) + '">' +
           esc(d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</button></td>' +
-          '<td>' + esc((EXERCISES[x.type] || { name: x.type }).name) + '</td><td class="num">' + fix(x.ms / 60000, 1) + '</td>' +
+          '<td>' + esc(FT.exercises.name(x.type)) + '</td><td class="num">' + fix(x.ms / 60000, 1) + '</td>' +
           '<td class="num">' + fix(x.wpm) + '</td><td class="num">' + pct(x.faa) + '</td><td class="num">' + pct(x.randomFaa) + '</td>' +
           '<td class="num">' + (x.effort || '–') + '</td><td class="num">' + pct(x.hes) + '</td><td class="num">' + fix(x.cv, 2) + '</td>' +
           '<td class="num">' + Math.round(x.frontier) + '</td></tr>';
