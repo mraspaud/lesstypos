@@ -80,7 +80,7 @@ test('explain exposes the evidence behind a judgement', () => {
   for (const f of ['n', 'errors', 'errorRate', 'parentErrorRate', 'pWorse', 'latency', 'state', 'examples', 'sessionsWithDeficit']) {
     assert.ok(f in x, f);
   }
-  assert.ok(x.examples.includes('turn') || x.examples.includes('learn') || x.examples.length > 0);
+  assert.ok(x.examples.length && x.examples.every((w) => w.includes('rn')), JSON.stringify(x.examples));
 });
 
 test('the model state survives serialisation', () => {
@@ -117,7 +117,7 @@ test('long histories are compacted without changing judgements materially', () =
   const a = m.explain('rn', { day: 30 }), b = ref.explain('rn', { day: 30 });
   assert.equal(a.state, b.state);
   near(a.errorRate, b.errorRate, 0.01);
-  assert.equal(a.sessions >= 1, true);
+  assert.ok(a.sessions < b.sessions, a.sessions + ' buckets against ' + b.sessions);
 });
 
 test('a deficit seen in only one session is emerging, and is confirmed by a second session', () => {

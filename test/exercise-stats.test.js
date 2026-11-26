@@ -13,17 +13,25 @@ const FT = load();
 const typedWords = (script) => helpers.typedWords(FT, script.map((x) => x[0]), script.map((x) => x.slice(1)));
 const timeline = (words) => FT.exerciseStats.timeline(words, FT.align.analyzeWords(words));
 
-test('the timeline gives per-word and running speed and marks errors', () => {
-  // "abcd " = 5 chars; at 100 ms per key a word takes 0.5 s -> 5/5 / (0.5/60) = 120 WPM
-  const words = typedWords([['abcd', 'abcd ', 100], ['efgh', 'efgh ', 200], ['ijkl', 'ixjkl<<jkl ', 100]]);
-  const tl = plain(timeline(words));
-  assert.equal(tl.length, 3);
-  assert.equal(tl[0].word, 'abcd');
-  assert.equal(Math.round(tl[1].burst), 60);
-  assert.equal(tl[0].error, false);
-  assert.equal(tl[2].error, true);
-  // running WPM after word 2: 10 correct chars in 0.4 s + 1.0 s = 1.4 s ... measured from the first keystroke
-  assert.ok(tl[1].running > 60 && tl[1].running < 120);
+// "abcd " = 5 chars; at 100 ms per key a word takes 0.5 s -> 5/5 / (0.5/60) = 120 WPM
+const THREE_WORDS = () => typedWords([['abcd', 'abcd ', 100], ['efgh', 'efgh ', 200], ['ijkl', 'ixjkl<<jkl ', 100]]);
+
+test('the timeline has one point per word, with the word', () => {
+  const tl = plain(timeline(THREE_WORDS()));
+  assert.deepEqual(tl.map((p) => p.word), ['abcd', 'efgh', 'ijkl']);
+});
+
+test('a word is timed from the previous word\'s last keystroke to its own', () => {
+  assert.equal(Math.round(timeline(THREE_WORDS())[1].burst), 60);   // 5 characters in 1 s
+});
+
+test('the timeline marks the words with an error on the first try', () => {
+  assert.deepEqual(plain(timeline(THREE_WORDS()).map((p) => p.error)), [false, false, true]);
+});
+
+test('the running speed averages the words so far', () => {
+  const tl = timeline(THREE_WORDS());
+  assert.ok(tl[1].running > 60 && tl[1].running < 120);   // between the two words' speeds
 });
 
 test('the first word is timed from its first keystroke, over the characters after it', () => {
