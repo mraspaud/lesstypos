@@ -5,8 +5,10 @@
   1. **Red**: write the failing test and see it fail.
   2. **Green**: write the minimal code that passes.
   3. **Refactor**: remove duplication, name things, split long functions. Keep the tests green, and commit the refactor separately from the feature.
+- **Refactoring goal**: clear, maintainable, self-documenting code. Names and structure carry the meaning, so comments are rarely needed. Keep only research citations, "design choice" labels and the occasional non-obvious *why*; delete comments that restate the code.
+- **Tests are code too**: refactor them in the same way (shared builders, clear names, no duplication) and keep each test about one behaviour.
 - **Global review after each plan item**:
-  - A fresh reviewer that isn't anchored on the implementer's reasoning audits the whole codebase: correctness, methods versus the README and plan, design smells, test gaps.
+  - A fresh reviewer that isn't anchored on the implementer's reasoning audits the whole codebase, tests included. It covers bugs and refactoring equally, at small scale (functions, names, duplication) and large scale (module boundaries, responsibilities, data flow): correctness, methods versus the README and plan, design smells, test gaps.
   - Findings are fixed test-first.
   - Only then is the item done.
 - Commit after each green cycle and push to the feature branch. No PR unless asked.
