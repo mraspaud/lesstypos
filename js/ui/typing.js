@@ -155,21 +155,21 @@
     drop.forEach(function (el) { el.parentNode.removeChild(el); });
     if (drop.length) { ty.offset = -1; placeCaret(); }
   }
+  function startClock(t) {
+    ty.first = t; ty.startedAt = Date.now(); ty.t0 = performance.now();
+    if (ty.startKey) ty.keys.push(ty.startKey);
+    ty.timer = setInterval(tick, 200);
+  }
   function beginIfNeeded(t) {
     if (ty.burst && ty.burst.phase === 'ready') {
       ty.burst.phase = 'run'; ty.burst.start = t; ty.burst.startNow = performance.now();
-      if (ty.first == null) {
-        ty.first = t; ty.startedAt = Date.now(); ty.t0 = performance.now(); ty.timer = setInterval(tick, 200);
-        if (ty.startKey) ty.keys.push(ty.startKey);
-      }
+      if (ty.first == null) startClock(t);
       hint('');
       return;
     }
     if (ty.first != null) return;
-    ty.first = t; ty.startedAt = Date.now(); ty.t0 = performance.now();
-    if (ty.startKey) ty.keys.push(ty.startKey);
+    startClock(t);
     hint('');
-    ty.timer = setInterval(tick, 200);
   }
   function tick() {
     if (!ty || ty.stopped) return;

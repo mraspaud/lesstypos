@@ -26,7 +26,7 @@
     var fields = {
       typing:
         '<label for="durationMin">Exercise length</label><div><select id="durationMin">' +
-        [1, 2, 3, 5, 7, 10].map(function (m) { return '<option value="' + m + '"' + (s.durationMin === m ? ' selected' : '') + '>' + m + ' min</option>'; }).join('') + '</select></div>' +
+        FT.settings.DURATIONS.map(function (m) { return '<option value="' + m + '"' + (s.durationMin === m ? ' selected' : '') + '>' + m + ' min</option>'; }).join('') + '</select></div>' +
         '<label for="errorMode">After a wrong key</label><div><select id="errorMode">' +
         '<option value="continue"' + (s.errorMode === 'continue' ? ' selected' : '') + '>Keep going (fix with backspace if you like)</option>' +
         '<option value="stop"' + (s.errorMode === 'stop' ? ' selected' : '') + '>Stop until it is corrected</option></select></div>' +

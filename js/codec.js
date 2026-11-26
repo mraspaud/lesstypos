@@ -29,9 +29,7 @@
   }
 
   function encodeKeys(keys) {
-    var ok = Array.isArray(keys) && keys.every(function (e) {
-      return onlyKeys(e, ['k', 'c', 't']) && (e.k === 'd' || e.k === 'u') && typeof e.c === 'string' && Number.isFinite(e.t);
-    });
+    var ok = Array.isArray(keys) && keys.every(function (e) { return keyEvent(e) && onlyKeys(e, ['k', 'c', 't']); });
     if (!ok) return keys;
     var codes = [], index = Object.create(null), ev = [], clock = { t: 0 };
     keys.forEach(function (e) {

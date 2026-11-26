@@ -32,7 +32,7 @@
     FT.text.setOptions({ accents: s.accents !== false });
     if (app.trainerSettings) app.trainerSettings.accents = s.accents !== false;
   }
-  function programmeDef() { return FT.programme.clean(app.settings.programme) || FT.programme.DEFAULT; }
+  function programmeDef() { return app.settings.programme || FT.programme.DEFAULT; }
   function today() { return FT.trainer.dayOf(Date.now()); }
   function saveSettings() {
     applySettings();

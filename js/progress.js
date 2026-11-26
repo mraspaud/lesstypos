@@ -30,12 +30,11 @@
     return null;
   }
 
-  // Per-word timeline: speed of each word (its characters including the
-  // following space, from the previous word's last keystroke to its own last
-  // keystroke; the first word from its first keystroke, so over the characters
-  // after it), running speed (correct
-  // characters so far / 5 per minute since the first keystroke), and whether
-  // the word's first attempt contained an error.
+  // Per-word timeline: each word's speed (its characters and the following
+  // space, from the previous word's last keystroke to its own; the first word
+  // from its first keystroke, so over the characters after it), the running
+  // speed (correct characters since the first keystroke / 5 per minute), and
+  // whether the word's first attempt had an error.
   function timeline(words) {
     var out = [], t0 = null, prevEnd = null, correct = 0;
     for (var i = 0; i < words.length; i++) {

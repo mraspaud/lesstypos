@@ -89,7 +89,7 @@
   // never merged.
   var MACRO_GAP_MS = 30;
   function pressIds(stream, macros, gapMs) {
-    var ms = lowerMacros(macros), gap = gapMs != null ? gapMs : MACRO_GAP_MS, out = [], p = -1;
+    var ms = lowerMacros(macros), gap = FT.valueOr(gapMs, MACRO_GAP_MS), out = [], p = -1;
     for (var i = 0; i < stream.length; i++) {
       var e = stream[i];
       if (e.k !== 'c') { out.push(null); continue; }

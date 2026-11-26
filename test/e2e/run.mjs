@@ -19,6 +19,12 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g/.test(m.text())) errors.push(m.text()); });
 
 const nav = (route) => page.evaluate((r) => window.FT.ui.go(r), route);
+// Runs fn with a daily-training definition, restoring the default afterwards
+// even when fn fails, so one step cannot leak into the next.
+async function withProgramme(steps, fn) {
+  await page.evaluate((st) => { const a = window.FT.app; a.settings.programme = { name: 'test', steps: st }; a.settings.programmeRun = null; a.run = null; }, steps);
+  try { await fn(); } finally { await page.evaluate(() => { const a = window.FT.app; a.settings.programme = null; a.settings.programmeRun = null; a.run = null; }); }
+}
 async function step(name, fn) {
   try { await fn(); console.log('ok -', name); }
   catch (e) { console.log('not ok -', name); console.log(e); process.exitCode = 1; }
@@ -816,18 +822,18 @@ await step('the address follows the screen, so reload and links land where you a
 });
 
 await step('x, then d, then x ends the daily training', async () => {
-  await page.evaluate(() => { window.FT.app.settings.programme = { name: 'x', steps: [{ type: 'relaxed', minutes: 0.1, enabled: true }, { type: 'warmup', minutes: 0.1, enabled: true }] }; window.FT.app.settings.programmeRun = null; });
-  await page.keyboard.press('1');
-  await page.getByRole('button', { name: /Start (daily training|over)/ }).first().click();
-  await typeUntilEffort();
-  await page.keyboard.press('2');
-  await page.locator('#progbar').waitFor();
-  await page.keyboard.press('x');
-  await page.keyboard.press('d');
-  await page.keyboard.press('x');
-  await page.getByText('Daily training finished').waitFor();
-  await page.keyboard.press('Enter');
-  await page.evaluate(() => { window.FT.app.settings.programme = null; });
+  await withProgramme([{ type: 'relaxed', minutes: 0.1, enabled: true }, { type: 'warmup', minutes: 0.1, enabled: true }], async () => {
+    await page.keyboard.press('1');
+    await page.getByRole('button', { name: /Start (daily training|over)/ }).first().click();
+    await typeUntilEffort();
+    await page.keyboard.press('2');
+    await page.locator('#progbar').waitFor();
+    await page.keyboard.press('x');
+    await page.keyboard.press('d');
+    await page.keyboard.press('x');
+    await page.getByText('Daily training finished').waitFor();
+    await page.keyboard.press('Enter');
+  });
 });
 
 await step('the current section tab looks selected', async () => {
@@ -862,12 +868,12 @@ await step('a finished text offers to start over instead of an empty exercise', 
 });
 
 await step('with no daily-training step enabled, Train says so and points to the setting', async () => {
-  await page.evaluate(() => { window.FT.app.settings.programme = { name: 'x', steps: [{ type: 'relaxed', minutes: 5, enabled: false }] }; window.FT.app.settings.programmeRun = null; });
-  await page.keyboard.press('1');
-  await page.getByText(/No exercises are switched on/).waitFor();
-  await page.keyboard.press('Enter');
-  await page.locator('[data-stab="settings/training"][aria-current="page"]').waitFor();
-  await page.evaluate(() => { window.FT.app.settings.programme = null; });
+  await withProgramme([{ type: 'relaxed', minutes: 5, enabled: false }], async () => {
+    await page.keyboard.press('1');
+    await page.getByText(/No exercises are switched on/).waitFor();
+    await page.keyboard.press('Enter');
+    await page.locator('[data-stab="settings/training"][aria-current="page"]').waitFor();
+  });
 });
 
 

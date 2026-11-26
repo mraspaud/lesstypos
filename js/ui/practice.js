@@ -20,6 +20,16 @@
   function today() { return U.today.apply(null, arguments); }
 
   // ---------- home ----------
+  // The one thing Enter does on Train: resume today's training, start it, or
+  // (with nothing switched on) open its settings.
+  function primaryAction(steps, run, def) {
+    if (!steps.length) return { label: 'Choose exercises', act: function () { go('settings/training'); } };
+    if (run) {
+      var done = run.results().length, total = done + run.upcoming().length;
+      return { label: 'Resume: ' + EXERCISES[run.current().type].name.toLowerCase() + ' (' + (done + 1) + ' of ' + total + ')', act: function () { startProgramme(run); } };
+    }
+    return { label: 'Start daily training · ' + FT.programme.totalMinutes(def) + ' min', act: function () { startProgramme(null); } };
+  }
   // One primary action (Enter), a few alternatives by key, three numbers.
   function viewHome() {
     var t = app.trainer, d = t.difficulty.state(), h = t.history();
@@ -29,15 +39,13 @@
     var def = programmeDef(), run = FT.programme.resume(app.settings.programmeRun, today());
     var steps = def.steps.filter(function (x) { return x.enabled; });
     var first = targets[0];
+    var main = primaryAction(steps, run, def);
     var html = '<section class="home-start">' +
       '<h1>Daily training</h1>' +
       (steps.length ? '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + esc(String(x.minutes)) + ' min'; }).join(' · ') + '.</p>'
         : '<p class="lead">No exercises are switched on for the daily training.</p>') +
-      '<div class="row">' +
-      (!steps.length ? '<button class="btn primary" type="button" id="prog">Choose exercises <kbd>Enter</kbd></button>' : run ? '<button class="btn primary" type="button" id="resume">Resume: ' + esc(EXERCISES[run.current().type].name.toLowerCase()) + ' (' + (run.results().length + 1) + ' of ' + (run.results().length + run.upcoming().length) + ') <kbd>Enter</kbd></button>' +
-        '<button class="btn" type="button" id="prog">Start over</button>'
-        : '<button class="btn primary" type="button" id="prog">Start daily training · ' + FT.programme.totalMinutes(def) + ' min <kbd>Enter</kbd></button>') +
-      '</div>' +
+      '<div class="row"><button class="btn primary" type="button" id="primary">' + esc(main.label) + ' <kbd>Enter</kbd></button>' +
+      (run ? '<button class="btn" type="button" id="restart">Start over</button>' : '') + '</div>' +
       '<div class="row more"><span class="muted">More:</span>' +
       '<button class="btn" type="button" id="start">Relaxed practice only · ' + esc(String(app.settings.durationMin)) + ' min <kbd>r</kbd></button>' +
       '<button class="btn" type="button" id="bench">Benchmark · 3 × 1 min <kbd>b</kbd></button>' +
@@ -61,12 +69,11 @@
     var one = first ? function () { startExercise('targeted', { pinned: [first.key], minutes: 3 }); } : null;
     document.getElementById('start').onclick = relaxedOnly;
     document.getElementById('bench').onclick = startBenchmark;
-    var primary = !steps.length ? function () { go('settings/training'); } : function () { startProgramme(run); };
-    document.getElementById('prog').onclick = steps.length ? function () { startProgramme(null); } : primary;
-    var r = document.getElementById('resume');
-    if (r) r.onclick = primary;
+    document.getElementById('primary').onclick = main.act;
+    var restart = document.getElementById('restart');
+    if (restart) restart.onclick = function () { startProgramme(null); };
     if (one) document.getElementById('one').onclick = one;
-    app.keys = { Enter: primary, r: relaxedOnly, b: startBenchmark };
+    app.keys = { Enter: main.act, r: relaxedOnly, b: startBenchmark };
     if (one) app.keys.f = one;
   }
 

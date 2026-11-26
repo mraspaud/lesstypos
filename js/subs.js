@@ -6,7 +6,7 @@
 // counted per intended letter pair over that pair's occurrences in targets.
 (function (FT) {
   'use strict';
-  var MAX_EX = 20, A = 50, K = 30;
+  var MAX_EX = 20, A = 50, K = 30, MIN_OPPORTUNITIES = 20;
 
   function create(state) {
     var st = Object.assign({ opp: {}, pairs: {}, totalSubs: 0, totalOpp: 0, swaps: {}, pairOpp: {} }, state);
@@ -33,8 +33,8 @@
           r.examples.push({
             word: an.P.trim(),
             context: P.slice(Math.max(0, e.pos - 3), e.pos).join('') + '[' + P[e.pos] + ']' + P.slice(e.pos + 1, e.pos + 4).join(''),
-            corrected: !!e.corrected, premature: !!e.premature, case: !!e.case, t: meta.t != null ? meta.t : e.t,
-            session: meta.session != null ? meta.session : null, exercise: meta.exercise || null,
+            corrected: !!e.corrected, premature: !!e.premature, case: !!e.case, t: FT.valueOr(meta.t, e.t),
+            session: FT.valueOr(meta.session, null), exercise: meta.exercise || null,
           });
           if (r.examples.length > MAX_EX) r.examples.shift();
         }
@@ -48,14 +48,14 @@
       r.examples.push({
         word: an.P.trim(),
         context: (P.slice(Math.max(0, e.pos - 3), e.pos).join('') + '[' + ex + ']' + P.slice(e.pos + 2, e.pos + 5).join('')).replace(/ +$/, ''),
-        corrected: !!e.corrected, t: meta.t != null ? meta.t : e.t, session: meta.session != null ? meta.session : null, exercise: meta.exercise || null,
+        corrected: !!e.corrected, t: FT.valueOr(meta.t, e.t), session: FT.valueOr(meta.session, null), exercise: meta.exercise || null,
       });
       if (r.examples.length > MAX_EX) r.examples.shift();
     }
 
     // Swapped letter pairs: count and occurrences of the intended pair.
     function swaps(opts) {
-      var minOpp = opts && opts.minOpp != null ? opts.minOpp : 20;
+      var minOpp = FT.valueOr(opts && opts.minOpp, MIN_OPPORTUNITIES);
       return Object.keys(st.swaps).map(function (k) {
         var r = st.swaps[k], opp = st.pairOpp[k] || 0;
         return { expected: r.expected, actual: r.actual, count: r.count, opportunities: opp,
@@ -65,7 +65,7 @@
     }
 
     function matrix(opts) {
-      var minOpp = opts && opts.minOpp != null ? opts.minOpp : 20;
+      var minOpp = FT.valueOr(opts && opts.minOpp, MIN_OPPORTUNITIES);
       var m = st.totalOpp ? st.totalSubs / (st.totalOpp * K) : 0;
       return Object.keys(st.pairs).map(function (k) {
         var r = st.pairs[k], opp = st.opp[r.expected] || 0;

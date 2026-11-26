@@ -34,5 +34,5 @@
     };
   }
 
-  FT.settings = { DEFAULTS: DEFAULTS, clean: clean };
+  FT.settings = { DEFAULTS: DEFAULTS, DURATIONS: DURATIONS, clean: clean };
 })(globalThis.FT);
