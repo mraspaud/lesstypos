@@ -35,12 +35,12 @@
   }
   // The book that comes with the app, offered until the user has texts of their own.
   function bundledOffer() {
-    var b = FT.books.bundled();
+    var b = FT.books.bundledText();
     if (!b) return Promise.resolve(null);
     return app.store.getText(FT.books.BUNDLED_ID).then(function (stored) { return stored ? null : b; });
   }
   function addBundled() {
-    var t = FT.books.toText(FT.books.bundled(), FT.books.BUNDLED_ID);
+    var t = FT.books.bundledText();
     return app.store.saveText(t).then(function () {
       app.settings.currentText = t.id;
       return saveSettings();
@@ -115,7 +115,7 @@
       }
       if (offer) {
         html += '<div class="tablewrap"><table><thead><tr><th>Comes with the app</th><th>Words</th><th></th></tr></thead><tbody><tr><td>' + esc(bundledLabel(offer)) +
-          '</td><td class="num">' + offer.chapters.reduce(function (n, c) { return n + c.words.length; }, 0).toLocaleString() +
+          '</td><td class="num">' + offer.words.length.toLocaleString() +
           '</td><td><button class="btn" type="button" id="usebundled">Type now</button></td></tr></tbody></table></div>';
       }
       html += '<section class="panel stack"><h2>Add a text</h2>' + textForm() + '</section>';

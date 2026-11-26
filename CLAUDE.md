@@ -18,6 +18,7 @@
 - Unit tests: `node --test "test/*.test.js"` (Node's built-in runner, no dependencies). `test/helpers/load.js` loads the browser scripts in `index.html` order into a `vm` context.
 - End-to-end: `node test/e2e/run.mjs` (Playwright Chromium against `file://…/index.html`, about 2 minutes).
 - Single-file build: `node tools/bundle.mjs [out.html] [--fragment]`.
+- Bundled book: `node tools/make_book.js path/to/pg11.epub` writes `data/alice.js`.
 - Word list: `python tools/make_wordlist.py en 30000` (needs `wordfreq`, `english-words`).
 
 ## Architecture

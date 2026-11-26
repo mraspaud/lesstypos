@@ -242,8 +242,10 @@
   // ---- stored form ----
   function toText(b, id) {
     var words = [], chapters = b.chapters.map(function (c) { var start = words.length; words.push.apply(words, c.words); return { title: c.title, start: start }; });
-    return { id: id, title: b.title || (words.slice(0, 5).join(' ')), words: words, chapters: chapters,
+    var text = { id: id, title: b.title || (words.slice(0, 5).join(' ')), words: words, chapters: chapters,
       pos: chapters.length ? chapters[b.start].start : 0, addedAt: Date.now() };
+    if (b.author) text.author = b.author;
+    return text;
   }
   function chapterAt(text, pos) {
     var found = null;
@@ -251,14 +253,19 @@
     return found;
   }
 
-  var BUNDLED_ID = 'alice';
+  var BUNDLED_ID = 'alice', bundledCache = null;
+  // The bundled book as a stored text, marked bundled: its words come from the app.
+  function bundledText() {
+    if (!bundledCache) { var b = bundled(); if (!b) return null; bundledCache = toText(b, BUNDLED_ID); bundledCache.bundled = true; }
+    return Object.assign({}, bundledCache, { addedAt: Date.now() });
+  }
   function bundled() {
     var b = FT.data && FT.data.alice;
     if (!b) return null;
-    return { title: b.title, author: b.author, start: 0,
+    return { title: b.title, author: b.author, start: b.start || 0,
       chapters: b.chapters.map(function (c) { return { title: c.title, words: c.text.split(' ') }; }) };
   }
 
   FT.books = { fromEpub: fromEpub, fromText: fromText, toText: toText, chapterAt: chapterAt, readXhtml: readXhtml,
-    bundled: bundled, BUNDLED_ID: BUNDLED_ID };
+    bundled: bundled, bundledText: bundledText, BUNDLED_ID: BUNDLED_ID };
 })(globalThis.FT);

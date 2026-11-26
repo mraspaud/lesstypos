@@ -12,6 +12,14 @@
     1: function (d) { return d; }, // schema 2 encodes sessions; plain sessions still decode
   };
 
+  function packText(t) {
+    return t.bundled ? { id: t.id, title: t.title, bundled: true, pos: t.pos, addedAt: t.addedAt } : t;
+  }
+  function unpackText(r) {
+    if (!r || !r.bundled) return r;
+    var whole = FT.books.bundledText();
+    return whole && Object.assign(whole, { title: r.title, pos: r.pos, addedAt: r.addedAt });
+  }
   function validText(t) {
     return t && typeof t.id === 'string' && typeof t.title === 'string' && Array.isArray(t.words) &&
       t.words.every(function (w) { return typeof w === 'string'; }) &&
@@ -121,17 +129,18 @@
     function getDraft() { return db.get('draft').then(function (d) { return d ? { raw: FT.codec.decodeSession(d.raw), ui: d.ui } : null; }); }
     function getSession(id) { return db.get('session:' + id).then(function (r) { return r ? FT.codec.decodeSession(r) : null; }); }
     function clearDraft() { return db.del('draft'); }
-    // Prose texts: { id, title, words: [...], pos, addedAt }.
-    function saveText(t) { return db.set('text:' + t.id, t); }
-    function getText(id) { return db.get('text:' + id); }
+    // Prose texts: { id, title, words: [...], chapters, pos, addedAt }. The
+    // book that comes with the app is kept as a reference to it.
+    function saveText(t) { return db.set('text:' + t.id, packText(t)); }
+    function getText(id) { return db.get('text:' + id).then(unpackText); }
     function deleteText(id) { return db.del('text:' + id); }
     function listTexts() {
-      return listPrefix('text:').then(function (l) { return l.sort(function (a, b) { return a.addedAt - b.addedAt; }); });
+      return listPrefix('text:').then(function (l) { return l.map(unpackText).filter(Boolean).sort(function (a, b) { return a.addedAt - b.addedAt; }); });
     }
     function exportAll() {
       return Promise.all([load(), listSessions(), listTexts()]).then(function (r) {
         return { format: FORMAT, schema: FT.SCHEMA, app: FT.version, exportedAt: new Date().toISOString(),
-          settings: r[0].settings, profile: r[0].profile, sessions: r[1].map(FT.codec.encodeSession), texts: r[2] };
+          settings: r[0].settings, profile: r[0].profile, sessions: r[1].map(FT.codec.encodeSession), texts: r[2].map(packText) };
       });
     }
     function migrate(d) {
@@ -152,7 +161,7 @@
           throw new Error('This file is not a LessTypos export');
         }
         if (data.schema > FT.SCHEMA) throw new Error('This export comes from a newer version (schema ' + data.schema + ')');
-        if (!(data.texts || []).every(validText)) throw new Error('This export contains a damaged text; nothing was changed');
+        if (!(data.texts || []).every(function (t) { return validText(unpackText(t)); })) throw new Error('This export contains a damaged text; nothing was changed');
         var d = migrate(clone(data));
         if (!d.sessions.every(FT.codec.validSession)) throw new Error('This export contains a damaged exercise; nothing was changed');
         if (mode === 'replace') {

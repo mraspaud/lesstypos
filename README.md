@@ -8,7 +8,7 @@ It is a static web app with no server and no account. Open `index.html` directly
 
 ## Status
 
-This is the first milestone: relaxed adaptive practice, targeted practice for a single sequence, and analysis pages for sequences, substitutions, history and data. A daily programme (warm-up, speed bursts, prose from pasted text, targeted practice) comes next. See `docs/plan.md`.
+In daily use. One keypress starts a daily training: warm-up, relaxed practice, speed bursts with an adaptive target, prose from a book (an EPUB or a Project Gutenberg text, by chapter; *Alice's Adventures in Wonderland* comes with the app) and targeted practice. A benchmark (3 × 1 min) measures progress on a fixed kind of text. The Insights pages show the focus list, errors (including a keyboard heatmap) and progress over time. See `docs/plan.md`.
 
 ## How the analysis works
 
@@ -36,4 +36,4 @@ The browser code is plain classic scripts that share a `window.FT` namespace: th
 
 ## Licences
 
-The code is Apache-2.0. `data/en.words.js` is generated from [wordfreq](https://github.com/rspeer/wordfreq) and is CC-BY-SA 4.0 (regenerate with `tools/make_wordlist.py`).
+The code is Apache-2.0. `data/en.words.js` is generated from [wordfreq](https://github.com/rspeer/wordfreq) and is CC-BY-SA 4.0 (regenerate with `tools/make_wordlist.py`). `data/alice.js` holds Lewis Carroll's *Alice's Adventures in Wonderland* (1865), which is in the public domain; it is extracted from a Project Gutenberg EPUB with `tools/make_book.js`, keeping only the title, author, chapter titles and words.

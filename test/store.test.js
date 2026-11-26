@@ -263,3 +263,30 @@ test('a backup text may carry its chapters, which must start within it in order'
     await assert.rejects(mk().importAll(Object.assign({}, base, { texts: [text(bad)] })), /text/);
   }
 });
+
+// Functionality: the book that comes with the app is stored and backed up as
+// a reference, its words taken from the app.
+test('the bundled book is stored as a reference and read back whole', async () => {
+  const adapter = FT.store.memoryAdapter(), s = mk({ adapter });
+  const alice = FT.books.bundledText();
+  await s.saveText(Object.assign({}, alice, { pos: 120 }));
+  const raw = await adapter.get('text:' + alice.id);
+  assert.equal(raw.words, undefined);
+  assert.ok(raw.bundled);
+  const back = await s.getText(alice.id);
+  assert.equal(back.words.length, alice.words.length);
+  assert.equal(back.chapters.length, 12);
+  assert.equal(back.pos, 120);
+});
+
+test('a backup carries the bundled book as a reference, and import restores it whole', async () => {
+  const s = mk();
+  await s.saveText(Object.assign({}, FT.books.bundledText(), { pos: 7 }));
+  const dump = JSON.parse(JSON.stringify(await s.exportAll()));
+  assert.equal(dump.texts[0].words, undefined);
+  const b = mk();
+  await b.importAll(dump);
+  const back = await b.getText(FT.books.BUNDLED_ID);
+  assert.equal(back.pos, 7);
+  assert.ok(back.words.length > 25000);
+});
