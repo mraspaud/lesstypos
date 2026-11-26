@@ -207,6 +207,9 @@ export default async function daily() {
     });
   });
 
+  // The second Enter comes once the text is saved, while prose is still
+  // looking up the current text (held until released): it must not add the
+  // text again.
   await step('two fast Enters in the text box where prose needs a text add it and start prose once', async () => {
     await withProgramme(page, steps('prose'), async () => {
       await removeTexts(page);
@@ -214,10 +217,16 @@ export default async function daily() {
       await page.getByText('Prose needs a text').waitFor();
       await page.locator('#tbody').fill(sentence(30).join(' '));
       await page.locator('#ttitle').fill('Entered twice');
+      await page.evaluate(() => {
+        const U = window.FT.ui, lookUp = U.currentText;
+        const gate = new Promise((r) => { window.releaseCurrentText = r; });
+        U.currentText = () => { window.currentTextAsked = true; U.currentText = lookUp; return gate.then(lookUp); };
+      });
       await page.locator('#ttitle').press('Enter');
-      await page.locator('#ttitle').press('Enter').catch(() => {});   // the form may be gone already
+      await page.waitForFunction(() => window.currentTextAsked);
+      await page.locator('#ttitle').press('Enter');
+      await page.evaluate(() => window.releaseCurrentText());
       await page.locator('.ex-head', { hasText: 'Entered twice' }).waitFor();
-      await page.waitForTimeout(300);
       const titles = (await page.evaluate(() => window.FT.ui.app.store.listTexts())).map((t) => t.title);
       assert.deepEqual(titles, ['Entered twice']);
       await discard(page);

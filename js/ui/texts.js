@@ -80,6 +80,8 @@
     return 'Read: ' + (b.title || 'untitled') + (b.author ? ' by ' + b.author : '') + ', ' + n + ' chapter' + (n === 1 ? '' : 's') +
       (n > 1 ? ', starting at ' + b.chapters[b.start].title : '') + '.';
   }
+  // after(t) runs once a text is saved; the form's actions wait for the
+  // promise it returns (U.perform), so a second Enter cannot save it again.
   function bindTextForm(after) {
     var f = document.getElementById('tform'), fromFile = null, reading = Promise.resolve(), picks = 0;
     var msg = document.getElementById('tmsg'), titleBox = document.getElementById('ttitle'), body = document.getElementById('tbody');
@@ -113,7 +115,7 @@
         return app.store.saveText(t).then(function () {
           app.settings.currentText = t.id;
           return U.saveSettings();
-        }).then(function () { after(t); });
+        }).then(function () { return after(t); });
       }).catch(U.storageError);
     }
     U.onSubmit(f, save);
