@@ -117,14 +117,15 @@
   // Where the time of recent relaxed typing goes (the exercises the fluency
   // index scales on, FT.fluency.recent), measured, not predicted:
   // correctionShare, the share of the time that corrections cost (FT.timing
-  // correction); flowWpm, the speed of the same characters without that time;
-  // errorCostMs, the mean cost per error (null without errors). Null before a
+  // correction); pauseShare, the share pauses over 5 s take (FT.timing
+  // pauseTime); flowWpm, the speed of the same characters without either;
+  // errorCostMs, the cost per error (null without errors). Null before a
   // measured relaxed exercise.
   function timeBreakdown(history) {
-    var recent = FT.fluency.recent(history), typedMs = 0, correctionMs = 0, wpmMs = 0;
+    var recent = FT.fluency.recent(history), typedMs = 0, correctionMs = 0, pauseMs = 0, wpmMs = 0;
     if (!recent.length) return null;
-    recent.forEach(function (h) { typedMs += h.durationMs; correctionMs += h.correctionMs; wpmMs += h.wpm * h.durationMs; });
-    return { exercises: recent.length, flowWpm: wpmMs / (typedMs - correctionMs), correctionShare: correctionMs / typedMs,
+    recent.forEach(function (h) { typedMs += h.durationMs; correctionMs += h.correctionMs; pauseMs += h.pauseMs; wpmMs += h.wpm * h.durationMs; });
+    return { exercises: recent.length, flowWpm: wpmMs / (typedMs - correctionMs - pauseMs), correctionShare: correctionMs / typedMs, pauseShare: pauseMs / typedMs,
       errorCostMs: FT.fluency.errorCostMs(recent) };
   }
 
