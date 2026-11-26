@@ -31,6 +31,21 @@
     for (var i = history.length - 1; i >= 0; i--) if (history[i].type !== 'benchmark') return history[i];
     return null;
   }
+  // The ids of the sitting that ends with exercise `id`: it and the
+  // exercises before it, each ending less than an hour before the next began.
+  function sittingOf(history, id) {
+    var i = history.findIndex(function (h) { return h.id === id; });
+    if (i < 0) return [];
+    var ids = [id], next = history[i];
+    for (var j = i - 1; j >= 0; j--) {
+      var h = history[j];
+      if (h.type === 'benchmark') continue;
+      if (next.startedAt - endOf(h) >= SITTING_GAP_MS) break;
+      ids.unshift(h.id);
+      next = h;
+    }
+    return ids;
+  }
   // For an exercise starting at `startedAt` after `history`: whether to ask
   // (a new sitting), and the tags to offer or take.
   function sittingTags(history, startedAt) {
@@ -85,5 +100,5 @@
     }).filter(Boolean);
   }
 
-  FT.conditions = { isTag: isTag, parseTags: parseTags, cleanTags: cleanTags, lastTags: lastTags, sittingTags: sittingTags, timeOfDay: timeOfDay, compare: compare, MIN_EACH: MIN_EACH };
+  FT.conditions = { isTag: isTag, parseTags: parseTags, cleanTags: cleanTags, lastTags: lastTags, sittingTags: sittingTags, sittingOf: sittingOf, timeOfDay: timeOfDay, compare: compare, MIN_EACH: MIN_EACH };
 })(globalThis.FT);

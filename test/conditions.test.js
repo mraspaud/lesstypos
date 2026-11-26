@@ -38,6 +38,15 @@ test('a benchmark trial neither starts nor ends a sitting', () => {
   assert.equal(C().sittingTags([relaxed(at(7), 50, 0.98, ['home']), trial], at(9, 50)).ask, true);
 });
 
+test('a sitting is the run of exercises, each within an hour of the one before, that ends with a given one', () => {
+  const ex = (id, h, m, type = 'relaxed') => Object.assign(relaxed(at(h, m), 50, 0.98), { id, type });
+  const h = [ex('a', 9, 0), ex('b', 9, 30), ex('c', 11, 0), ex('trial', 11, 20, 'benchmark'), ex('d', 11, 40), ex('e', 12, 0)];
+  assert.deepEqual(plain(C().sittingOf(h, 'b')), ['a', 'b']);
+  assert.deepEqual(plain(C().sittingOf(h, 'd')), ['c', 'd']);   // the trial between them belongs to no sitting
+  assert.deepEqual(plain(C().sittingOf(h, 'c')), ['c']);
+  assert.deepEqual(plain(C().sittingOf(h, 'missing')), []);
+});
+
 test('the time of day is a condition of its own', () => {
   assert.equal(C().timeOfDay(at(8)), 'morning');
   assert.equal(C().timeOfDay(at(14)), 'afternoon');
