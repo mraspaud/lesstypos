@@ -34,6 +34,8 @@ async function step(name, fn) {
 // The steps type straight away; the instruction card has its own steps.
 // After a daily training today, home offers reading first and the training
 // second; steps about the training start it with whichever is shown.
+// The training summary opens in its tags box: Escape leaves it unsaved, then Enter is Done.
+const leaveTrainingSummary = async () => { await page.keyboard.press('Escape'); await page.keyboard.press('Enter'); };
 const START_TRAINING = /Start (daily training|over)|Daily training again/;
 const showCards = (on) => page.evaluate(async (v) => { window.FT.app.settings.showInstructions = v; await window.FT.ui.saveSettings(); }, on);
 await page.goto(url);
@@ -84,6 +86,7 @@ await step('typing an exercise with a corrected error, stopping and rating effor
   assert.equal(await page.locator('#details').getAttribute('open'), null);
   await page.keyboard.press('d');
   await page.locator('#chart svg path.run').waitFor();
+  await page.locator('#chart svg').scrollIntoViewIfNeeded();
   const box = await page.locator('#chart svg').boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.locator('#chart .tip:not([hidden])').waitFor();
@@ -262,7 +265,7 @@ await step('the daily programme runs every exercise with effort ratings and ends
   if (shots) await page.screenshot({ path: shots + '/programme-summary.png', fullPage: true });
   const t = await page.evaluate(() => window.FT.app.store.listTexts().then((l) => l[0]));
   assert.ok(t.pos > 0, 'prose position advanced');
-  await page.keyboard.press('Enter');
+  await leaveTrainingSummary();
 });
 
 await step('an interrupted programme can be resumed after a reload', async () => {
@@ -316,6 +319,7 @@ await step('ending training with the mouse leaves no stale programme keys', asyn
   await page.getByRole('button', { name: /End training/ }).click();
   await page.getByRole('button', { name: /Press again to end/ }).click();
   await page.getByText('Daily training finished').waitFor();
+  await page.keyboard.press('Escape');   // out of the tags box
   await page.keyboard.press('r');   // must do nothing, and not throw
   await page.keyboard.press('Enter');
   await page.getByRole('button', { name: /Relaxed practice only/ }).waitFor();
@@ -539,7 +543,7 @@ await step('between exercises Esc keeps the daily training; ending it asks first
   assert.ok(await page.locator('#progbar').isVisible());
   await page.keyboard.press('x');
   await page.getByText('Daily training finished').waitFor();
-  await page.keyboard.press('Enter');
+  await leaveTrainingSummary();
 });
 
 await step('rows of Sequences and Errors open with the keyboard, with j/k and with the arrows', async () => {
@@ -832,7 +836,7 @@ await step('x, then d, then x ends the daily training', async () => {
     await page.keyboard.press('d');
     await page.keyboard.press('x');
     await page.getByText('Daily training finished').waitFor();
-    await page.keyboard.press('Enter');
+    await leaveTrainingSummary();
   });
 });
 
@@ -1160,6 +1164,61 @@ await step('home goes back to the start of the chapter being read', async () => 
   assert.equal(await page.locator('.w').first().textContent(), await page.evaluate(async () => { const t = await window.FT.app.store.getText('alice'); return t.words[t.chapters[1].start]; }));
   await page.keyboard.press('Escape');
   await page.keyboard.press('Delete');
+});
+
+await step('the end of the daily training asks for the conditions; Enter saves them to every exercise of the training', async () => {
+  await withProgramme([{ type: 'relaxed', minutes: 0.1, enabled: true }, { type: 'warmup', minutes: 0.1, enabled: true }], async () => {
+    await nav('home');
+    await page.getByRole('button', { name: START_TRAINING }).first().click();
+    await typeUntilEffort(); await page.keyboard.press('2');
+    await page.locator('#progbar').waitFor();
+    await page.keyboard.press('Enter');
+    await typeUntilEffort(); await page.keyboard.press('2');
+    await page.locator('#progbar').waitFor();
+    await page.keyboard.press('Enter');
+    await page.getByText('Daily training finished').waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'tags');
+    await page.locator('#tags').fill('#Home wrist-rest');
+    await page.keyboard.press('Enter');
+    await page.getByText(/Saved: #home #wrist-rest/).waitFor();
+    const tagged = await page.evaluate(async () => {
+      const h = window.FT.app.trainer.history().slice(-2);
+      return Promise.all(h.map(async (x) => [x.tags, (await window.FT.app.store.getSession(x.id)).tags]));
+    });
+    assert.deepEqual(tagged, [[['home', 'wrist-rest'], ['home', 'wrist-rest']], [['home', 'wrist-rest'], ['home', 'wrist-rest']]]);
+    await page.keyboard.press('Enter');   // Done
+    await page.locator('[data-go="home"][aria-current="page"]').waitFor();
+  });
+});
+
+await step('an exercise in the same sitting takes its conditions; one starting a new sitting asks, offering the last ones', async () => {
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 0.1 }));
+  await typeUntilEffort(); await page.keyboard.press('2');
+  await page.getByText(/Conditions: #home #wrist-rest/).waitFor();
+  assert.deepEqual(await page.evaluate(async () => (await window.FT.app.store.getSession(window.FT.app.trainer.history().at(-1).id)).tags), ['home', 'wrist-rest']);
+  await page.evaluate(() => { const h = window.FT.app.trainer.history(); h.at(-1).startedAt -= 3 * 3600e3; });   // as if hours ago
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 0.1 }));
+  await typeUntilEffort(); await page.keyboard.press('2');
+  await page.locator('#tags').waitFor();
+  assert.equal(await page.locator('#tags').inputValue(), '#home #wrist-rest');
+  await page.keyboard.press('#');                                     // the summary keeps its keys; # goes to the tags
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'tags');
+  await page.keyboard.press('Escape');
+});
+
+await step('a click anywhere in a row of the exercise log opens that exercise', async () => {
+  await nav('insights/progress');
+  const row = page.locator('#alltable tbody tr').first();
+  const wpm = await row.locator('td').nth(3).textContent();
+  await row.locator('td').nth(3).click();
+  await page.locator('h1', { hasText: /·/ }).waitFor();
+  assert.equal(await page.locator('.tile b').first().textContent(), wpm);
+  await page.keyboard.press('Escape');
+});
+
+await step('Insights: Progress has a Conditions section', async () => {
+  await nav('insights/progress');
+  await page.getByRole('heading', { name: 'Conditions' }).waitFor();
 });
 
 await step('the chapter choice steps with the arrow keys and keeps the focus', async () => {

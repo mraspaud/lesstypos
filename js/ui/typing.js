@@ -411,6 +411,11 @@
   function pausedWithin(a, b) {
     return ty.pauses.reduce(function (sum, p) { return sum + Math.max(0, Math.min(b, p[1]) - Math.max(a, p[0])); }, 0);
   }
+  // An exercise in the same sitting as the previous one takes its conditions.
+  function sameSittingTags(startedAt) {
+    var sitting = FT.conditions.sittingTags(app.trainer.history(), startedAt);
+    return sitting.ask ? undefined : sitting.tags;
+  }
   function finishExercise() {
     if (!ty) return;
     var words = ty.session.state().words.filter(function (w) { return w.committed; });
@@ -432,7 +437,7 @@
       return;
     }
     info.raw = app.trainer.record({ type: info.type, startedAt: info.startedAt, durationMs: info.durationMs,
-      words: info.words, keys: info.keys, text: info.text, rounds: info.rounds, run: info.opts.run,
+      words: info.words, keys: info.keys, text: info.text, rounds: info.rounds, run: info.opts.run, tags: sameSittingTags(info.startedAt),
       set: info.opts.bench ? app.bench.set : null, planMs: info.opts.bench ? info.opts.minutes * 60000 : null });
     if (info.opts.bench) complete(info); else viewEffort(info);
   }

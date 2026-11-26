@@ -256,6 +256,7 @@
     var h = app.trainer.history().slice().reverse();
     var pc = progressCharts(app.trainer.history());
     var html = '<section class="stack">' + U.sectionHead('insights') + '</section>' + pc.html +
+      conditionsSection(app.trainer.history()) +
       '<section class="stack"><h2>All exercises</h2><p class="muted">Newest first; open a row for its summary. “Random words” is the unbiased sample that targeted practice never influences.</p></section>';
     if (!h.length) html += '<p class="panel">No exercises yet.</p>';
     else html += '<div class="tablewrap"><table id="alltable"><thead><tr><th>When</th><th>Exercise</th><th>Min</th><th>WPM</th><th>Accuracy</th><th>Random words</th><th>Effort</th><th>Hesitation</th><th>Rhythm</th><th>Vocabulary</th></tr></thead><tbody>' +
@@ -270,7 +271,25 @@
       }).join('') + '</tbody></table></div>';
     setView(html);
     pc.draw();
-    app.$view.querySelectorAll('[data-past]').forEach(function (b) { b.onclick = function () { openPast(b.dataset.past); }; });
+    app.$view.querySelectorAll('#alltable tbody tr').forEach(function (tr) {
+      var id = tr.querySelector('[data-past]').dataset.past;
+      tr.onclick = function () { openPast(id); };   // the date button inside handles the keyboard
+    });
+  }
+  // How relaxed practice differs with and without each condition (measurement only).
+  function conditionsSection(history) {
+    var rows = FT.conditions.compare(history);
+    var signed = function (x, digits, unit) { return (x >= 0 ? '+' : '−') + fix(Math.abs(x), digits) + unit; };
+    var interval = function (d, scale, digits, unit) { return signed(d.difference * scale, digits, unit) + ' <span class="muted">(' + signed(d.low * scale, digits, '') + ' to ' + signed(d.high * scale, digits, unit) + ')</span>'; };
+    return '<section class="stack"><h2>Conditions</h2><p class="muted">Relaxed practice with each tag of yours, or at each time of day, against the rest: the difference, and the range it lies in with 95% confidence (bootstrap; Efron &amp; Tibshirani 1993). ' +
+      'Tags that always come together, or that changed along with your progress, cannot be told apart.</p>' +
+      (rows.length ? '<div class="tablewrap"><table><thead><tr><th>Condition</th><th>Exercises with / without</th><th>WPM</th><th>Accuracy (first try)</th></tr></thead><tbody>' +
+        rows.map(function (r) {
+          return '<tr><td>' + (r.automatic ? esc(r.tag) + ' <span class="muted">(time of day)</span>' : '#' + esc(r.tag)) + '</td><td class="num">' + r.with.n + ' / ' + r.without.n + '</td>' +
+            '<td class="num">' + interval(r.wpm, 1, 1, '') + '</td><td class="num">' + interval(r.accuracy, 100, 1, ' pts') + '</td></tr>';
+        }).join('') + '</tbody></table></div>'
+        : '<p class="panel">Not enough data yet: a condition is compared once ' + FT.conditions.MIN_EACH + ' relaxed exercises have it and ' + FT.conditions.MIN_EACH + ' do not. Add tags at the end of a sitting.</p>') +
+      '</section>';
   }
   // A past exercise's summary, rebuilt from its stored record (nothing is learned).
   function openPast(id) {

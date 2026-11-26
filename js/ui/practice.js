@@ -255,12 +255,52 @@
           : '<td class="num">' + fix(r.ms / 60000, 1) + '</td><td class="num">' + fix(r.wpm) + '</td><td class="num">' + pct(r.faa) + '</td><td class="num">' + (r.effort || '–') + '</td><td>' + esc(r.note || '') + '</td>') + '</tr>';
       }).join('') + '</tbody></table></div>' +
       '<p class="muted">Speeds from different exercises are not comparable: warm-up and bursts use easier words, prose has capitals and punctuation.</p>' +
+      tagBox(FT.conditions.lastTags(app.trainer.history())) +
       '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button><a href="#insights/progress">See progress</a></div>';
+    var runId = app.run && app.run.id();
     app.run = null;
     saveRun();
     setView(html);
     document.getElementById('home').onclick = function () { go('home'); };
     app.keys = { Enter: function () { go('home'); }, Escape: function () { go('home'); } };
+    var ids = app.trainer.history().filter(function (h) { return runId && h.run === runId; }).map(function (h) { return h.id; });
+    bindTagBox(ids, document.getElementById('home'), true);
+  }
+
+  // ---------- conditions ----------
+  // The conditions of a sitting, typed as free tags and offered from the last ones.
+  function tagText(tags) { return tags.map(function (t) { return '#' + t; }).join(' '); }
+  function tagBox(tags) {
+    var past = [], seen = {};
+    app.trainer.history().slice().reverse().forEach(function (h) { (h.tags || []).forEach(function (t) { if (!seen[t]) { seen[t] = true; past.push(t); } }); });
+    return '<form class="stack tagform" id="tagform"><label for="tags">Conditions of this sitting <kbd>#</kbd> <span class="muted">(where, keyboard, hands, how you feel)</span></label>' +
+      '<div class="row"><input type="text" id="tags" autocomplete="off" spellcheck="false" value="' + esc(tagText(tags)) + '" placeholder="#home #wrist-rest #tired">' +
+      '<button class="btn" type="submit">Save tags <kbd>Enter</kbd></button></div>' +
+      (past.length ? '<div class="row chips">' + past.slice(0, 12).map(function (t) { return '<button type="button" class="chip" data-tag="' + esc(t) + '">#' + esc(t) + '</button>'; }).join('') + '</div>' : '') +
+      '<p class="muted" id="tagmsg" role="status"></p></form>';
+  }
+  // ids: the exercises the tags belong to; next: where the focus goes once saved.
+  function bindTagBox(ids, next, focus) {
+    var form = document.getElementById('tagform'), box = document.getElementById('tags');
+    if (!form) return;
+    form.querySelectorAll('[data-tag]').forEach(function (chip) {
+      chip.onclick = function () {
+        var tags = FT.conditions.parseTags(box.value), t = chip.dataset.tag, i = tags.indexOf(t);
+        if (i >= 0) tags.splice(i, 1); else tags.push(t);
+        box.value = tagText(tags);
+        box.focus();
+      };
+    });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var tags = FT.conditions.parseTags(box.value);
+      box.value = tagText(tags);
+      app.trainer.tag(ids, tags);
+      Promise.all([app.store.tagSessions(ids, tags), saveProfile()]).catch(storageError);
+      document.getElementById('tagmsg').textContent = tags.length ? 'Saved: ' + tagText(tags) + '.' : 'Saved without tags.';
+      if (next) next.focus();
+    });
+    if (focus) box.focus();
   }
 
   // ---------- effort ----------
@@ -362,6 +402,9 @@
       (s.difficulty ? '<p>' + esc(FT.fmt.vocabSentence(s.difficulty, s.frontier)) + '</p>' : '') +
       (past ? '' : '<p>' + focusSentence(s, tg) + '</p>') +
       '</section>';
+    var sitting = !past && !inProg && FT.conditions.sittingTags(h.slice(0, at), s.startedAt);
+    if (sitting) html += '<section class="stack" id="conditions">' + (sitting.ask || !sitting.tags.length ? tagBox(sitting.tags)
+      : '<p>Conditions: ' + esc(tagText(sitting.tags)) + ' <span class="muted">(same sitting)</span> <button class="btn" type="button" id="edittags">Change <kbd>#</kbd></button></p>') + '</section>';
     if (s.rounds) {
       html += '<section class="stack"><h3>Rounds</h3><div class="tablewrap"><table><thead><tr><th>Round</th><th>WPM</th><th>Accuracy</th><th>Target</th><th>Result</th></tr></thead><tbody>' +
         s.rounds.map(function (r) {
@@ -386,6 +429,21 @@
       if (past) app.keys = { Escape: backToLog, d: toggle };
       else if (inProg) bindProgrammeBar({ d: toggle });
       else app.keys = { Enter: again, q: function () { go('insights/focus'); }, d: toggle };
+      if (editTags) app.keys['#'] = editTags;
+    }
+    // The summary keeps its keys; # goes to the conditions (the box takes no focus by itself).
+    var editTags = null;
+    if (sitting) {
+      if (document.getElementById('edittags')) {
+        editTags = function () {
+          document.getElementById('conditions').innerHTML = tagBox(sitting.tags);
+          bindTagBox([s.id], document.getElementById('again'), true);
+        };
+        document.getElementById('edittags').onclick = editTags;
+      } else {
+        bindTagBox([s.id], document.getElementById('again'), false);
+        editTags = function () { document.getElementById('tags').focus(); };
+      }
     }
     if (past) document.getElementById('backlog').onclick = backToLog;
     else if (!inProg) {
