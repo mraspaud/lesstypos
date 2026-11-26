@@ -26,8 +26,7 @@
   function applySettings() {
     var s = app.settings;
     document.documentElement.style.setProperty('--type-size', s.fontSize + 'rem');
-    if (s.theme === 'system') document.documentElement.removeAttribute('data-theme');
-    else document.documentElement.setAttribute('data-theme', s.theme);
+    FT.theme.choose(s.theme);
     app.layout = null;
     if (s.layoutText && s.layoutText.trim()) { try { app.layout = FT.layout.parse(s.layoutText); } catch (e) { app.layout = null; } }
     if (app.trainerSettings) app.trainerSettings.macros = macros();

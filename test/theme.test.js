@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { load } = require('./helpers/load');
 
 // Functionality: both themes meet WCAG 2.x AA contrast (relative luminance,
 // W3C 2008): 4.5:1 for text, 3:1 for typed text that recedes, against the
@@ -31,4 +32,17 @@ for (const [name, t] of [['light', light], ['dark', dark]]) {
 }
 test('both theme blocks are read', () => {
   assert.ok(light.ink && light.bg && dark.ink && dark.bg && light.bg !== dark.bg);
+});
+
+// Functionality: one dark palette. "Follow the system" is resolved to Canvas
+// or Ink on <html data-theme>, so the stylesheet defines each palette once.
+test('the dark palette is defined once', () => {
+  assert.equal(css.split('--bg: ' + dark.bg).length - 1, 1);
+});
+test('a theme choice resolves to a palette; the system choice follows the system', () => {
+  const FT = load();
+  assert.equal(FT.theme.resolve('system', true), 'dark');
+  assert.equal(FT.theme.resolve('system', false), 'light');
+  assert.equal(FT.theme.resolve('light', true), 'light');
+  assert.equal(FT.theme.resolve('dark', false), 'dark');
 });
