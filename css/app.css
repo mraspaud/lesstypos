@@ -4,14 +4,14 @@
   /* Kanagawa Paper "Canvas" (light) — github.com/thesimonho/kanagawa-paper */
   --bg: #e1e1de;          /* canvasWhite4: editor background */
   --surface: #ecece8;     /* canvasWhite6: floating surfaces */
-  --ink: #616569;         /* canvasGray3: primary text */
-  --muted: #77746c;       /* canvasGray2: secondary text */
-  --done: #92928b;        /* canvasGray1: muted text (typed text recedes) */
-  --accent: #6a7893;      /* canvasTeal1: primary accent */
+  --ink: #54575a;         /* canvasGray3, darkened to AA: primary text */
+  --muted: #67645d;       /* canvasGray2, darkened to AA: secondary text */
+  --done: #7f7f78;        /* canvasGray1, darkened to 3:1: typed text recedes */
+  --accent: #58637a;      /* canvasTeal1, darkened to AA: primary accent */
   --accent-soft: #ccced0;
-  --err: #a36360;         /* canvasRed1: error */
+  --err: #8d5552;         /* canvasRed1, darkened to AA: error */
   --err-soft: #d8cecb;
-  --warn: #a1805e;        /* canvasOrange1: warning */
+  --warn: #775f46;        /* canvasOrange1, darkened to AA: warning */
   --line: #cbc8bc;        /* canvasWhite1 */
   --series-1: #4d699b;    /* lotusBlue4: running average */
   --series-2: #cc6d00;    /* lotusOrange: per-word speed */
@@ -24,14 +24,14 @@
 /* Kanagawa Paper "Ink" (dark) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #1F1F28; --surface: #2A2A37; --ink: #DCD7BA; --muted: #9e9b93; --done: #54546D;
-    --accent: #658594; --accent-soft: #2d333e; --err: #c4746e; --err-soft: #3d2e35; --warn: #c4b28a;
+    --bg: #1F1F28; --surface: #2A2A37; --ink: #DCD7BA; --muted: #9e9b93; --done: #717192;
+    --accent: #7996a4; --accent-soft: #2d333e; --err: #c87e79; --err-soft: #3d2e35; --warn: #c4b28a;
     --line: #363646; --series-1: #7E9CD8; --series-2: #DCA561; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #1F1F28; --surface: #2A2A37; --ink: #DCD7BA; --muted: #9e9b93; --done: #54546D;
-  --accent: #658594; --accent-soft: #2d333e; --err: #c4746e; --err-soft: #3d2e35; --warn: #c4b28a;
+  --bg: #1F1F28; --surface: #2A2A37; --ink: #DCD7BA; --muted: #9e9b93; --done: #717192;
+  --accent: #7996a4; --accent-soft: #2d333e; --err: #c87e79; --err-soft: #3d2e35; --warn: #c4b28a;
   --line: #363646; --series-1: #7E9CD8; --series-2: #DCA561; color-scheme: dark;
 }
 

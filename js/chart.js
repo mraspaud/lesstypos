@@ -232,8 +232,8 @@
       grid.cells.forEach(function (c, i) {
         var v = vals[i], w = c.w * U - G;
         svg += '<g data-i="' + i + '"><rect class="key' + (v.rated ? '' : ' few') + '" x="' + (c.x * U) + '" y="' + (c.y * U) + '" width="' + w + '" height="' + (U - G) + '" rx="6" ' +
-          'style="fill-opacity:' + (v.rated ? 0.06 + 0.94 * v.shade : 1) + '"/>' +
-          '<text x="' + (c.x * U + w / 2) + '" y="' + (c.y * U + (U - G) / 2 + 5) + '" text-anchor="middle" class="' + (v.shade > 0.55 ? 'on-dark' : '') + '">' + esc(c.label) + '</text></g>';
+          'style="fill-opacity:' + (v.rated ? 0.12 + 0.88 * Math.sqrt(v.shade) : 1) + '"/>' +
+          '<text x="' + (c.x * U + w / 2) + '" y="' + (c.y * U + (U - G) / 2 + 5) + '" text-anchor="middle" class="' + (Math.sqrt(v.shade) > 0.55 ? 'on-dark' : '') + '">' + esc(c.label) + '</text></g>';
       });
       svg += '</svg>';
       var legend = mode === 'err'
