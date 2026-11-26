@@ -210,6 +210,16 @@
         label: 'Benchmark WPM', color: '--series-2', min: 1, rows: series.benchmark,
         point: function (p) { return { t: p.startedAt, y: p.wpm, lo: p.min, hi: p.max, tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.startedAt)) + '<br>trials ' + fix(p.min) + '–' + fix(p.max) + ', accuracy ' + pct(p.firstAttemptAccuracy) }; },
         cols: ['Day', 'Median WPM', 'Range', 'Accuracy'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.min) + '–' + fix(p.max), pct(p.firstAttemptAccuracy)]; } },
+      { title: 'Fluency (experimental)',
+        note: 'An experimental prediction, not a measurement: the relaxed speed your current sequence statistics predict on a fixed text of ' + FT.fluency.REFERENCE_WORDS.toLocaleString('en') + ' common words. ' +
+          'Our own method (design choice), not a validated one: each keystroke takes the time your statistics give it after the letters before it, as in keystroke-level models (Card, Moran & Newell 1980) with context-dependent timing (Gentner 1983; Salthouse 1986), and each error adds a slip and its backspace (Soukoreff & MacKenzie 2003). ' +
+          'Solid: predicted speed, at the pace of your recent relaxed practice. Dashed: effortless speed, at the pace of the practice you rated effort 1–2. ' +
+          'Shown once ' + pct(FT.progress.FLUENCY_MIN_COVERAGE, 0) + ' of the text is timed from sequences of two letters or more (coverage). Trust it only as far as the benchmark check below shows.',
+        label: 'Predicted WPM', color: '--series-1', min: 1, rows: series.fluency,
+        point: function (p) { return { t: p.startedAt, y: p.wpm, tip: '<b>' + fix(p.wpm) + ' WPM predicted</b> · ' + esc(date(p.startedAt)) + '<br>effortless ' + (p.effortlessWpm == null ? 'not yet (needs 3 exercises rated 1–2)' : fix(p.effortlessWpm) + ' WPM') + ', coverage ' + pct(p.coverage, 0) }; },
+        second: { color: '--series-2', points: series.fluency.filter(function (p) { return p.effortlessWpm != null; }).map(function (p) { return { t: p.startedAt, y: p.effortlessWpm }; }) },
+        cols: ['Day', 'Predicted WPM', 'Effortless WPM', 'Coverage'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.effortlessWpm), pct(p.coverage, 0)]; },
+        after: fluencyCheckSection(FT.progress.fluencyCheck(history), date) },
       { title: 'Common-pair timing', note: 'Median time between the letters of the ' + FT.timing.COMMON_PAIRS.length + ' most common pairs inside words, in relaxed practice, weighted by how many such pairs each exercise had. Lower is faster. Pairs typed with a multi-letter key (such as th) are not timed. Log scale.',
         label: 'Common-pair timing in ms', color: '--series-1', min: 1, rows: series.commonPairMs, log: true, fmt: function (v) { return Math.round(v) + ''; },
         point: function (p) { return { t: p.startedAt, y: p.commonPairMs, tip: '<b>' + fix(p.commonPairMs) + ' ms</b> · ' + esc(date(p.startedAt)) }; },
@@ -232,14 +242,33 @@
       return '<section class="progress-chart stack"><h3>' + esc(c.title) + '</h3><p class="muted">' + esc(c.note) + '</p>' +
         '<div class="chart" id="pc' + i + '"></div>' +
         H.tableView(H.table(c.cols, c.rows.slice().reverse().map(function (p) { return H.row(c.cells(p).map(function (v) { return H.cell(v, 'num'); })); }))) +
-        '</section>';
+        (c.after || '') + '</section>';
     }).join('') + '</div></section>';
     return { html: html, draw: function () {
       charts.forEach(function (c, i) {
         var el = document.getElementById('pc' + i);
-        if (el) FT.chart.progress(el, { points: c.rows.map(c.point), log: c.log, yMax: c.yMax, color: c.color, fmt: c.fmt, label: c.label });
+        if (el) FT.chart.progress(el, { points: c.rows.map(c.point), second: c.second, log: c.log, yMax: c.yMax, color: c.color, fmt: c.fmt, label: c.label });
       });
     } };
+  }
+
+  // The fluency index against each benchmark set (FT.progress.fluencyCheck):
+  // the prediction made before the set, the measured median, and the typical error.
+  function fluencyCheckSection(check, date) {
+    var signed = function (x) { return (x >= 0 ? '+' : '−') + fix(Math.abs(x), 1); };
+    var typical = function (name, e) {
+      return e ? name + ' was off by ' + fix(e.meanAbsoluteError, 1) + ' WPM on average over ' + e.sets + ' benchmark' + (e.sets > 1 ? 's' : '') +
+        ', ' + (e.meanError >= 0 ? 'over' : 'under') + '-predicting by ' + fix(Math.abs(e.meanError), 1) + ' WPM on the whole.' : '';
+    };
+    if (!check.rows.length) {
+      return '<p class="muted" id="fluencycheck">Benchmark check: none yet. After your next benchmark, the prediction made before it is compared with what you measured.</p>';
+    }
+    return '<section class="stack" id="fluencycheck"><h4>Benchmark check: predicted vs measured</h4>' +
+      '<p class="muted">' + esc([typical('Predicted speed', check.fluency), typical('Effortless speed', check.effortless)].filter(Boolean).join(' ')) + '</p>' +
+      H.table(['Benchmark', 'Measured WPM', 'Predicted', 'Error', 'Effortless', 'Error'], check.rows.slice().reverse().map(function (r) {
+        return H.row([H.cell(esc(date(r.startedAt)), 'num'), H.cell(fix(r.measured), 'num'), H.cell(fix(r.fluencyWpm), 'num'), H.cell(signed(r.fluencyWpm - r.measured), 'num'),
+          H.cell(fix(r.effortlessWpm), 'num'), H.cell(r.effortlessWpm == null ? '–' : signed(r.effortlessWpm - r.measured), 'num')]);
+      })) + '</section>';
   }
 
   function viewHistory() { U.screen('insights/progress', { render: renderHistory }); }

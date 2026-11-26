@@ -176,4 +176,32 @@ export default async function insights() {
 
 
   await closePage(page);
+  await fluencyIndex();
+}
+
+// The experimental fluency index: its chart (two series, coverage in the
+// tooltip, a table) and the benchmark check, once relaxed practice covers
+// enough of the reference text.
+async function fluencyIndex() {
+  const page = await freshPage();
+  await seedExercises(page, { count: 6, words: 120, effort: 2, seed: 3 });
+  await seedExercises(page, { count: 3, type: 'benchmark', set: 'set-1', seed: 4 });
+
+  await step('Progress shows the fluency index and checks it against the benchmark', async () => {
+    await nav(page, 'insights/progress');
+    const chart = page.locator('.progress-chart', { has: page.locator('h3', { hasText: 'Fluency (experimental)' }) });
+    await chart.locator('svg circle.pt.second').waitFor();             // one day: points, no lines
+    assert.match(await chart.locator('p.muted').first().textContent(), /experimental prediction, not a measurement/);
+    await chart.locator('svg').scrollIntoViewIfNeeded();
+    const box = await chart.locator('svg').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    assert.match(await chart.locator('.tip:not([hidden])').textContent(), /WPM predicted.*effortless \d+ WPM, coverage \d+%/s);
+    assert.ok((await chart.locator('details.tableview table tbody tr').count()) >= 1);
+    const check = chart.locator('#fluencycheck');
+    assert.equal(await check.locator('tbody tr').count(), 1);
+    assert.match(await check.textContent(), /Predicted speed was off by [\d.]+ WPM on average over 1 benchmark, (over|under)-predicting/);
+    if (shots) await page.screenshot({ path: shots + '/fluency.png', fullPage: true });
+  });
+
+  await closePage(page);
 }
