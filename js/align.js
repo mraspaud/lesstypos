@@ -348,16 +348,14 @@
   //                 mark; press: a multi-letter press is involved);
   //   extras:       letters of presses beyond the word ({ before: length, ch });
   //   cursor:       number of rendered letters typed.
-  function displayWord(P, typed, stream) {
-    var macros = arguments[3];
-    var target = Array.from(P);
+  function displayWord(word, stream, macros) {
+    var target = Array.from(word);
     var flags = flagStream(stream);
-    var typedPresses = groupBy(stream.filter(function (e, i) { return flags[i] && e.ch !== ' '; }), FT.text.pressIds(
-      stream.filter(function (e, i) { return flags[i] && e.ch !== ' '; }), macros));
-    var targetIds = FT.text.targetPresses(P, macros);
-    var targetPresses = groupBy(target.map(function (ch) { return { ch: ch }; }), targetIds);
+    var onScreen = stream.filter(function (e, i) { return flags[i] && e.ch !== ' '; });
+    var typedPresses = groupBy(onScreen, FT.text.pressIds(onScreen, macros));
+    var targetPresses = groupBy(target.map(function (ch) { return { ch: ch }; }), FT.text.targetPresses(word, macros));
     var positions = target.map(function () { return { status: 'untyped', group: null, press: false }; });
-    var extras = [], at = 0, cursor = 0;
+    var extras = [], at = 0;
     typedPresses.forEach(function (tp, k) {
       var want = targetPresses[k];
       if (!want) { tp.forEach(function (e) { extras.push({ before: target.length, ch: e.ch }); }); return; }
@@ -366,8 +364,7 @@
       want.forEach(function (_, j) { positions[at + j] = ok ? { status: 'ok', group: null, press: false } : { status: 'bad', group: at, press: multi }; });
       at += want.length;
     });
-    cursor = at + extras.length;
-    return { positions: positions, extras: extras, cursor: cursor };
+    return { positions: positions, extras: extras, cursor: at + extras.length };
   }
   // Consecutive items with the same id, in order.
   function groupBy(items, ids) {

@@ -92,14 +92,14 @@
     }
     ty.inner.appendChild(frag);
   }
-  // A word shows the best alignment of what was typed with its target
-  // (FT.align.displayWord): extra letters at their place, and one joined mark
-  // for a wrong multi-letter press. data-cursor = letters typed so far.
+  // A word shows its typed presses compared by position (FT.align.displayWord):
+  // one joined mark for a wrong multi-letter press, extra letters at the end.
+  // data-cursor = letters typed so far.
   function paintWord(i, el) {
     var w = ty.session.state().words[i];
     el = el || ty.els[i];
     if (!el) return;
-    var d = FT.align.displayWord(w.target, w.typed, w.stream, macros(), w.committed);
+    var d = FT.align.displayWord(w.target, w.stream, macros());
     var T = Array.from(w.target), html = '';
     var letter = function (cls, ch) { return '<span class="l' + cls + '">' + esc(ch) + '</span>'; };
     var extrasBefore = function (p) { return d.extras.filter(function (x) { return x.before === p; }); };
