@@ -78,6 +78,10 @@
     var actions = active.actions;
     root.querySelectorAll('[data-action]').forEach(function (el) { el.onclick = function () { perform(actions[+el.dataset.action], el); }; });
   }
+  // A form whose submit is one of the screen's actions.
+  function onSubmit(form, fn) {
+    form.addEventListener('submit', function (e) { e.preventDefault(); perform(fn); });
+  }
   // Runs one of the screen's actions (a click or a shortcut). An action that
   // returns a promise holds the screen's other actions until it settles, so a
   // fast second press cannot start the same work twice.
@@ -99,7 +103,7 @@
     app.$view.innerHTML = '<div id="notice" class="notice" hidden></div>' + html;
     renderNotice();
     bindActions(app.$view);
-    app.$view.querySelectorAll('[data-stab]').forEach(function (b) { b.onclick = function () { go(b.dataset.stab); }; });
+    app.$view.querySelectorAll('[data-stab]').forEach(function (b) { b.onclick = function () { perform(go, b.dataset.stab); }; });
     var back = had && document.getElementById(had);
     var target = back && app.$view.contains(back) ? back : app.$view.querySelector('h1') || app.$view;
     if (target.tagName === 'H1' || target === app.$view) target.setAttribute('tabindex', '-1');
@@ -205,7 +209,7 @@
     return rows;
   }
 
-  Object.assign(U, { route: route, screen: screen, redraw: redraw, activeScreen: activeScreen, onThisScreen: onThisScreen, action: action, perform: perform, paint: paint, fill: fill,
+  Object.assign(U, { route: route, screen: screen, redraw: redraw, activeScreen: activeScreen, onThisScreen: onThisScreen, action: action, onSubmit: onSubmit, perform: perform, paint: paint, fill: fill,
     renderNotice: renderNotice, flash: flash, announce: announce,
     go: go, show: show, followAddress: followAddress, showAddressed: showAddressed, sectionHead: sectionHead,
     stepSection: stepSection, navigateByKey: navigateByKey, navigationHelp: navigationHelp });

@@ -72,7 +72,7 @@
             : '<p>Paste something you would enjoy reading: a chapter, an article, a public-domain book from Project Gutenberg. LessTypos remembers where you stop.</p>') +
           U.textForm() +
           '<div class="row">' + U.keyButton({ label: 'Skip prose today', id: 'skipprose', onClick: skip }) + '</div></section>');
-        U.bindTextForm(function () { runStep(); });
+        U.bindTextForm(U.onThisScreen(function () { return runStep(); }));
         document.getElementById(offer ? 'usebundled' : 'tbody').focus();
       }));
     } });

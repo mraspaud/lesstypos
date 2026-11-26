@@ -104,9 +104,8 @@
       });
     };
     body.addEventListener('input', function () { fromFile = null; });
-    f.addEventListener('submit', function (e) {
-      e.preventDefault();
-      reading.then(function () {
+    function save() {
+      return reading.then(function () {
         var book = fromFile || FT.books.fromText(body.value);
         var t = FT.books.toText(book, 'x' + Date.now().toString(36));
         if (t.words.length < 20) { msg.textContent = 'That text is too short: paste at least a paragraph.'; return; }
@@ -116,7 +115,8 @@
           return U.saveSettings();
         }).then(function () { after(t); });
       }).catch(U.storageError);
-    });
+    }
+    U.onSubmit(f, save);
   }
   // A click handler that asks first: the first press arms the button, the second acts.
   function onSecondPress(askLabel, act) {
