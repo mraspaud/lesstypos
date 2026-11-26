@@ -13,7 +13,8 @@
   function show() { return U.show.apply(null, arguments); }
   function viewBetween() { return U.viewBetween.apply(null, arguments); }
   function complete() { return U.complete.apply(null, arguments); }
-  function macros() { return U.macros.apply(null, arguments); }
+  function analysisOptions() { return U.analysisOptions.apply(null, arguments); }
+  function equivalence() { return U.equivalence.apply(null, arguments); }
   function viewEffort() { return U.viewEffort.apply(null, arguments); }
 
   // ---------- typing ----------
@@ -53,7 +54,7 @@
       '<div id="stopbar" class="stopbar" hidden></div>' +
       '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"' + (withCard ? ' aria-describedby="briefing"' : '') + '></textarea>' +
       '</section>');
-    var session = FT.session.create(ex.words.slice(0, 120));
+    var session = FT.session.create(ex.words.slice(0, 120), { equivalence: equivalence() });
     var fed = 120;
     ty = { type: type, ex: ex, session: session, fed: fed, durationMs: durationMs, keys: [], first: null, startedAt: null,
       els: [], inner: document.getElementById('inner'), caret: document.getElementById('caret'),
@@ -114,7 +115,7 @@
     var w = ty.session.state().words[i];
     el = el || ty.els[i];
     if (!el) return;
-    var d = FT.align.displayWord(w.target, w.stream, macros());
+    var d = FT.align.displayWord(w.target, w.stream, analysisOptions());
     var T = Array.from(w.target), html = '';
     var letter = function (cls, ch) { return '<span class="l' + cls + '">' + esc(ch) + '</span>'; };
     for (var p = 0; p < T.length; p++) {
@@ -223,7 +224,7 @@
   }
   function roundStats(start, end) {
     var words = ty.session.state().words.filter(function (w) { return w.committed && FT.bursts.finishedWithin(w, start, end); });
-    return FT.bursts.roundStats(words, FT.align.analyzeWords(words, { macros: macros() }), start, end);
+    return FT.bursts.roundStats(words, FT.align.analyzeWords(words, analysisOptions()), start, end);
   }
   function burstTick() {
     var b = ty.burst, now = performance.now(), timer = document.getElementById('timer');
@@ -253,7 +254,7 @@
   }
   function correctSoFar() {
     var w = ty.session.current();
-    return FT.text.isPrefix(w.typed, FT.session.targetOf(w));
+    return equivalence().isPrefix(w.typed, FT.session.targetOf(w));
   }
   // The card over the text: what to do and what counts, read before starting.
   function briefing(exDef, nRounds, type) {
@@ -284,7 +285,7 @@
     var st = ty.session.state();
     // the last word of a text needs no space: complete it once typed correctly
     var cur = st.words[st.wordIndex];
-    if (ty.exhausted && st.wordIndex === st.words.length - 1 && FT.text.sameStr(cur.typed, cur.target)) {
+    if (ty.exhausted && st.wordIndex === st.words.length - 1 && equivalence().sameStr(cur.typed, cur.target)) {
       ty.session.input({ kind: 'text', data: ' ', t: t, auto: true });
       st = ty.session.state();
     }

@@ -111,8 +111,7 @@ test('profiles built by an older model version are rebuilt from raw sessions', (
 });
 
 test('rebuild does not depend on the current accent setting: each raw session keeps its own', () => {
-  FT.text.setOptions({ accents: true });
-  const tr = FT.trainer.create({ seed: 12 });
+  const tr = FT.trainer.create({ seed: 12, settings: { accents: true } });
   const text = { id: 't', words: Array.from({ length: 40 }, (_, i) => (i % 2 ? 'café' : 'word')), pos: 0 };
   const ex = tr.newExercise({ type: 'prose', text });
   const s = FT.session.create(ex.words.slice(0, 30));
@@ -121,11 +120,8 @@ test('rebuild does not depend on the current accent setting: each raw session ke
   const { raw, summary } = tr.finish({ type: 'prose', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed), text: { id: 't', from: 0 } });
   assert.equal(summary.metrics.firstAttemptAccuracy, 1);
   assert.equal(raw.accents, true);
-  FT.text.setOptions({ accents: false });
-  try {
-    const rebuilt = FT.trainer.rebuild([JSON.parse(JSON.stringify(raw))], { seed: 12 });
-    assert.equal(rebuilt.history()[0].faa, 1);
-  } finally { FT.text.setOptions({ accents: true }); }
+  const rebuilt = FT.trainer.rebuild([JSON.parse(JSON.stringify(raw))], { seed: 12, settings: { accents: false } });
+  assert.equal(rebuilt.history()[0].faa, 1);
 });
 
 test('a fixed vocabulary level survives a rebuild', () => {

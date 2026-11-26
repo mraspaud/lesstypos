@@ -126,21 +126,19 @@
     // record a history entry. Deterministic, so replaying raw sessions
     // rebuilds the same profile.
     function process(raw) {
-      return FT.text.withOptions({ accents: raw.accents !== false }, function () {
-        var session = sessionCount;
-        if (MODEL_TYPES[raw.type]) {
-          session = sessionFor(raw.run || raw.id);
-          sessionCount = session;
-          lastRun = raw.run || raw.id;
-        }
-        if (raw.vocab) applyVocabulary(raw.vocab);
-        var m = measure(raw);
-        var summary = describe(raw, m);
-        learn(raw, session, m, summary);
-        summary.frontier = difficulty.state().frontier;
-        history.push(historyEntry(raw, m, summary));
-        return summary;
-      });
+      var session = sessionCount;
+      if (MODEL_TYPES[raw.type]) {
+        session = sessionFor(raw.run || raw.id);
+        sessionCount = session;
+        lastRun = raw.run || raw.id;
+      }
+      if (raw.vocab) applyVocabulary(raw.vocab);
+      var m = measure(raw);
+      var summary = describe(raw, m);
+      learn(raw, session, m, summary);
+      summary.frontier = difficulty.state().frontier;
+      history.push(historyEntry(raw, m, summary));
+      return summary;
     }
 
     // A fixed vocabulary is part of what happened; replaying it keeps a
@@ -150,8 +148,14 @@
       else if (difficulty.state().manual) difficulty.override(null);
     }
 
+    // A raw session is analysed with the settings it was typed with.
+    function analysisOptions(raw) {
+      return { macros: raw.macros, equivalence: FT.text.equivalence({ accents: raw.accents }) };
+    }
+
     function measure(raw) {
-      var words = raw.words, analyses = FT.align.analyzeWords(words, { macros: raw.macros });
+      var options = analysisOptions(raw);
+      var words = raw.words, analyses = FT.align.analyzeWords(words, options);
       var tm = FT.timing.extract(words, analyses);
       // Speed bursts: speed over the words finished inside the typing rounds,
       // over the rounds' duration (not the rests, not a partial last round).
@@ -164,8 +168,8 @@
       }
       var random = analyses.filter(function (an, i) { var meta = words[i].meta; return meta && meta.source === 'random'; });
       return {
-        late: FT.timing.lateKeys(raw.keys, words, raw.macros),
-        words: words, tm: tm, analyses: analyses, pairs: FT.timing.commonPairStats(tm.records),
+        late: FT.timing.lateKeys(raw.keys, words, options),
+        options: options, words: words, tm: tm, analyses: analyses, pairs: FT.timing.commonPairStats(tm.records),
         metrics: FT.metrics.summarize(scored, { durationMs: activeMs }),
         random: FT.metrics.summarize(random, { durationMs: 0 }),
       };
@@ -197,7 +201,7 @@
         rollover: FT.timing.rollover(raw.keys, { exclude: m.late.codes }),
         lateKeys: m.late.chars,
         timeline: FT.progress.timeline(m.words, m.analyses),
-        keyStats: FT.progress.keyStats(m.words, m.analyses, raw.macros),
+        keyStats: FT.progress.keyStats(m.words, m.analyses, m.options),
         baseline: m.tm.baseline,
         sources: sources, stageChanges: [], difficulty: null,
       };
@@ -208,7 +212,7 @@
         model.ingest(m.tm.records, { session: session, day: raw.day, late: m.late });
         summary.stageChanges = model.endSession({ session: session, day: raw.day });
       }
-      if (raw.type !== 'benchmark') subs.ingest(m.analyses, { exercise: raw.type, session: session, t: raw.startedAt });
+      if (raw.type !== 'benchmark') subs.ingest(m.analyses, { equivalence: m.options.equivalence, exercise: raw.type, session: session, t: raw.startedAt });
       if (raw.type === 'bursts' && raw.rounds) summary.rounds = bursts.apply(m.words, m.analyses, raw.rounds, history, raw.startedAt);
       if (DIFFICULTY_TYPES[raw.type]) {
         summary.difficulty = difficulty.update({
@@ -234,14 +238,12 @@
     // with that day's decisions and judgements taken from its history entry.
     // Nothing is learned.
     function summarize(raw) {
-      return FT.text.withOptions({ accents: raw.accents !== false }, function () {
-        var entry = history.filter(function (h) { return h.id === raw.id; })[0] || {};
-        var summary = describe(raw, measure(raw), { hesitationRate: entry.hes });
-        summary.difficulty = entry.decision || null;
-        summary.frontier = entry.frontier;
-        if (entry.rounds) summary.rounds = entry.rounds;
-        return summary;
-      });
+      var entry = history.filter(function (h) { return h.id === raw.id; })[0] || {};
+      var summary = describe(raw, measure(raw), { hesitationRate: entry.hes });
+      summary.difficulty = entry.decision || null;
+      summary.frontier = entry.frontier;
+      if (entry.rounds) summary.rounds = entry.rounds;
+      return summary;
     }
 
     return {

@@ -151,8 +151,10 @@
   // one press, stored under its lowercase name. keys[press] = [presses,
   // first-attempt errors]; land[press] = wrong presses that typed it, a
   // multi-character input event landing on its multi-letter key.
-  // words: committed words with their stream; analyses: one per word.
-  function keyStats(words, analyses, macros) {
+  // words: committed words with their stream; analyses: one per word, made
+  // with opts ({ macros, equivalence }).
+  function keyStats(words, analyses, opts) {
+    var macros = opts && opts.macros, canon = (opts && opts.equivalence || FT.text.equivalence()).canon;
     var ms = (macros || []).map(function (m) { return m.toLowerCase(); });
     var keys = {}, land = {};
     words.forEach(function (w, wi) {
@@ -177,7 +179,7 @@
           if (!groups[g]) { groups[g] = true; land[whole] = (land[whole] || 0) + e.w; }
           return;
         }
-        var a = FT.text.canon(e.actual);
+        var a = canon(e.actual);
         land[a] = (land[a] || 0) + e.w;
       });
     });

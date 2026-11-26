@@ -113,7 +113,7 @@ function wordsWithPresses(pairs) {
     return { target: p, stream };
   });
 }
-const keyStats = (words, macros, analysisOpts) => FT.progress.keyStats(words, FT.align.analyzeWords(words, analysisOpts), macros);
+const keyStats = (words, macros, analysisOpts) => FT.progress.keyStats(words, FT.align.analyzeWords(words, analysisOpts), { macros });
 
 test('key statistics count presses, with multi-letter keys as one press', () => {
   const ks = plain(keyStats(wordsWithPresses([['the', 'the'], ['then', 'tgen'], ['art', 'art']]), ['th']));

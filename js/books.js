@@ -7,7 +7,7 @@
   var NOT_PROSE = /project gutenberg|^(table of )?contents$|^(list of )?(illustrations|plates|figures)\b|^list of /i;
 
   // ---- words ----
-  // Design choice: equivalence is per character (FT.text.canon), so letters
+  // Design choice: equivalence is per character (FT.text.equivalence), so letters
   // whose ASCII form is two letters are spelled out, as … becomes ... .
   var SPELLED = { 'æ': 'ae', 'Æ': 'AE', 'œ': 'oe', 'Œ': 'OE', 'ß': 'ss', '½': '1/2', '¼': '1/4', '¾': '3/4' };
   function cleanWord(w) {

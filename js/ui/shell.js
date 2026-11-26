@@ -21,6 +21,9 @@
     if (app.layout) app.layout.macros.forEach(function (x) { if (m.indexOf(x) < 0) m.push(x); });
     return m;
   }
+  function equivalence() { return FT.text.equivalence({ accents: app.settings.accents }); }
+  // How typing is analysed live: the multi-letter keys and the accent setting.
+  function analysisOptions() { return { macros: macros(), equivalence: equivalence() }; }
   function applySettings() {
     var s = app.settings;
     document.documentElement.style.setProperty('--type-size', s.fontSize + 'rem');
@@ -29,7 +32,6 @@
     app.layout = null;
     if (s.layoutText && s.layoutText.trim()) { try { app.layout = FT.layout.parse(s.layoutText); } catch (e) { app.layout = null; } }
     if (app.trainerSettings) app.trainerSettings.macros = macros();
-    FT.text.setOptions({ accents: s.accents !== false });
     if (app.trainerSettings) app.trainerSettings.accents = s.accents !== false;
   }
   function programmeDef() { return app.settings.programme || FT.programme.DEFAULT; }
@@ -342,5 +344,5 @@
   }
 
 
-  Object.assign(U, { macros: macros, applySettings: applySettings, programmeDef: programmeDef, today: today, saveSettings: saveSettings, saveProfile: saveProfile, storageError: storageError, makeTrainer: makeTrainer, go: go, show: show, renderNav: renderNav, renderNotice: renderNotice, announce: announce, setView: setView, sectionHead: sectionHead, onThisScreen: onThisScreen, onGlobalKey: onGlobalKey, boot: boot });
+  Object.assign(U, { macros: macros, equivalence: equivalence, analysisOptions: analysisOptions, applySettings: applySettings, programmeDef: programmeDef, today: today, saveSettings: saveSettings, saveProfile: saveProfile, storageError: storageError, makeTrainer: makeTrainer, go: go, show: show, renderNav: renderNav, renderNotice: renderNotice, announce: announce, setView: setView, sectionHead: sectionHead, onThisScreen: onThisScreen, onGlobalKey: onGlobalKey, boot: boot });
 })(globalThis.FT);

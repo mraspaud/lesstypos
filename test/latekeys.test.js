@@ -53,7 +53,7 @@ test('the instant taps of a multi-letter key macro do not make its letters late'
   const s = userLike();
   for (let i = 0; i < 12; i++) s.push(['th', 0]);
   const { keys, words } = typed(s);
-  const r = FT.timing.lateKeys(keys, words, ['th']);
+  const r = FT.timing.lateKeys(keys, words, { macros: ['th'] });
   assert.ok(!r.chars.includes('t') && !r.chars.includes('h'));
 });
 

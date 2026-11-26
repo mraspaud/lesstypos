@@ -160,7 +160,7 @@ test('ordinary errors are unchanged by press grouping', () => {
 // Functionality: the word on screen compares by position, press by press
 // (user decision), so a red letter stays where the mistake was made; one mark
 // per wrong press, and extra letters at the end.
-const DW = (word, typed, macros) => plain(FT.align.displayWord(word, pressStream(typed), macros));
+const DW = (word, typed, macros) => plain(FT.align.displayWord(word, pressStream(typed), { macros }));
 const statuses = (d) => d.positions.map((x) => x.status).join(' ');
 
 test('display: th typed for y in "you" marks only y', () => {
@@ -198,7 +198,7 @@ test('display: a multi-letter key spelled out letter by letter is compared lette
 
 test('display: letters on either side of an erased one are separate presses', () => {
   const stream = [{ k: 'c', ch: 't', t: 100, g: 1 }, { k: 'c', ch: 'x', t: 105, g: 2 }, { k: 'b', t: 110 }, { k: 'c', ch: 'h', t: 115, g: 3 }];
-  assert.equal(statuses(plain(FT.align.displayWord('tea', stream, ['th']))), 'ok bad untyped');
+  assert.equal(statuses(plain(FT.align.displayWord('tea', stream, { macros: ['th'] }))), 'ok bad untyped');
 });
 
 test('display: a partly typed word leaves the rest untyped and puts the cursor after the typing', () => {

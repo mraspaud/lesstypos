@@ -9,12 +9,14 @@
   function separatorOf(w) { return (w.meta && w.meta.sep) || ' '; }
   function targetOf(w) { return w.target + separatorOf(w); }
 
+  // opts: { reach, equivalence (FT.text.equivalence) }.
   function create(targets, opts) {
     var reach = (opts && opts.reach) || REACH;
+    var equivalence = (opts && opts.equivalence) || FT.text.equivalence();
     var words = [];
     function errorWithin(from) {
       for (var i = from; i >= 0 && i > from - reach; i--) {
-        if (!FT.text.sameStr(words[i].typed, targetOf(words[i]))) return true;
+        if (!equivalence.sameStr(words[i].typed, targetOf(words[i]))) return true;
       }
       return false;
     }

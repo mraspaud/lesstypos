@@ -8,6 +8,7 @@ const { load, plain } = require('./helpers/load');
 // the same character. Capitalisation errors are recognisable.
 
 const FT = load();
+const { canon, same, sameStr } = FT.text.equivalence({ accents: true });
 function stream(str) {
   return Array.from(str).map((ch, i) => (ch === '<' ? { k: 'b', t: i * 100 } : { k: 'c', ch, t: i * 100, g: i }));
 }
@@ -15,13 +16,13 @@ const A = (p, s) => FT.align.analyzeWord(p, stream(s));
 const errors = (r) => r.events.filter((e) => e.type !== 'none').length;
 
 test('typographic characters have ASCII equivalents', () => {
-  assert.equal(FT.text.canon('’'), "'");
-  assert.equal(FT.text.canon('“'), '"');
-  assert.equal(FT.text.canon('—'), '-');
-  assert.equal(FT.text.canon('é'), 'e');
-  assert.equal(FT.text.canon('a'), 'a');
-  assert.ok(FT.text.same("'", '’'));
-  assert.ok(!FT.text.same('a', 'b'));
+  assert.equal(canon('’'), "'");
+  assert.equal(canon('“'), '"');
+  assert.equal(canon('—'), '-');
+  assert.equal(canon('é'), 'e');
+  assert.equal(canon('a'), 'a');
+  assert.ok(same("'", '’'));
+  assert.ok(!same('a', 'b'));
 });
 
 test("don’t typed with a straight or curly apostrophe is fully correct", () => {
@@ -63,8 +64,8 @@ test('Project Gutenberg header and footer are removed', () => {
 });
 
 test('an acute accent typed as an apostrophe counts as one', () => {
-  assert.ok(FT.text.same('´', "'"));
-  assert.ok(FT.text.same("'", '´'));
-  assert.ok(FT.text.sameStr('don´t', "don't"));
-  assert.ok(!FT.text.same('`', "'")); // the grave accent is a real ASCII character
+  assert.ok(same('´', "'"));
+  assert.ok(same("'", '´'));
+  assert.ok(sameStr('don´t', "don't"));
+  assert.ok(!same('`', "'")); // the grave accent is a real ASCII character
 });

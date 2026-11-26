@@ -8,24 +8,26 @@
   'use strict';
   var MAX_EX = 20, A = 50, K = 30, MIN_OPPORTUNITIES = 20;
 
+  // meta.equivalence: FT.text.equivalence, as for the analyses.
   function create(state) {
     var st = Object.assign({ opp: {}, pairs: {}, totalSubs: 0, totalOpp: 0, swaps: {}, pairOpp: {} }, state);
 
     function ingest(words, meta) {
       meta = meta || {};
+      var equivalence = meta.equivalence || FT.text.equivalence(), canon = equivalence.canon;
       for (var i = 0; i < words.length; i++) {
         var an = words[i];
-        var P = Array.from(an.P).map(FT.text.canon);
+        var P = Array.from(an.P).map(canon);
         for (var p = 0; p < P.length; p++) {
           st.opp[P[p]] = (st.opp[P[p]] || 0) + 1;
           st.totalOpp++;
-          if (p + 1 < P.length && !FT.text.same(P[p], P[p + 1])) st.pairOpp[P[p] + P[p + 1]] = (st.pairOpp[P[p] + P[p + 1]] || 0) + 1;
+          if (p + 1 < P.length && !equivalence.same(P[p], P[p + 1])) st.pairOpp[P[p] + P[p + 1]] = (st.pairOpp[P[p] + P[p + 1]] || 0) + 1;
         }
         for (var j = 0; j < an.events.length; j++) {
           var e = an.events[j];
           if (e.type === 'transpose' && e.swapStart) recordSwap(an, P, e, meta);
           if (e.type !== 'sub') continue;
-          var ex = FT.text.canon(e.expected), ac = FT.text.canon(e.actual);
+          var ex = canon(e.expected), ac = canon(e.actual);
           var key = ex + '\u0000' + ac;
           var r = st.pairs[key] || (st.pairs[key] = { expected: ex, actual: ac, count: 0, examples: [] });
           r.count += e.w;

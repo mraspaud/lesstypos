@@ -150,18 +150,18 @@
   // Design choice: >= LATE_MIN_N single-key presses, >= LATE_SHARE of them held
   // < INSTANT_MS, and at least one key with >= LATE_MIN_N presses whose median
   // hold is >= HOLD_INFO_MS (otherwise the input carries no hold information). keys: [{k, c, t}]; words carry
-  // streams; macros as for FT.presses.ids.
+  // streams; opts: { macros, equivalence }, as for FT.align.analyzeWord.
   var MATCH_MS = 5, INSTANT_MS = 3, LATE_MIN_N = 10, LATE_SHARE = 0.8, HOLD_INFO_MS = 20;
   // Each press that typed characters, in time order: its (canonical, as the
   // model sees it) first character and whether it typed only that character.
-  function typedChars(words, macros) {
-    var chars = [];
+  function typedChars(words, opts) {
+    var macros = opts && opts.macros, canon = (opts && opts.equivalence || FT.text.equivalence()).canon, chars = [];
     (words || []).forEach(function (w) {
       var ids = FT.presses.ids(w.stream, macros), size = {};
       ids.forEach(function (p) { if (p != null) size[p] = (size[p] || 0) + 1; });
       w.stream.forEach(function (e, i) {
         if (e.k !== 'c' || e.auto || (i > 0 && ids[i] === ids[i - 1])) return; // one entry per press
-        chars.push({ ch: FT.text.canon(e.ch), t: e.t, single: size[ids[i]] === 1 });
+        chars.push({ ch: canon(e.ch), t: e.t, single: size[ids[i]] === 1 });
       });
     });
     return chars.sort(function (a, b) { return a.t - b.t; });
@@ -184,8 +184,8 @@
     return out;
   }
 
-  function lateKeys(keys, words, macros) {
-    var presses = keyHolds(keys, typedChars(words, macros)), holds = {}, codeOf = {}, times = {};
+  function lateKeys(keys, words, opts) {
+    var presses = keyHolds(keys, typedChars(words, opts)), holds = {}, codeOf = {}, times = {};
     presses.forEach(function (p) {
       if (!p.ch || !p.ch.single) return;
       var h = holds[p.ch.ch] || (holds[p.ch.ch] = { n: 0, instant: 0 });

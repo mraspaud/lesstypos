@@ -23,8 +23,9 @@
 (function (FT) {
   'use strict';
   var MAX_ALIGNMENTS = 32;
-  // Characters compare up to typographic equivalence (FT.text.same).
-  function eq(a, b) { return FT.text.same(a, b); }
+  // Characters compare up to typographic equivalence (opts.equivalence, from
+  // FT.text.equivalence; accents accepted by default).
+  function equivalenceOf(opts) { return (opts && opts.equivalence) || FT.text.equivalence(); }
 
   function flagStream(stream) {
     var flags = new Array(stream.length);
@@ -37,7 +38,7 @@
     return flags;
   }
 
-  function msdMatrix(P, T) {
+  function msdMatrix(P, T, same) {
     var D = [];
     for (var i = 0; i <= P.length; i++) {
       D.push(new Array(T.length + 1));
@@ -47,19 +48,19 @@
     for (i = 1; i <= P.length; i++) {
       for (j = 1; j <= T.length; j++) {
         D[i][j] = Math.min(D[i - 1][j] + 1, D[i][j - 1] + 1,
-          D[i - 1][j - 1] + (eq(P[i - 1], T[j - 1]) ? 0 : 1));
+          D[i - 1][j - 1] + (same(P[i - 1], T[j - 1]) ? 0 : 1));
       }
     }
     return D;
   }
 
   // All optimal alignments as arrays of pairs [pIndex|null, tIndex|null], in order.
-  function alignments(P, T, D) {
+  function alignments(P, T, D, same) {
     var out = [];
     function rec(i, j, acc) {
       if (out.length >= MAX_ALIGNMENTS) return;
       if (i === 0 && j === 0) { out.push(acc.slice().reverse()); return; }
-      if (i > 0 && j > 0 && D[i - 1][j - 1] + (eq(P[i - 1], T[j - 1]) ? 0 : 1) === D[i][j]) {
+      if (i > 0 && j > 0 && D[i - 1][j - 1] + (same(P[i - 1], T[j - 1]) ? 0 : 1) === D[i][j]) {
         acc.push([i - 1, j - 1]); rec(i - 1, j - 1, acc); acc.pop();
       }
       if (i > 0 && D[i - 1][j] + 1 === D[i][j]) {
@@ -126,24 +127,24 @@
 
   // A flagged keystroke survived into the final text: its alignment says
   // what it was. Returns the next target position.
-  function uncorrected(rec, P, e, i, info, pressErr) {
+  function uncorrected(rec, P, e, i, info, pressErr, same) {
     if (info.p === null) {
       rec.ins(info.pos, false, e, i, !pressErr.has(i));
       pressErr.mark(i);
       return info.pos;
     }
-    if (eq(P[info.p], e.ch)) rec.correct(info.p, false, e, i);
+    if (same(P[info.p], e.ch)) rec.correct(info.p, false, e, i);
     else { rec.sub(info.p, false, e, i); pressErr.mark(i); }
     return info.p + 1;
   }
 
   // An unflagged letter was later erased: it was an attempt at P[pos].
   // Returns the next target position.
-  function corrected(rec, P, e, i, pos, pressErr) {
+  function corrected(rec, P, e, i, pos, pressErr, same) {
     if (pressErr.has(i)) { rec.ins(Math.min(pos, P.length - 1), true, e, i, false); return pos; } // rest of a wrong press
     if (pos >= P.length) { rec.ins(P.length - 1, true, e, i, false); pressErr.mark(i); return P.length + 1; }
-    if (eq(e.ch, P[pos])) { rec.correct(pos, true, e, i); return pos + 1; }
-    if (pos + 1 < P.length && eq(e.ch, P[pos + 1])) { // typed the next letter early
+    if (same(e.ch, P[pos])) { rec.correct(pos, true, e, i); return pos + 1; }
+    if (pos + 1 < P.length && same(e.ch, P[pos + 1])) { // typed the next letter early
       rec.omit(pos, true, e.t, i);
       rec.firstCorrect(pos + 1, e, i);
       return pos + 2;
@@ -153,7 +154,7 @@
     return pos + 1;
   }
 
-  function analyzeOne(P, stream, flags, flaggedIdx, al, presses, swaps) {
+  function analyzeOne(P, stream, flags, flaggedIdx, al, presses, swaps, equivalence) {
     var map = mapAlignment(al, flaggedIdx.length), rec = recorder(P);
     // presses that already produced a wrong keystroke in this alignment
     var wrong = {};
@@ -166,7 +167,7 @@
       if (flags[i]) {
         map.omissionsBefore[tCount].forEach(function (p) { rec.omit(p, false, e.t, i); });
         live.push(v);
-        v = uncorrected(rec, P, e, i, map.tInfo[tCount++], pressErr);
+        v = uncorrected(rec, P, e, i, map.tInfo[tCount++], pressErr, equivalence.same);
       } else if (e.k === 'b') {
         if (live.length) v = live.pop(); // back to where the erased letter was typed
       } else if (swaps.done[i]) {
@@ -178,13 +179,13 @@
         v += 2;
       } else {
         live.push(v);
-        v = corrected(rec, P, e, i, v, pressErr);
+        v = corrected(rec, P, e, i, v, pressErr, equivalence.same);
       }
     });
     swaps.done = {};
     var lastT = stream.length ? stream[stream.length - 1].t : 0;
     map.omissionsBefore[flaggedIdx.length].forEach(function (p) { rec.omit(p, false, lastT, stream.length); });
-    tagPatterns(P, rec.events, swaps);
+    tagPatterns(P, rec.events, swaps, equivalence.canon);
     sharePressErrors(rec.first, presses, swapLinks(rec, swaps));
     return { events: rec.events, first: rec.first };
   }
@@ -203,10 +204,10 @@
   // letters read P[k+1] P[k] (P[k] != P[k+1]) after P[0..k) (letters of swaps
   // already found count as right), keystrokes i, j typed a swap at k.
   // list: every swap; at: swaps typed as two consecutive keystrokes, by i.
-  function findSwaps(P, stream) {
+  function findSwaps(P, stream, same) {
     var list = [], at = {}, text = [], swapPos = {};
     var prefixOk = function (k) {
-      for (var q = 0; q < k; q++) if (!eq(text[q].ch, P[q]) && swapPos[text[q].i] !== q) return false;
+      for (var q = 0; q < k; q++) if (!same(text[q].ch, P[q]) && swapPos[text[q].i] !== q) return false;
       return true;
     };
     for (var i = 0; i < stream.length; i++) {
@@ -215,8 +216,8 @@
       if (e.k !== 'c') continue;
       text.push({ ch: e.ch, i: i });
       var k = text.length - 2;
-      if (k < 0 || k + 1 >= P.length || eq(P[k], P[k + 1])) continue;
-      if (!eq(text[k].ch, P[k + 1]) || !eq(text[k + 1].ch, P[k]) || !prefixOk(k)) continue;
+      if (k < 0 || k + 1 >= P.length || same(P[k], P[k + 1])) continue;
+      if (!same(text[k].ch, P[k + 1]) || !same(text[k + 1].ch, P[k]) || !prefixOk(k)) continue;
       var sw = { i: text[k].i, j: i, pos: k };
       list.push(sw);
       swapPos[sw.i] = k; swapPos[sw.j] = k + 1;
@@ -265,11 +266,11 @@
     first.forEach(function (f, pos) { if (f && f.err) f.err = 1 / size[groups.find(pos)]; });
   }
 
-  function tagPatterns(P, events, swaps) {
-    var C = P.map(FT.text.canon);
+  function tagPatterns(P, events, swaps, canon) {
+    var C = P.map(canon);
     var subs = events.filter(function (e) { return e.type === 'sub'; });
     for (var i = 0; i < subs.length; i++) {
-      var s = subs[i], a = FT.text.canon(s.actual);
+      var s = subs[i], a = canon(s.actual);
       s.premature = C.indexOf(a, s.pos + 1) > s.pos;
       s.case = a !== C[s.pos] && a.toLowerCase() === C[s.pos].toLowerCase();
     }
@@ -286,24 +287,25 @@
     });
   }
 
+  // opts: { macros, gapMs (FT.presses.ids), equivalence }.
   function analyzeWord(P, stream, opts) {
-    var macros = (opts && opts.macros) || [];
+    var macros = (opts && opts.macros) || [], equivalence = equivalenceOf(opts);
     var presses = { typed: FT.presses.ids(stream, macros, opts && opts.gapMs), target: FT.presses.ofTarget(P, macros) };
     var flags = flagStream(stream);
     var flaggedIdx = [];
     var T = '';
     for (var i = 0; i < stream.length; i++) if (flags[i]) { flaggedIdx.push(i); T += stream[i].ch; }
     var Parr = Array.from(P), Tarr = Array.from(T);
-    var D = msdMatrix(Parr, Tarr);
+    var D = msdMatrix(Parr, Tarr, equivalence.same);
     var msd = D[Parr.length][Tarr.length];
-    var swaps = findSwaps(Parr, stream);
-    var als = preferSwaps(alignments(Parr, Tarr, D), swaps, flags, flaggedIdx);
+    var swaps = findSwaps(Parr, stream, equivalence.same);
+    var als = preferSwaps(alignments(Parr, Tarr, D, equivalence.same), swaps, flags, flaggedIdx);
     var w = 1 / als.length;
     var merged = {};
     var order = [];
-    var targets = Parr.map(function (ch, pos) { return { ch: FT.text.canon(ch), pos: pos, err: 0, types: {}, t: null, g: null, idx: null, actual: {} }; });
+    var targets = Parr.map(function (ch, pos) { return { ch: equivalence.canon(ch), pos: pos, err: 0, types: {}, t: null, g: null, idx: null, actual: {} }; });
     for (var a = 0; a < als.length; a++) {
-      var r = analyzeOne(Parr, stream, flags, flaggedIdx, als[a], presses, swaps);
+      var r = analyzeOne(Parr, stream, flags, flaggedIdx, als[a], presses, swaps, equivalence);
       for (var k = 0; k < r.events.length; k++) {
         var e = r.events[k];
         var key = [e.type, e.corrected, e.pos, e.idx].join('|');
@@ -354,7 +356,9 @@
   //                 mark; press: a multi-letter press is involved);
   //   extras:       letters of presses beyond the word, shown after it;
   //   cursor:       number of rendered letters typed.
-  function displayWord(word, stream, macros) {
+  // opts: { macros, equivalence }, as for analyzeWord.
+  function displayWord(word, stream, opts) {
+    var macros = opts && opts.macros, same = equivalenceOf(opts).same;
     var target = Array.from(word);
     var flags = flagStream(stream), ids = FT.presses.ids(stream, macros);
     var shown = stream.map(function (e, i) { return i; }).filter(function (i) { return flags[i] && !/^[ \n]$/.test(stream[i].ch); });
@@ -366,12 +370,12 @@
     targetPresses.forEach(function (want) {
       var tp = typedPresses[k];
       if (!tp) return;
-      if (want.length > 1 && tp.length === 1 && eq(tp[0].ch, want[0].ch)) {
+      if (want.length > 1 && tp.length === 1 && same(tp[0].ch, want[0].ch)) {
         // the multi-letter key spelled out with single keys: letter by letter
-        for (var j = 0; j < want.length && typedPresses[k] && typedPresses[k].length === 1; j++, k++) mark(at + j, eq(typedPresses[k][0].ch, want[j].ch), at + j, false);
+        for (var j = 0; j < want.length && typedPresses[k] && typedPresses[k].length === 1; j++, k++) mark(at + j, same(typedPresses[k][0].ch, want[j].ch), at + j, false);
         for (; j < want.length && typedPresses[k]; j++) mark(at + j, false, at + j, false);   // cut short by a multi-letter press
       } else {
-        var ok = tp.length === want.length && tp.every(function (e, j) { return eq(e.ch, want[j].ch); });
+        var ok = tp.length === want.length && tp.every(function (e, j) { return same(e.ch, want[j].ch); });
         want.forEach(function (_, j) { mark(at + j, ok, at, tp.length > 1 || want.length > 1); });
         k++;
       }
