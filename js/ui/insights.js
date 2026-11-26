@@ -230,10 +230,14 @@
         point: function (p) { return { t: p.t, y: p.startMs, tip: '<b>+' + fix(p.startMs) + ' ms</b> at word starts · ' + esc(date(p.t)) + '<br>rhythm variation ' + fix(p.cv, 2) + ', rated effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1)) }; },
         cols: ['Day', 'Word starts (ms)', 'Rhythm', 'Rated effort'], cells: function (p) { return [esc(date(p.t)), fix(p.startMs), fix(p.cv, 2), p.effort == null ? '–' : fix(p.effort, 1)]; } },
     ];
-    var html = '<section class="stack"><h2>Progress</h2><div class="progress-grid">' + charts.map(function (c, i) {
-      var enough = c.rows.length >= c.min;
+    // charts without enough data are named once instead of shown empty
+    var waiting = charts.filter(function (c) { return c.rows.length < c.min; }).map(function (c) { return c.title; });
+    var html = '<section class="stack"><h2>Progress</h2>' +
+      (waiting.length ? '<p class="muted">Not enough data yet for: ' + esc(waiting.join(', ')) + '.</p>' : '') +
+      '<div class="progress-grid">' + charts.map(function (c, i) {
+      if (c.rows.length < c.min) return '';
       return '<section class="progress-chart stack"><h3>' + esc(c.title) + '</h3><p class="muted">' + esc(c.note) + '</p>' +
-        (enough ? '<div class="chart" id="pc' + i + '"></div>' : '<p class="panel muted">Not enough data yet.</p>') +
+        '<div class="chart" id="pc' + i + '"></div>' +
         '<details class="tableview"><summary>Show as table</summary><div class="tablewrap"><table><thead><tr>' +
         c.cols.map(function (h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>' +
         c.rows.slice().reverse().map(function (p) { return '<tr>' + c.cells(p).map(function (v) { return '<td class="num">' + v + '</td>'; }).join('') + '</tr>'; }).join('') +
@@ -256,7 +260,7 @@
     else html += '<div class="tablewrap"><table id="alltable"><thead><tr><th>When</th><th>Exercise</th><th>Min</th><th>WPM</th><th>Accuracy</th><th>Random words</th><th>Effort</th><th>Hesitation</th><th>Rhythm</th><th>Vocabulary</th></tr></thead><tbody>' +
       h.map(function (x) {
         var d = new Date(x.t);
-        return '<tr><td class="num">' + esc(d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</td>' +
+        return '<tr><td class="num nowrap">' + esc(d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</td>' +
           '<td>' + esc((EXERCISES[x.type] || { name: x.type }).name) + '</td><td class="num">' + fix(x.ms / 60000, 1) + '</td>' +
           '<td class="num">' + fix(x.wpm) + '</td><td class="num">' + pct(x.faa) + '</td><td class="num">' + pct(x.randomFaa) + '</td>' +
           '<td class="num">' + (x.effort || '–') + '</td><td class="num">' + pct(x.hes) + '</td><td class="num">' + fix(x.cv, 2) + '</td>' +

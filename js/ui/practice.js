@@ -201,6 +201,7 @@
       'LessTypos remembers where you stop.</p>' + textForm() +
       '<div class="row"><button class="btn" type="button" id="skipprose">Skip prose today</button></div></section>');
     bindTextForm(function () { runStep(); });
+    document.getElementById('tbody').focus();
     document.getElementById('skipprose').onclick = function () { app.run.skip(); saveRun(); viewBetween(); };
   }
   function viewProgrammeSummary() {

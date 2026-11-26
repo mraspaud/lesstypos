@@ -183,6 +183,22 @@
     return true;
   }
 
+  // In a form field: Esc leaves it (shortcuts work again), Ctrl+Enter submits
+  // its form or presses the main button next to it.
+  function fieldKey(e) {
+    var el = e.target;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      el.blur();
+      var h = app.$view.querySelector('h1');
+      if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      var form = el.closest('form'), box = el.closest('section, form');
+      var btn = (form && form.querySelector('button[type="submit"]')) || (box && (box.querySelector('.btn.primary') || box.querySelector('button')));
+      if (btn) { e.preventDefault(); btn.click(); }
+    }
+  }
+
   // ---------- keyboard help (?) ----------
   // Built from the key hints the screen shows, so it always matches them.
   function closeKeyHelp() { var el = document.getElementById('keyhelp'); if (el) el.remove(); }
@@ -218,7 +234,8 @@
     if (e.defaultPrevented) return; // already handled (e.g. a digit answering the effort question)
     if (app.current === 'typing' || app.current === 'effort') return;
     var tag = (e.target && e.target.tagName) || '';
-    if (/INPUT|TEXTAREA|SELECT/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (/INPUT|TEXTAREA|SELECT/.test(tag)) { fieldKey(e); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (document.getElementById('keyhelp')) {
       if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); closeKeyHelp(); return; }
     } else if (e.key === '?') { e.preventDefault(); keyHelp(); return; }

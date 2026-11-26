@@ -615,6 +615,28 @@ await step('home: one primary action, a few alternatives by key, three numbers',
   await page.keyboard.press('Escape');
 });
 
+
+await step('in a text box, Esc leaves it and Ctrl+Enter submits it', async () => {
+  await page.keyboard.press('t');
+  await page.locator('#ttitle').fill('Ctrl Enter text');
+  await page.locator('#tbody').fill('Some words for the prose exercise to read and type, long enough to pass the minimum of twenty words that a text needs before it is kept.');
+  await page.locator('#tbody').press('Control+Enter');
+  await page.getByText('Ctrl Enter text').first().waitFor();
+  await page.locator('#tbody').focus();
+  await page.keyboard.press('Escape');
+  assert.notEqual(await page.evaluate(() => document.activeElement.id), 'tbody');
+  await page.keyboard.press('1');                            // shortcuts work again
+  await page.locator('[data-go="home"][aria-current="page"]').waitFor();
+});
+
+await step('"Prose needs a text" puts the cursor in the text box', async () => {
+  await page.evaluate(() => window.FT.ui.viewNeedText({ type: 'prose', minutes: 1 }));
+  await page.getByText('Prose needs a text').waitFor();
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'tbody');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('1');
+});
+
 await step('phone width has no horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   for (const k of ['p', 't', 'q', 'h', 's', 'd']) {
