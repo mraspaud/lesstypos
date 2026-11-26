@@ -323,3 +323,32 @@ test('a keystroke is timed from its longest context with enough timed keystrokes
   assert.equal(FT.model.timedContext(evaluation, ' the', 10), judged.e);
   assert.equal(FT.model.timedContext(evaluation, 'x', 8), null);
 });
+
+// Functionality: the judgement is computed once per change of evidence. The
+// stages are decided from it but never feed back into it, so ending a
+// session keeps the judgement it was decided from.
+function withStages(sessions) {
+  const m = FT.model.create();
+  for (let s = 1; s <= sessions; s++) {
+    train(m, { words: RN_WORDS, count: 400, rule: errRn, seed: 50 + s, first: s, dayOf: () => s });
+    m.endSession({ session: s, day: s });
+  }
+  return m;
+}
+
+test('the judgement does not depend on the training stages', () => {
+  const m = withStages(3);
+  assert.ok(Object.values(m.state().contexts).some((c) => c.stage), 'some context has a stage');
+  const judged = () => plain(FT.judgement.evaluate(m.state(), m.config, 3).all);
+  const staged = judged();
+  Object.values(m.state().contexts).forEach((c) => { c.stage = null; });
+  assert.deepEqual(judged(), staged);
+});
+
+test('ending a session keeps the judgement it was decided from', () => {
+  const m = withStages(2);
+  train(m, { words: RN_WORDS, count: 400, rule: errRn, seed: 60, first: 3, dayOf: () => 3 });
+  const judged = m.evaluate({ day: 3 });
+  m.endSession({ session: 3, day: 3 });
+  assert.equal(m.evaluate({ day: 3 }), judged);
+});

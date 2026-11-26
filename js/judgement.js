@@ -116,7 +116,7 @@
     var j = judgeByOrder(state, cfg, agg, prior, day);
     confirmAcrossSessions(state, cfg, j.out);
     explainAway(state, cfg, j.out, agg, j.hypers, day);
-    labelStates(state, j.out);
+    labelStates(j.out);
     return { get: function (k) { return j.out[k]; }, all: j.out, hyper: j.hypers, global: prior,
       late: Object.keys(state.late || {}).sort() };
   }
@@ -235,12 +235,11 @@
     }
   }
 
-  function labelStates(state, out) {
+  function labelStates(out) {
     Object.keys(out).forEach(function (k) {
       var c = out[k];
       c.state = c.insufficient ? 'insufficient' : c.redundant ? 'redundant'
         : c.weak ? 'weak' : c.hesitant ? 'hesitant' : c.emerging ? 'emerging' : 'ok';
-      c.stage = state.contexts[k].stage ? state.contexts[k].stage.name : null;
     });
   }
 

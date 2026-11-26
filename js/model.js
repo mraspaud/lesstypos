@@ -20,8 +20,9 @@
   function create(opts, stored) {
     var cfg = Object.assign({}, DEFAULTS, opts || {});
     var st = FT.evidence.unpack(stored) || FT.evidence.emptyState();
-    // The judgement changes only with the day asked about, new evidence or
-    // new stages, so it is computed once per (day, change).
+    // The judgement changes only with the day asked about or new evidence
+    // (the stages never feed back into it), so it is computed once per
+    // (day, ingest).
     var changes = 0, cached = null;
     function evaluate(when) {
       var day = when && when.day != null ? when.day : st.lastDay;
@@ -34,11 +35,7 @@
       ingest: function (records, meta) { FT.evidence.ingest(st, records, meta, cfg); changes++; },
       evaluate: evaluate,
       explain: function (key, when) { return FT.judgement.explain(st, cfg, evaluate(when), key); },
-      endSession: function (meta) {
-        var stageChanges = FT.stages.endSession(st, evaluate({ day: meta.day }), meta, cfg);
-        changes++;
-        return stageChanges;
-      },
+      endSession: function (meta) { return FT.stages.endSession(st, evaluate({ day: meta.day }), meta, cfg); },
       trainingTargets: function (when) { return FT.stages.trainingTargets(st, evaluate({ day: when.day }), when); },
       config: cfg,
       state: function () { return st; },
