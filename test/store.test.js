@@ -315,3 +315,12 @@ test('a reading place saved after a skip is repaired once at start-up', async ()
   assert.equal(await s.repairReadingPlaces(), 0);
   assert.equal((await s.getText('b')).pos, 45);
 });
+
+test('tags typed after a sitting are written to its exercises', async () => {
+  const s = mk();
+  await s.saveSession(typedSession('a', 1));
+  await s.saveSession(typedSession('b', 2));
+  await s.tagSessions(['a'], ['home', 'tired']);
+  assert.deepEqual(plain((await s.getSession('a')).tags), ['home', 'tired']);
+  assert.equal((await s.getSession('b')).tags, undefined);
+});

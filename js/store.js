@@ -149,6 +149,16 @@
         });
       });
     }
+    // Tags typed after a sitting, written to its exercises (an empty list removes them).
+    function tagSessions(ids, tags) {
+      return Promise.all(ids.map(function (id) {
+        return getSession(id).then(function (s) {
+          if (!s) return;
+          if (tags.length) s.tags = tags.slice(); else delete s.tags;
+          return saveSession(s);
+        });
+      }));
+    }
     // The exercise waiting for its effort rating, if any.
     // draft: { raw: the recorded exercise, ui: what the screens need to resume it }
     function saveDraft(d) { return db.set('draft', { raw: FT.codec.encodeSession(d.raw), ui: d.ui }); }
@@ -223,7 +233,7 @@
 
     return { load: load, saveSettings: saveSettings, saveProfile: saveProfile, saveSession: saveSession,
       listSessions: listSessions, exportAll: exportAll, saveDraft: saveDraft, getDraft: getDraft, clearDraft: clearDraft, getSession: getSession, compactSessions: compactSessions, sizes: sizes,
-      saveText: saveText, getText: getText, repairReadingPlaces: repairReadingPlaces, deleteText: deleteText, listTexts: listTexts, importAll: importAll, reset: reset, kind: db.kind };
+      saveText: saveText, getText: getText, repairReadingPlaces: repairReadingPlaces, tagSessions: tagSessions, deleteText: deleteText, listTexts: listTexts, importAll: importAll, reset: reset, kind: db.kind };
   }
 
   FT.store = { create: create, memoryAdapter: memoryAdapter, idbAdapter: idbAdapter, FORMAT: FORMAT, migrations: MIGRATIONS };

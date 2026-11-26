@@ -9,7 +9,7 @@
   function entry(raw, measured) {
     var m = measured, landings = m.keyStats.land;
     return {
-      id: raw.id, type: raw.type, run: raw.run || undefined,
+      id: raw.id, type: raw.type, run: raw.run || undefined, tags: raw.tags && raw.tags.length ? raw.tags : undefined,
       startedAt: raw.startedAt, durationMs: raw.durationMs, plannedMs: raw.planMs || undefined,
       benchmarkSet: raw.set || undefined, effort: raw.effort,
       words: m.metrics.words, wpm: m.metrics.wpm,

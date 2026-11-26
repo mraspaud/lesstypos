@@ -61,6 +61,7 @@
         macros: (settings.macros || []).slice(),
         accents: settings.accents !== false,
         run: input.run || null,
+        tags: input.tags && input.tags.length ? input.tags.slice() : undefined,
         set: input.set || null,
         planMs: input.planMs || null,
         words: input.words.map(function (w) { return { target: w.target, stream: w.stream.map(FT.codec.withRoundedTime), meta: w.meta || null }; }),
@@ -209,6 +210,8 @@
       bursts: { target: function () { return bursts.peek(history); }, step: FT.bursts.step,
         reference: function () { return FT.bursts.relaxedMedian(history); } },
       history: function () { return history; },
+      // Tags typed after the exercises were processed (the raw records get them too).
+      tag: function (ids, tags) { history.forEach(function (h) { if (ids.indexOf(h.id) >= 0) h.tags = tags.length ? tags.slice() : undefined; }); },
       profile: function () {
         return { lang: lang, modelVersion: FT.MODEL_VERSION, sessionCount: clock.sessionCount(), lastRun: clock.lastRun(), model: model.toJSON(), subs: subs.toJSON(),
           difficulty: difficulty.toJSON(), bursts: bursts.toJSON(), history: history };
