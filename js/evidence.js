@@ -24,10 +24,16 @@
   //                      their squares (sufficient statistics);
   //   distinctWords      the most distinct words seen in one session;
   //   block              absent for one session, else the block it merges
-  //                      (a number, or 'C<n>' for a big block).
+  //                      (a number, or 'C<n>' for a big block);
+  //   sessions, errorDeficits, latencyDeficits
+  //                      a block only: the sessions it merges, and in how
+  //                      many of them the context did worse than its parent
+  //                      (in errors, in time; see deficit), counted before
+  //                      merging so replication survives compaction.
   // Stored form (design choice): buckets as arrays in this order, their log
   // sums to 9 significant digits, far below any decision threshold.
-  var STORED_FIELDS = ['session', 'day', 'count', 'errors', 'latencyCount', 'latencySum', 'latencySquares', 'distinctWords', 'block'];
+  var STORED_FIELDS = ['session', 'day', 'count', 'errors', 'latencyCount', 'latencySum', 'latencySquares', 'distinctWords',
+    'block', 'sessions', 'errorDeficits', 'latencyDeficits'];
   function sig9(x) { return x === 0 ? 0 : +x.toPrecision(9); }
   function pack(state) {
     var contexts = {};
@@ -35,7 +41,7 @@
       var c = state.contexts[k];
       contexts[k] = { b: c.buckets.map(function (b) {
         var fields = [b.session, b.day, b.count, b.errors, b.latencyCount, sig9(b.latencySum), sig9(b.latencySquares), b.distinctWords];
-        if (b.block != null) fields.push(b.block);
+        if (b.block != null) fields.push(b.block, b.sessions, b.errorDeficits, b.latencyDeficits);
         return fields;
       }), ex: c.examples, stage: c.stage };
     });
@@ -131,6 +137,7 @@
     state.sessions = Math.max(state.sessions, meta.session);
     // every context, typed this session or not, so all sit at the same
     // compaction level and per-session comparisons stay matched
+    countDeficitsBeforeMerging(state, cfg);
     Object.keys(state.contexts).forEach(function (k) { compact(state.contexts[k], state.sessions, cfg); });
     state.lastDay = Math.max(state.lastDay, meta.day);
   }
@@ -163,8 +170,52 @@
     if (merging) out.push(merging);
     c.buckets = out;
   }
+  // A one-session bucket about to be merged keeps whether the context did
+  // worse than its parent in that session (the parent's bucket for the same
+  // session, without the context's own data; all typing for one character).
+  function countDeficitsBeforeMerging(state, cfg) {
+    var bySession = {}, pooled = {};
+    Object.keys(state.contexts).forEach(function (k) {
+      var own = bySession[k] = {};
+      state.contexts[k].buckets.forEach(function (b) {
+        if (b.block != null) return;
+        own[b.session] = b;
+        if (k.length === 1) addSums(pooled[b.session] || (pooled[b.session] = emptySums()), b);
+      });
+    });
+    Object.keys(state.contexts).forEach(function (k) {
+      state.contexts[k].buckets.forEach(function (b) {
+        if (b.block != null || blockOf(b, state.sessions, cfg) === null) return;
+        var parent = k.length > 1 ? bySession[k.slice(1)][b.session] : pooled[b.session];
+        var d = parent ? deficit(b, parent, cfg) : { errors: false, latency: false };
+        b.sessions = 1; b.errorDeficits = +d.errors; b.latencyDeficits = +d.latency;
+      });
+    });
+  }
+  function emptySums() { return { count: 0, errors: 0, latencyCount: 0, latencySum: 0 }; }
+  function addSums(sum, b) {
+    sum.count += b.count; sum.errors += b.errors; sum.latencyCount += b.latencyCount; sum.latencySum += b.latencySum;
+    return sum;
+  }
+  // Whether a context's bucket did worse than the rest of its parent's
+  // bucket for the same sessions: in errors, in time.
+  function deficit(b, parent, cfg) {
+    var out = { errors: false, latency: false };
+    if (b.count < cfg.minSessionN) return out;
+    var restCount = parent.count - b.count, restErrors = parent.errors - b.errors;
+    var restTimed = parent.latencyCount - b.latencyCount, restLatencySum = parent.latencySum - b.latencySum;
+    out.errors = restCount > 0 && b.errors / b.count > Math.max(restErrors, 0) / restCount;
+    out.latency = b.latencyCount >= cfg.minSessionN && restTimed > 0 && b.latencySum / b.latencyCount > restLatencySum / restTimed;
+    return out;
+  }
+  // The sessions a bucket covers.
+  function sessionsIn(b) { return b.block != null ? b.sessions || 1 : 1; }
+
   function mergeInto(merged, b, block) {
     var n = merged.count + b.count || 1;
+    merged.sessions = sessionsIn(merged) + sessionsIn(b);
+    merged.errorDeficits = (merged.errorDeficits || 0) + (b.errorDeficits || 0);
+    merged.latencyDeficits = (merged.latencyDeficits || 0) + (b.latencyDeficits || 0);
     merged.session = (merged.session * merged.count + b.session * b.count) / n; merged.day = (merged.day * merged.count + b.day * b.count) / n;
     merged.count += b.count; merged.errors += b.errors;
     merged.latencyCount += b.latencyCount; merged.latencySum += b.latencySum; merged.latencySquares += b.latencySquares;
@@ -218,5 +269,5 @@
 
   FT.evidence = { MAX_ORDER: MAX_ORDER, emptyState: emptyState, pack: pack, unpack: unpack, ingest: ingest,
     weightsFor: weightsFor, aggregate: aggregate, aggregateWith: aggregateWith, minus: minus,
-    bucketKey: bucketKey, parentBucket: parentBucket };
+    bucketKey: bucketKey, parentBucket: parentBucket, deficit: deficit, sessionsIn: sessionsIn, emptySums: emptySums, addSums: addSums };
 })(globalThis.FT);

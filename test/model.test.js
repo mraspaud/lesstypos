@@ -117,7 +117,8 @@ test('long histories are compacted without changing judgements materially', () =
   const a = m.explain('rn', { day: 30 }), b = ref.explain('rn', { day: 30 });
   assert.equal(a.state, b.state);
   near(a.errorRate, b.errorRate, 0.01);
-  assert.ok(a.sessions < b.sessions, a.sessions + ' buckets against ' + b.sessions);
+  assert.equal(a.sessions, b.sessions);   // fewer buckets, the same sessions behind them
+  assert.equal(a.errorSessions, b.errorSessions);
 });
 
 test('a deficit seen in only one session is emerging, and is confirmed by a second session', () => {
@@ -200,7 +201,7 @@ test('a model stored compactly and loaded again judges the same, at about half t
   const saved = plain(m.toJSON());
   const verbose = JSON.stringify(m.state()).length;
   assert.ok(JSON.stringify(saved.state).length * 1.6 < verbose);
-  const again = FT.model.create(saved.cfg, saved.state);
+  const again = FT.model.fromJSON(saved);
   const a = m.evaluate({ day: 5 }).all, b = again.evaluate({ day: 5 }).all;
   assert.deepEqual(Object.keys(b).sort(), Object.keys(a).sort());
   for (const k of Object.keys(a)) {
@@ -213,11 +214,23 @@ test('a model stored compactly and loaded again judges the same, at about half t
   assert.ok(again.state().contexts.th.buckets.length >= 6);
 });
 
+// Functionality: the model's settings come from the code, never from the
+// stored profile, so a change of method reaches every profile; tests may
+// still pass their own.
+test('a stored model keeps its evidence, not its settings', () => {
+  const m = FT.model.create({ minN: 3 });
+  m.ingest(records(FILLER, 50, () => null, 4), { session: 1, day: 0 });
+  assert.deepEqual(Object.keys(plain(m.toJSON())), ['state']);
+  const old = Object.assign(plain(m.toJSON()), { cfg: Object.assign({}, m.config, { minN: 3 }) });   // as profiles used to store it
+  assert.deepEqual(plain(FT.model.fromJSON(old).config), plain(FT.model.create().config));
+  assert.equal(FT.model.fromJSON(old, { minN: 5 }).config.minN, 5);
+});
+
 test('a model state stored before compaction still loads', () => {
   const m = FT.model.create();
   m.ingest(records(FILLER, 100, () => null, 3), { session: 1, day: 0 });
-  const old = plain({ cfg: m.toJSON().cfg, state: m.state() });
-  const again = FT.model.create(old.cfg, old.state);
+  const old = plain({ state: m.state() });
+  const again = FT.model.fromJSON(old);
   assert.deepEqual(plain(again.state().contexts.th), plain(m.state().contexts.th));
 });
 
@@ -238,7 +251,7 @@ test('after 400 sessions a context keeps a bounded number of buckets and judgeme
   const keys = (k) => m.state().contexts[k].buckets.filter((x) => typeof x.block === 'string').map((x) => x.block);
   assert.deepEqual(plain(keys('str')), plain(keys('tr')).filter((k) => keys('str').includes(k)));
   const saved = plain(m.toJSON());
-  assert.deepEqual(plain(FT.model.create(saved.cfg, saved.state).state().contexts.th.buckets.map((x) => x.block ?? null)), plain(b.map((x) => x.block ?? null)));
+  assert.deepEqual(plain(FT.model.fromJSON(saved).state().contexts.th.buckets.map((x) => x.block ?? null)), plain(b.map((x) => x.block ?? null)));
 });
 
 // Review findings: contexts typed in different sessions must sit at the same
@@ -256,6 +269,31 @@ test('a deficit replicated long ago and recently is still confirmed after years 
   const levels = (k) => st[k].buckets.filter((b) => b.session <= 64).map((b) => typeof b.block);
   assert.deepEqual(plain(levels('q')), plain(levels('e'))); // same level for the same old sessions
   assert.ok(m.evaluate({ day: 250 }).get('q').errSessions >= 2);
+});
+
+// Functionality: the replication rule (user decision: 2 sessions) and the
+// count of sessions behind a judgement survive compaction: a block keeps how
+// many sessions it merges and in how many of them the deficit showed.
+function qTypedInTwoSessionsThenMerged() {
+  const errQ = (ctx, ch) => (ch === 'q' ? { p: 0.3 } : null);
+  const m = FT.model.create({ exactSessions: 2 });
+  train(m, { words: [...FILLER, 'quiet', 'quick', 'queen', 'equal', 'quote'], count: 300, rule: errQ, seed: 500, sessions: 2 });
+  const before = m.explain('q', { day: 2 });
+  train(m, { words: FILLER, count: 300, seed: 600, sessions: 2, first: 3, dayOf: (i) => i + 2 });
+  return { m, before, after: m.explain('q', { day: 4 }) };
+}
+
+test('a deficit seen in two sessions stays replicated once they are merged into one block', () => {
+  const { m, before, after } = qTypedInTwoSessionsThenMerged();
+  assert.equal(m.state().contexts.q.buckets.length, 1);   // sessions 1 and 2, merged
+  assert.equal(before.errorSessions, 2);
+  assert.equal(after.errorSessions, 2);
+});
+
+test('a judgement counts the sessions behind it, also those inside a merged block', () => {
+  const { before, after } = qTypedInTwoSessionsThenMerged();
+  assert.equal(before.sessions, 2);
+  assert.equal(after.sessions, 2);
 });
 
 // Functionality: after compaction a block's copies in a sequence and in its

@@ -30,6 +30,7 @@ export default async function insights() {
     await openAllSequences(page);
     await page.locator('tr[data-key]').first().click();
     await page.locator('#why h2').waitFor();
+    assert.match(await page.locator('#why').textContent(), /observations across \d+ sessions?\./);
     if (shots) await page.screenshot({ path: shots + '/sequences.png', fullPage: true });
   });
 

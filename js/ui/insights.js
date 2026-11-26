@@ -114,9 +114,9 @@
       ? 'Not judged: your keyboard sends ' + seq(k) + ' late (a tap-hold key), so its time against all your typing is shifted by the keyboard, not by you.'
       : 'Typed in ×' + fix(x.latency.relative, 2) + ' the time of ' + parent + ' elsewhere (' + fix(x.latency.n) + ' timed keystrokes). ' +
         'Probability that it is genuinely slower: ' + pct(x.latency.pSlower, 0) + '.']);
-    lines.push(['Evidence', fix(x.n) + ' recency-weighted observations across ' + x.sessions + ' exercise' + (x.sessions === 1 ? '' : 's') + '.']);
+    lines.push(['Evidence', fix(x.n) + ' recency-weighted observations across ' + x.sessions + ' session' + (x.sessions === 1 ? '' : 's') + '.']);
     if (x.state === 'emerging') {
-      lines.push(['Confirmation', 'Seen in ' + x.sessionsWithDeficit + ' session so far; it needs ' + x.minSessions +
+      lines.push(['Confirmation', 'Seen in ' + x.sessionsWithDeficit + ' session' + (x.sessionsWithDeficit === 1 ? '' : 's') + ' so far; it needs ' + x.minSessions +
         ' separate sessions before it is trained, so one unusual session cannot fill the training list.']);
     } else if (x.state === 'weak' || x.state === 'hesitant') {
       lines.push(['Confirmation', 'Worse than ' + parent + ' in ' + x.sessionsWithDeficit + ' separate sessions.']);

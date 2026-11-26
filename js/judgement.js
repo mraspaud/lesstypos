@@ -170,19 +170,19 @@
   }
 
   // Sessions in which the context did worse than its parent in that same
-  // session (parent without the context's own data).
+  // session (parent without the context's own data, FT.evidence.deficit):
+  // judged now for the recent sessions, counted when merged for the older
+  // ones.
   function replication(state, cfg, k, parentKey, globalByBucket) {
     var parentByKey = {};
     if (parentKey) state.contexts[parentKey].buckets.forEach(function (b) { parentByKey[E.bucketKey(b)] = b; });
     var err = 0, lat = 0;
     state.contexts[k].buckets.forEach(function (b) {
-      if (b.count < cfg.minSessionN) return;
+      if (b.block != null) { err += b.errorDeficits || 0; lat += b.latencyDeficits || 0; return; }
       var p = parentKey ? E.parentBucket(parentByKey, b, cfg) : globalByBucket[E.bucketKey(b)];
       if (!p) return;
-      var restCount = p.count - b.count, restErrors = p.errors - b.errors;
-      var restTimed = p.latencyCount - b.latencyCount, restLatencySum = p.latencySum - b.latencySum;
-      if (restCount > 0 && b.errors / b.count > Math.max(restErrors, 0) / restCount) err++;
-      if (b.latencyCount >= cfg.minSessionN && restTimed > 0 && b.latencySum / b.latencyCount > restLatencySum / restTimed) lat++;
+      var d = E.deficit(b, p, cfg);
+      err += +d.errors; lat += +d.latency;
     });
     return { err: err, lat: lat };
   }
@@ -194,7 +194,7 @@
       if (k.length !== 1) return;
       state.contexts[k].buckets.forEach(function (b) {
         var key = E.bucketKey(b);
-        addEvidence(pooled[key] || (pooled[key] = { count: 0, errors: 0, latencyCount: 0, latencySum: 0 }), b);
+        E.addSums(pooled[key] || (pooled[key] = E.emptySums()), b);
       });
     });
     return pooled;
@@ -257,7 +257,7 @@
       sessionsWithDeficit: Math.max(c.errSessions || 0, c.latSessions || 0),
       errorSessions: c.errSessions, latencySessions: c.latSessions, minSessions: cfg.minSessions,
       examples: ctx.examples.slice().reverse(),
-      sessions: ctx.buckets.length,
+      sessions: ctx.buckets.reduce(function (n, b) { return n + E.sessionsIn(b); }, 0),
     };
   }
 

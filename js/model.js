@@ -42,11 +42,13 @@
       trainingTargets: function (when) { return FT.stages.trainingTargets(st, evaluate({ day: when.day }), when); },
       config: cfg,
       state: function () { return st; },
-      toJSON: function () { return { cfg: cfg, state: FT.evidence.pack(st) }; },
+      toJSON: function () { return { state: FT.evidence.pack(st) }; },
     };
   }
 
-  function fromJSON(j) { return create(j.cfg, j.state); }
+  // The stored evidence, judged with the code's settings (a profile's old
+  // stored settings are ignored); opts: overrides, for tests.
+  function fromJSON(j, opts) { return create(opts, j.state); }
 
   FT.model = { create: create, fromJSON: fromJSON, MAX_ORDER: FT.evidence.MAX_ORDER };
 })(globalThis.FT);
