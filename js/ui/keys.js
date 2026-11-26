@@ -92,7 +92,8 @@
   }
 
   // Letters typed past the end of an exercise must not act as shortcuts.
-  function typedJustNow() { return Date.now() - (app.typingEndedAt || 0) < 1500; }
+  var IN_FLIGHT_MS = 1500;
+  function typedJustNow() { return Date.now() - (app.typingEndedAt || 0) < IN_FLIGHT_MS; }
   function onGlobalKey(e) {
     if (e.defaultPrevented) return;
     var screen = U.activeScreen();
