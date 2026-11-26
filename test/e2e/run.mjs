@@ -1075,7 +1075,7 @@ await step('home continues the book with c, in free reading: no time limit, the 
 });
 
 await step('once today’s daily training is done, Enter on home continues reading; the training stays on a', async () => {
-  await page.evaluate(() => { const a = window.FT.app; a.settings.trainedOn = window.FT.trainer.dayOf(Date.now()); });
+  await page.evaluate(() => { const a = window.FT.app; a.settings.trainedOn = window.FT.days.number(Date.now()); });
   await page.keyboard.press('1');
   await page.getByRole('button', { name: /Daily training again/ }).waitFor();
   assert.match(await page.locator('#primary').textContent(), /Continue reading/);

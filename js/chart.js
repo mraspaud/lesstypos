@@ -132,12 +132,11 @@
     return out.length >= 3 && covered >= 0.4 ? out : ticks(lo, hi);
   }
   // Ticks at local midnights (like the per-day grouping in FT.progress).
-  var DAY = 864e5, DAY_STEPS = [1, 2, 3, 5, 7, 14, 30, 60, 90, 180, 365];
+  var DAY = FT.days.MS, DAY_STEPS = [1, 2, 3, 5, 7, 14, 30, 60, 90, 180, 365];
   function dayTicks(t0, t1) {
     var span = Math.max(1, (t1 - t0) / DAY), step = DAY_STEPS.filter(function (s) { return span / s <= 6; })[0] || 365;
-    var d = new Date(t0), out = [];
-    d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + (d.getHours() || d.getMinutes() || d.getSeconds() ? 1 : 0));
-    for (; d.getTime() <= t1; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + step)) out.push(d.getTime());
+    var out = [];
+    for (var t = FT.days.midnightFrom(t0); t <= t1; t = FT.days.add(t, step)) out.push(t);
     return out;
   }
 

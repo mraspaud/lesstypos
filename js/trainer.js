@@ -5,7 +5,6 @@
   'use strict';
   var feeds = FT.exercises.feeds;
 
-  function dayOf(t) { return Math.floor((t - new Date(t).getTimezoneOffset() * 60000) / 864e5); }
   function uid() { return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
   // A session, for the sequence statistics, is one programme run or one
@@ -38,7 +37,7 @@
     var now = opts.now || function () { return Date.now(); };
 
     function targets(run) {
-      return model.trainingTargets({ session: clock.sessionFor(run), day: dayOf(now()), freq: corpus.freqWeight });
+      return model.trainingTargets({ session: clock.sessionFor(run), day: FT.days.number(now()), freq: corpus.freqWeight });
     }
 
     var exercisesMade = 0;
@@ -57,7 +56,7 @@
     function record(input) {
       var raw = {
         id: input.id || uid(), schema: FT.SCHEMA, type: input.type, lang: lang,
-        startedAt: input.startedAt, day: dayOf(input.startedAt), durationMs: input.durationMs,
+        startedAt: input.startedAt, day: FT.days.number(input.startedAt), durationMs: input.durationMs,
         effort: input.effort == null ? null : input.effort,
         macros: (settings.macros || []).slice(),
         accents: settings.accents !== false,
@@ -206,8 +205,8 @@
 
     return {
       newExercise: newExercise, record: record, finish: finish, process: process, summarize: summarize, targets: targets,
-      explain: function (key) { return model.explain(key, { day: dayOf(now()) }); },
-      evaluate: function () { return model.evaluate({ day: dayOf(now()) }); },
+      explain: function (key) { return model.explain(key, { day: FT.days.number(now()) }); },
+      evaluate: function () { return model.evaluate({ day: FT.days.number(now()) }); },
       substitutions: function (o) { return subs.matrix(o); },
       swaps: function (o) { return subs.swaps(o); },
       difficulty: difficulty, model: model, corpus: corpus,
@@ -236,5 +235,5 @@
 
   function needsRebuild(profile) { return !!profile && profile.modelVersion !== FT.MODEL_VERSION; }
 
-  FT.trainer = { create: create, rebuild: rebuild, dayOf: dayOf, needsRebuild: needsRebuild };
+  FT.trainer = { create: create, rebuild: rebuild, needsRebuild: needsRebuild };
 })(globalThis.FT);

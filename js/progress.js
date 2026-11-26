@@ -45,15 +45,11 @@
       t: Math.min.apply(null, trials.map(function (h) { return h.t; })) };
   }
 
-  function dayKey(t) {
-    var d = new Date(t);
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  }
   // Groups entries by local day and summarises each day with fn(entries).
   function byDay(entries, fn) {
     var days = [], groups = {};
     entries.forEach(function (h) {
-      var k = dayKey(h.t);
+      var k = FT.days.key(h.t);
       if (!groups[k]) { groups[k] = []; days.push(k); }
       groups[k].push(h);
     });
@@ -90,14 +86,10 @@
     var before = i < 0 ? all : all.slice(0, i);
     return before.length ? before[before.length - 1] : null;
   }
-  function calendarDays(t0, t1) {
-    var a = new Date(t0), b = new Date(t1);
-    return Math.round((Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 864e5);
-  }
   // Is a benchmark due? Based on the last complete set, in calendar days.
   function benchmarkStatus(history, now) {
     var all = completeSets(history), last = all.length ? all[all.length - 1] : null;
-    var days = last ? calendarDays(last.t, now) : null;
+    var days = last ? FT.days.between(last.t, now) : null;
     return { last: last, days: days, due: !last || days >= DUE_DAYS };
   }
   function series(history) {

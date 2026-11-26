@@ -35,7 +35,7 @@
     if (app.trainerSettings) app.trainerSettings.accents = s.accents !== false;
   }
   function programmeDef() { return app.settings.programme || FT.programme.DEFAULT; }
-  function today() { return FT.trainer.dayOf(Date.now()); }
+  function today() { return FT.days.number(Date.now()); }
   function saveSettings() {
     applySettings();
     return app.store.saveSettings(app.settings).catch(storageError);
