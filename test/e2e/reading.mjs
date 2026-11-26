@@ -197,7 +197,7 @@ export default async function reading() {
     await page.keyboard.type('four ', { delay: 30 });
     assert.equal(await page.evaluate(() => window.FT.ui.app.current), 'typing');
     await page.keyboard.type('five. ', { delay: 30 });
-    await page.getByText(/too short to analyse/).waitFor();   // five words: ended, and not saved
+    await page.locator('#notice', { hasText: /too short to analyse/ }).waitFor();   // five words: ended, and not saved
   });
 
   await step('any text can start over, after a second press', async () => {
