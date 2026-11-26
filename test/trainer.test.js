@@ -437,6 +437,15 @@ test('a benchmark trial gets the prediction made before it, whatever its typing'
   assert.equal(fast.fluencyWpm, trials[0][2].fluencyWpm);
 });
 
+test('a benchmark trial’s prediction rests only on the exercises before it', () => {
+  const tr = FT.trainer.create({ seed: 33 }), at = DAY0 + 3 * HOUR;
+  practiseRelaxed(tr, 3, { effort: 2 });
+  const before = FT.fluency.index(tr.model.evaluate({ day: FT.days.number(at) }), tr.history().slice(), FT.fluency.reference(tr.corpus, []), { minN: tr.model.config.minN });
+  simulate(tr, 60, at, { type: 'benchmark' });
+  const trial = tr.history()[3];
+  assert.deepEqual([trial.fluencyWpm, trial.effortlessWpm, trial.fluencyCoverage], [before.wpm, before.effortlessWpm, before.coverage]);
+});
+
 test('speed bursts get no fluency index: they never feed the sequence model', () => {
   const tr = FT.trainer.create({ seed: 34 });
   practiseRelaxed(tr, 3);
