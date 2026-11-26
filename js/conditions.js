@@ -52,13 +52,18 @@
     return { difference: mean(a) - mean(b), low: diffs[Math.floor(0.025 * RESAMPLES)], high: diffs[Math.ceil(0.975 * RESAMPLES) - 1] };
   }
   // Each tag (and time of day) against the relaxed exercises without it.
+  // Keyed 'tag:<name>' and 'time:<time of day>', so a tag may share a name
+  // with a time of day.
   function compare(history) {
     var relaxed = history.filter(FT.history.isComparableRelaxed);
     var conditions = {};
+    var add = function (tag, automatic) {
+      var key = (automatic ? 'time:' : 'tag:') + tag;
+      conditions[key] = conditions[key] || { key: key, tag: tag, automatic: automatic };
+    };
     relaxed.forEach(function (h) {
-      (h.tags || []).forEach(function (t) { conditions[t] = conditions[t] || { tag: t, automatic: false }; });
-      var d = timeOfDay(h.startedAt);
-      conditions[d] = conditions[d] || { tag: d, automatic: true };
+      (h.tags || []).forEach(function (t) { add(t, false); });
+      add(timeOfDay(h.startedAt), true);
     });
     var has = function (h, c) { return c.automatic ? timeOfDay(h.startedAt) === c.tag : (h.tags || []).indexOf(c.tag) >= 0; };
     return Object.keys(conditions).map(function (k) {
@@ -66,7 +71,7 @@
       if (yes.length < MIN_EACH || no.length < MIN_EACH) return null;
       var rng = FT.rng(k.length * 7919 + yes.length);   // seeded, so the page shows the same interval each time
       var pick = function (list, f) { return list.map(function (h) { return h[f]; }); };
-      return { tag: c.tag, automatic: c.automatic, with: { n: yes.length }, without: { n: no.length },
+      return { key: c.key, tag: c.tag, automatic: c.automatic, with: { n: yes.length }, without: { n: no.length },
         wpm: difference(pick(yes, 'wpm'), pick(no, 'wpm'), rng),
         accuracy: difference(pick(yes, 'firstAttemptAccuracy'), pick(no, 'firstAttemptAccuracy'), rng) };
     }).filter(Boolean);

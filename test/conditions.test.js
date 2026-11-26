@@ -66,3 +66,10 @@ test('a history entry keeps only well-formed tags, each once', () => {
   assert.equal(entryTags('home'), undefined);
   assert.deepEqual(plain(entryTags(['home', 5, 'home', 'office'])), ['home', 'office']);
 });
+
+test('a tag named like a time of day is a condition apart from that time of day', () => {
+  const h = [];
+  for (let i = 0; i < 12; i++) h.push(relaxed(at(i % 2 ? 19 : 9) + i * 24 * HOUR, 50 + i, 0.98, i < 6 ? ['morning'] : undefined));
+  const rows = C().compare(h).filter((r) => r.tag === 'morning');
+  assert.deepEqual(plain(rows.map((r) => [r.key, r.automatic, r.with.n])), [['tag:morning', false, 6], ['time:morning', true, 6]]);
+});
