@@ -13,6 +13,8 @@ const FT = load();
 const fixture = (f) => fs.readFileSync(path.join(__dirname, 'fixtures', 'books', f));
 const titles = (book) => book.chapters.map((c) => c.title);
 const allText = (book) => book.chapters.map((c) => c.words.join(' ')).join(' ');
+let snowdropEpub;
+const snowdropBook = () => (snowdropEpub ??= FT.books.fromEpub(new Uint8Array(fixture('snowdrop.epub'))));
 
 test('a zip archive gives its files, stored or compressed', async () => {
   const files = await FT.zip.read(new Uint8Array(fixture('snowdrop.epub')));
@@ -81,7 +83,7 @@ test('an anchor inside a word or paragraph leaves the text whole', async () => {
 });
 
 test('an EPUB gives its title, author and chapters from its table of contents', async () => {
-  const book = await FT.books.fromEpub(new Uint8Array(fixture('snowdrop.epub')));
+  const book = await snowdropBook();
   assert.equal(book.title, 'Snowdrop & Other Tales');
   assert.equal(book.author, 'Jacob Grimm, Wilhelm Grimm');
   assert.deepEqual(plain(titles(book).slice(-2)), ['Snowdrop', 'The Pink']);
@@ -89,7 +91,7 @@ test('an EPUB gives its title, author and chapters from its table of contents', 
 });
 
 test('an EPUB chapter is its prose only', async () => {
-  const book = await FT.books.fromEpub(new Uint8Array(fixture('snowdrop.epub')));
+  const book = await snowdropBook();
   const snowdrop = book.chapters.find((c) => c.title === 'Snowdrop');
   assert.equal(snowdrop.words.slice(0, 6).join(' '), 'It was the middle of winter,');
   assert.doesNotMatch(allText(book), /Illustration|Gutenberg|Produced by|\{/);
@@ -179,14 +181,17 @@ test('a word in capitals used as such elsewhere keeps its capitals at a paragrap
 });
 
 // Functionality: a book comes with the app, so prose works from the start.
-test('Alice in Wonderland comes with the app, ready at Chapter I', () => {
+test('Alice in Wonderland comes with the app, in its chapters', () => {
   const alice = FT.books.bundled();
   assert.equal(alice.title, 'Alice’s Adventures in Wonderland');
   assert.equal(alice.chapters.length, 12);
   assert.equal(alice.chapters[0].title, 'CHAPTER I. Down the Rabbit-Hole');
   assert.equal(alice.chapters[0].words.slice(0, 4).join(' '), 'Alice was beginning to');
-  assert.equal(alice.start, 0);
-  const stored = FT.books.toText(alice, 'alice');
+});
+
+test('the bundled book is ready to type from Chapter I', () => {
+  const stored = FT.books.bundledText();
   assert.equal(stored.pos, 0);
+  assert.ok(stored.bundled);
   assert.ok(stored.words.length > 25000);
 });

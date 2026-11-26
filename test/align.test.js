@@ -160,17 +160,17 @@ test('ordinary errors are unchanged by press grouping', () => {
 // Functionality: the word on screen compares by position, press by press
 // (user decision), so a red letter stays where the mistake was made; one mark
 // per wrong press, and extra letters at the end.
-const DW = (word, typed, macros = ['th']) => plain(FT.align.displayWord(word, pressStream(typed), macros));
+const DW = (word, typed, macros) => plain(FT.align.displayWord(word, pressStream(typed), macros));
 const statuses = (d) => d.positions.map((x) => x.status).join(' ');
 
 test('display: th typed for y in "you" marks only y', () => {
-  const d = DW('you', '[th]ou');
+  const d = DW('you', '[th]ou', ['th']);
   assert.equal(statuses(d), 'bad ok ok');
   assert.deepEqual(d.extras, []);
 });
 
 test('display: a single key for the th press marks t and h as one group', () => {
-  const d = DW('the', 'xe');
+  const d = DW('the', 'xe', ['th']);
   assert.equal(statuses(d), 'bad bad ok');
   assert.equal(d.positions[0].group, d.positions[1].group);
   assert.notEqual(d.positions[0].group, null);
@@ -190,10 +190,10 @@ test('display: a red letter stays where the mistake was made as the word goes on
 });
 
 test('display: a multi-letter key spelled out letter by letter is compared letter by letter', () => {
-  assert.equal(statuses(DW('The', 'The')), 'ok ok ok');
-  assert.equal(statuses(DW('The', 'T')), 'ok untyped untyped');
-  assert.equal(statuses(DW('the', 'tx')), 'ok bad untyped');
-  assert.deepEqual(DW('The', 'The').extras, []);
+  assert.equal(statuses(DW('The', 'The', ['th'])), 'ok ok ok');
+  assert.equal(statuses(DW('The', 'T', ['th'])), 'ok untyped untyped');
+  assert.equal(statuses(DW('the', 'tx', ['th'])), 'ok bad untyped');
+  assert.deepEqual(DW('The', 'The', ['th']).extras, []);
 });
 
 test('display: letters on either side of an erased one are separate presses', () => {
@@ -210,8 +210,8 @@ test('display: a partly typed word leaves the rest untyped and puts the cursor a
 });
 
 test('display: mistakes involving a multi-letter press are flagged as press marks, ordinary ones are not', () => {
-  assert.equal(DW('you', '[th]ou').positions[0].press, true);
-  const the = DW('the', 'xe');
+  assert.equal(DW('you', '[th]ou', ['th']).positions[0].press, true);
+  const the = DW('the', 'xe', ['th']);
   assert.deepEqual([the.positions[0].press, the.positions[1].press], [true, true]);
   assert.equal(DW('cat', 'cbt', ['th']).positions[1].press, false);
 });
@@ -225,7 +225,7 @@ test('display, word in progress: a wrong first letter shows as a red letter, not
 });
 
 test('display, word in progress: the th key alone for "you" already marks y', () => {
-  const d = DW('you', '[th]');
+  const d = DW('you', '[th]', ['th']);
   assert.equal(statuses(d), 'bad untyped untyped');
   assert.deepEqual(d.extras, []);
 });
@@ -250,7 +250,7 @@ test('stream entries without an input group are separate presses', () => {
 });
 
 test('display: a press whose extra letter was erased is not marked as a multi-letter press', () => {
-  const d = DW('yo', '[th]<o');
+  const d = DW('yo', '[th]<o', ['th']);
   assert.equal(d.positions[0].status, 'bad');
   assert.equal(d.positions[0].press, false);
 });
