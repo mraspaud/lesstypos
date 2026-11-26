@@ -317,7 +317,8 @@
     var writes = [app.store.saveSession(raw).then(saveProfile).then(function () { return app.store.clearDraft(); })];
     var t = info.opts.text;
     if (raw.text && t) {
-      t.pos = res.raw.text.to;
+      var place = FT.books.placeAfter(t, raw.text.from, raw.words);
+      t.pos = place != null ? place : res.raw.text.to;
       res.summary.textProgress = { title: t.title, pos: t.pos, total: t.words.length };
       writes.push(app.store.saveText(t));
     }

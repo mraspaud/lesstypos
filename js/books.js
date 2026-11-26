@@ -269,6 +269,42 @@
     return found;
   }
 
+  // ---- reading place ----
+  var MATCH_RUN = 3;   // design choice: words that must match in a row to resume after a skip
+  // The place after typed words that follow the book from `from`; null if they don't.
+  function placeAfter(text, from, words) {
+    for (var k = 0; k < words.length; k++) if (words[k].target !== text.words[from + k]) return null;
+    return from + words.length;
+  }
+  // The same, allowing forward skips (prose skipped part of the book until
+  // the typing screen was fixed); null if the words can't be followed.
+  function placeAfterSkip(text, from, words) {
+    var at = from;
+    for (var k = 0; k < words.length; k++) {
+      if (words[k].target !== text.words[at]) at = resumeAt(text, at, words, k);
+      if (at < 0) return null;
+      at++;
+    }
+    return at;
+  }
+  function resumeAt(text, after, words, k) {
+    var run = Math.min(MATCH_RUN, words.length - k);
+    for (var j = after + 1; j + run <= text.words.length; j++) {
+      var same = true;
+      for (var r = 0; r < run && same; r++) same = words[k + r].target === text.words[j + r];
+      if (same) return j;
+    }
+    return -1;
+  }
+  // The place a text should have after its latest prose exercise, when the
+  // saved one came from a skip; null when there is nothing to repair.
+  function repairedPlace(text, exercise) {
+    if (!exercise.text || text.pos !== exercise.text.to) return null;
+    if (placeAfter(text, exercise.text.from, exercise.words) != null) return null;
+    var place = placeAfterSkip(text, exercise.text.from, exercise.words);
+    return place != null && place !== text.pos ? place : null;
+  }
+
   var BUNDLED_ID = 'alice', bundledCache = null;
   // The bundled book as a stored text, marked bundled: its words come from the app.
   function bundledText() {
@@ -283,5 +319,6 @@
   }
 
   FT.books = { fromEpub: fromEpub, fromText: fromText, toText: toText, chapterAt: chapterAt, readXhtml: readXhtml,
-    bundled: bundled, bundledText: bundledText, BUNDLED_ID: BUNDLED_ID };
+    bundled: bundled, bundledText: bundledText, BUNDLED_ID: BUNDLED_ID,
+    placeAfter: placeAfter, placeAfterSkip: placeAfterSkip, repairedPlace: repairedPlace };
 })(globalThis.FT);

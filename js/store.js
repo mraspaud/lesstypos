@@ -128,6 +128,27 @@
         return db.set('compacted', true).then(function () { return n.reduce(function (a, b) { return a + b; }, 0); });
       });
     }
+    // Once: reading places saved while prose skipped part of the book are set
+    // where the latest prose exercise of each text really ended. Returns how many.
+    function repairReadingPlaces() {
+      return db.get('placesRepaired').then(function (done) {
+        if (done) return 0;
+        return Promise.all([listTexts(), listSessions()]).then(function (r) {
+          var latest = {};
+          r[1].forEach(function (s) {
+            if (s.type === 'prose' && s.text && (!latest[s.text.id] || s.startedAt > latest[s.text.id].startedAt)) latest[s.text.id] = s;
+          });
+          return Promise.all(r[0].map(function (t) {
+            var place = latest[t.id] && FT.books.repairedPlace(t, latest[t.id]);
+            if (place == null) return 0;
+            t.pos = place;
+            return saveText(t).then(function () { return 1; });
+          }));
+        }).then(function (n) {
+          return db.set('placesRepaired', true).then(function () { return n.reduce(function (a, b) { return a + b; }, 0); });
+        });
+      });
+    }
     // The exercise waiting for its effort rating, if any.
     // draft: { raw: the recorded exercise, ui: what the screens need to resume it }
     function saveDraft(d) { return db.set('draft', { raw: FT.codec.encodeSession(d.raw), ui: d.ui }); }
@@ -202,7 +223,7 @@
 
     return { load: load, saveSettings: saveSettings, saveProfile: saveProfile, saveSession: saveSession,
       listSessions: listSessions, exportAll: exportAll, saveDraft: saveDraft, getDraft: getDraft, clearDraft: clearDraft, getSession: getSession, compactSessions: compactSessions, sizes: sizes,
-      saveText: saveText, getText: getText, deleteText: deleteText, listTexts: listTexts, importAll: importAll, reset: reset, kind: db.kind };
+      saveText: saveText, getText: getText, repairReadingPlaces: repairReadingPlaces, deleteText: deleteText, listTexts: listTexts, importAll: importAll, reset: reset, kind: db.kind };
   }
 
   FT.store = { create: create, memoryAdapter: memoryAdapter, idbAdapter: idbAdapter, FORMAT: FORMAT, migrations: MIGRATIONS };

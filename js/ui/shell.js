@@ -321,7 +321,8 @@
       .then(function () {
         app.store = FT.store.create({ adapter: adapter });
         // sessions stored before compaction are re-saved compactly (once)
-        return app.store.compactSessions().catch(function () {}).then(app.store.load);
+        return app.store.compactSessions().catch(function () {})
+          .then(function () { return app.store.repairReadingPlaces().catch(function () {}); }).then(app.store.load);
       }).then(function (d) {
         app.settings = FT.settings.clean(d.settings);
         applySettings();

@@ -299,3 +299,19 @@ test('a backup carries the bundled book as a reference, and import restores it w
   assert.equal(back.pos, 7);
   assert.ok(back.words.length > 25000);
 });
+
+// Functionality: places saved while prose skipped part of the book are
+// repaired once, from the latest prose exercise of each text.
+test('a reading place saved after a skip is repaired once at start-up', async () => {
+  const s = mk();
+  const words = Array.from({ length: 700 }, (_, i) => 'w' + i);
+  await s.saveText({ id: 'b', title: 'Book', words, pos: 321, addedAt: 1 });
+  const typed = [...Array.from({ length: 120 }, (_, k) => 45 + k), ...Array.from({ length: 156 }, (_, k) => 445 + k)];
+  await s.saveSession({ id: 'p1', type: 'prose', startedAt: 5, text: { id: 'b', from: 45, to: 321 },
+    words: typed.map((i) => ({ target: words[i], stream: [{ k: 'c', ch: words[i], t: i }] })) });
+  assert.equal(await s.repairReadingPlaces(), 1);
+  assert.equal((await s.getText('b')).pos, 601);
+  const t = await s.getText('b'); t.pos = 45; await s.saveText(t);   // later choices are the user's
+  assert.equal(await s.repairReadingPlaces(), 0);
+  assert.equal((await s.getText('b')).pos, 45);
+});
