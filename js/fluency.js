@@ -42,5 +42,26 @@
     return references.get(corpus);
   }
 
-  FT.fluency = { reference: reference, referenceOf: referenceOf, REFERENCE_WORDS: REFERENCE_WORDS };
+  // Predicted WPM on the reference (FT.metrics' WPM: characters / 5 per
+  // minute) and its coverage, the share of keystrokes timed from a context of
+  // two characters or more (the rest rests on single letters, or on nothing).
+  // evaluation: FT.judgement.evaluate's; scale: { within, initial } in ms;
+  // opts.minN: timed keystrokes a context needs (the model's).
+  // A keystroke takes exp(mu) x scale of its population; one without a timed
+  // context takes the scale and the overall error rate (design choice).
+  // Each error adds two keystrokes of the same time.
+  var SLIP_AND_BACKSPACE = 2, MIN_COVERED_ORDER = 2;
+  function predict(evaluation, scale, ref, opts) {
+    var minN = FT.valueOr(opts && opts.minN, FT.model.DEFAULTS.minN), totalMs = 0, covered = 0;
+    ref.keystrokes.forEach(function (k) {
+      var c = FT.model.timedContext(evaluation, k.key, minN);
+      var ratio = c ? Math.exp(c.mu) : 1, errorRate = c ? c.errorRate : evaluation.global.rate;
+      totalMs += ratio * (k.initial ? scale.initial : scale.within) * (1 + SLIP_AND_BACKSPACE * errorRate);
+      if (c && c.key.length >= MIN_COVERED_ORDER) covered++;
+    });
+    var n = ref.keystrokes.length;
+    return { wpm: n / 5 / (totalMs / 60000), coverage: covered / n };
+  }
+
+  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, REFERENCE_WORDS: REFERENCE_WORDS };
 })(globalThis.FT);
