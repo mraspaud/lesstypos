@@ -135,12 +135,12 @@ test('common-pair timing uses only the fixed pairs and clean keystrokes', () => 
   for (let i = 0; i < 25; i++) recs.push({ clean: true, wordInitial: false, ctx: 'xt', ch: 'h', iki: 100 + i });  // "th"
   recs.push({ clean: true, wordInitial: false, ctx: 'zz', ch: 'q', iki: 900 });   // "zq": not a common pair
   recs.push({ clean: false, wordInitial: false, ctx: 'xt', ch: 'h', iki: 5000 }); // not clean
-  assert.equal(FT.timing.commonPairMs(recs), 112);
+  assert.equal(FT.timing.commonPairStats(recs).ms, 112);
 });
 
 test('common-pair timing needs enough intervals', () => {
   const recs = Array.from({ length: 10 }, () => ({ clean: true, wordInitial: false, ctx: 'h', ch: 'e', iki: 100 }));
-  assert.equal(FT.timing.commonPairMs(recs), null);
+  assert.equal(FT.timing.commonPairStats(recs).ms, null);
 });
 
 // Functionality: extra time at the start of a word, beyond within-word timing
