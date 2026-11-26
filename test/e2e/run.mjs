@@ -132,7 +132,7 @@ await step('backspace with no recent mistake explains why nothing happens', asyn
   await page.keyboard.press('Backspace');
   await page.getByText(/Nothing to fix nearby/).waitFor({ timeout: 2000 });
   await page.keyboard.press('Escape');
-  await page.keyboard.press('d');
+  await page.keyboard.press('Delete');
 });
 
 await step('progress persists across a reload', async () => {
@@ -450,7 +450,7 @@ const typeWords = async (n) => {
 };
 const typedCount = () => page.evaluate(() => document.querySelectorAll('.w .l.ok, .w .l.bad').length);
 
-await step('Esc pauses typing; Esc resumes with the letters kept; d discards', async () => {
+await step('Esc pauses typing; Esc resumes with the letters kept; Delete discards', async () => {
   await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
   await page.locator('.w').first().waitFor();
   await typeWords(3);
@@ -464,7 +464,8 @@ await step('Esc pauses typing; Esc resumes with the letters kept; d discards', a
   await typeWords(1);
   assert.ok(await typedCount() > before);
   await page.keyboard.press('Escape'); await page.keyboard.press('Delete');  // discard
-  await page.getByRole('button', { name: /Start (daily training|over)|Resume/ }).first().waitFor();
+  await page.locator('[data-go="home"][aria-current="page"]').waitFor();
+  assert.equal(await page.locator('#window').count(), 0);
   assert.equal(await page.evaluate(() => window.FT.app.trainer.history().length), saved);
 });
 
@@ -485,10 +486,14 @@ await step('Tab asks before restarting once typing has begun', async () => {
 await step('a digit pressed as the timer ends is not saved as the effort rating', async () => {
   await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 0.05 }));
   await page.locator('.w').first().waitFor();
-  const ws = await page.$$eval('.w', (e) => e.slice(0, 30).map((x) => x.textContent));
-  await page.keyboard.type(ws.join(' '), { delay: 20 });
-  await page.getByText('How much effort did that take?').waitFor({ timeout: 10000 });
-  await page.keyboard.press('5');                            // in flight: ignored
+  const ws = await page.$$eval('.w', (e) => e.slice(0, 60).map((x) => x.textContent));
+  const effort = page.getByText('How much effort did that take?');
+  for (const w of ws) {                                      // keep typing until the timer ends
+    if (await effort.isVisible()) break;
+    await page.keyboard.type(w + ' ', { delay: 20 });
+  }
+  await effort.waitFor({ timeout: 10000 });
+  await page.keyboard.press('5');                            // still in flight: ignored
   await page.waitForTimeout(100);
   assert.ok(await page.getByText('How much effort did that take?').isVisible());
   await page.getByText(/Press 1–5/).waitFor();
@@ -795,6 +800,72 @@ await step('a finished exercise waiting for its rating survives a reload', async
   await page.reload();
   await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
   assert.equal(await page.getByText('How much effort did that take?').count(), 0);
+});
+
+
+// ---- review: UI bugs ----
+await step('the address follows the screen, so reload and links land where you are', async () => {
+  await page.keyboard.press('q');
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
+  await page.locator('.w').first().waitFor();
+  await page.keyboard.press('Escape');                          // nothing typed: leaves to Train
+  await page.locator('[data-go="home"][aria-current="page"]').waitFor();
+  assert.equal(await page.evaluate(() => location.hash), '#home');
+});
+
+await step('x, then d, then x ends the daily training', async () => {
+  await page.evaluate(() => { window.FT.app.settings.programme = { name: 'x', steps: [{ type: 'relaxed', minutes: 0.1, enabled: true }, { type: 'warmup', minutes: 0.1, enabled: true }] }; window.FT.app.settings.programmeRun = null; });
+  await page.keyboard.press('1');
+  await page.getByRole('button', { name: /Start (daily training|over)/ }).first().click();
+  await typeUntilEffort();
+  await page.keyboard.press('2');
+  await page.locator('#progbar').waitFor();
+  await page.keyboard.press('x');
+  await page.keyboard.press('d');
+  await page.keyboard.press('x');
+  await page.getByText('Daily training finished').waitFor();
+  await page.keyboard.press('Enter');
+  await page.evaluate(() => { window.FT.app.settings.programme = null; });
+});
+
+await step('the current section tab looks selected', async () => {
+  await page.keyboard.press('q');
+  const bg = (sel) => page.locator(sel).evaluate((el) => getComputedStyle(el).backgroundColor + getComputedStyle(el).fontWeight + getComputedStyle(el).borderColor);
+  assert.notEqual(await bg('[data-stab="insights/focus"]'), await bg('[data-stab="insights/errors"]'));
+});
+
+await step('the first key of an exercise is recorded', async () => {
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
+  await page.locator('.w').first().waitFor();
+  await typeWords(14);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
+  await page.getByText('How much effort did that take?').waitFor();
+  await page.keyboard.press('0');
+  await page.getByText(/finished/).waitFor();
+  const first = await page.evaluate(() => window.FT.app.store.listSessions().then((l) => l[l.length - 1].keys[0]));
+  assert.equal(first.k, 'd');
+});
+
+await step('a finished text offers to start over instead of an empty exercise', async () => {
+  await page.evaluate(async () => {
+    const t = { id: 'done', title: 'Done text', words: 'one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' '), pos: 20, addedAt: Date.now() };
+    await window.FT.app.store.saveText(t);
+  });
+  await page.keyboard.press('t');
+  const row = page.locator('tr', { hasText: 'Done text' });
+  await row.getByRole('button', { name: /Start over/ }).click();
+  await page.locator('.w').first().waitFor();
+  assert.equal(await page.locator('.w').first().textContent(), 'one');
+  await page.keyboard.press('Escape');
+});
+
+await step('with no daily-training step enabled, Train says so and points to the setting', async () => {
+  await page.evaluate(() => { window.FT.app.settings.programme = { name: 'x', steps: [{ type: 'relaxed', minutes: 5, enabled: false }] }; window.FT.app.settings.programmeRun = null; });
+  await page.keyboard.press('1');
+  await page.getByText(/No exercises are switched on/).waitFor();
+  await page.keyboard.press('Enter');
+  await page.locator('[data-stab="settings/training"][aria-current="page"]').waitFor();
+  await page.evaluate(() => { window.FT.app.settings.programme = null; });
 });
 
 await step('phone width has no horizontal scroll', async () => {

@@ -90,6 +90,8 @@
     leaveScreen();
     stopTyping();
     app.current = name;
+    app.screenGen = (app.screenGen || 0) + 1;
+    if (location.hash.slice(1) !== name) { try { history.replaceState(null, '', '#' + name); } catch (e) { /* file:// may refuse */ } }
     document.body.classList.remove('typing-mode');
     renderNav();
     VIEWS[name]();
@@ -257,7 +259,7 @@
     if ((e.key === 'k' || e.key === 'ArrowUp') && !typedJustNow() && moveRow(-1)) { e.preventDefault(); return; }
     if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && moveTab(e.key === 'ArrowRight' ? 1 : -1)) { e.preventDefault(); return; }
     var f = app.keys && app.keys[e.key];
-    if (f && !(e.key === 'Enter' && /BUTTON|A/.test(tag))) {   // a focused button handles its own Enter
+    if (f && !(e.key === 'Enter' && /^(BUTTON|A|SUMMARY)$/.test(tag))) { // a focused control handles its own Enter
       if (e.key.length === 1 && typedJustNow()) return;
       e.preventDefault(); app.keys = {}; f(); return;
     }

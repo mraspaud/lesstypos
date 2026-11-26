@@ -162,19 +162,18 @@
     function backup() { return app.store.exportAll().then(function (d) { return JSON.stringify(d); }); }
     document.getElementById('exp').onclick = function () {
       backup().then(function (json) {
-        var a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+        var a = document.createElement('a'), url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+        a.href = url;
         a.download = 'lesstypos-' + new Date().toISOString().slice(0, 10) + '.json';
         document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
         document.getElementById('expmsg').textContent = 'Backup prepared (' + (json.length / 1024).toFixed(0) + ' KB). If no download started, use “Copy backup to clipboard”.';
       });
     };
     document.getElementById('copy').onclick = function () {
       var msg = document.getElementById('expmsg');
       backup().then(function (json) {
-        return navigator.clipboard.writeText(json).then(function () { msg.textContent = 'Backup copied to the clipboard.'; });
-      }).catch(function () {
-        backup().then(function (json) {
+        return navigator.clipboard.writeText(json).then(function () { msg.textContent = 'Backup copied to the clipboard.'; }, function () {
           var ta = document.getElementById('paste'); ta.value = json; ta.select();
           msg.textContent = 'Copying was refused; the backup is selected in the box below, copy it from there.';
         });
@@ -198,11 +197,14 @@
     app.$view.querySelectorAll('[data-reset]').forEach(function (b) {
       b.onclick = function () {
         if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Click again to confirm'; return; }
-        var what = b.dataset.reset;
+        var what = b.dataset.reset, gen = app.screenGen;
         app.store.reset(what).then(function () {
           if (what === 'settings' || what === 'all') { app.settings = FT.settings.clean({}); applySettings(); }
           return reloadFromStore(false);
-        }).then(function () { viewData(); document.getElementById('resetmsg').textContent = 'Done.'; });
+        }).then(function () {
+          if (app.screenGen !== gen) return;
+          viewData(); document.getElementById('resetmsg').textContent = 'Done.';
+        });
       };
     });
   }

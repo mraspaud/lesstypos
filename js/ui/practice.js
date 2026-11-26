@@ -31,9 +31,10 @@
     var first = targets[0];
     var html = '<section class="home-start">' +
       '<h1>Daily training</h1>' +
-      '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + esc(String(x.minutes)) + ' min'; }).join(' · ') + '.</p>' +
+      (steps.length ? '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + esc(String(x.minutes)) + ' min'; }).join(' · ') + '.</p>'
+        : '<p class="lead">No exercises are switched on for the daily training.</p>') +
       '<div class="row">' +
-      (run ? '<button class="btn primary" type="button" id="resume">Resume: ' + esc(EXERCISES[run.current().type].name.toLowerCase()) + ' (' + (run.results().length + 1) + ' of ' + (run.results().length + run.upcoming().length) + ') <kbd>Enter</kbd></button>' +
+      (!steps.length ? '<button class="btn primary" type="button" id="prog">Choose exercises <kbd>Enter</kbd></button>' : run ? '<button class="btn primary" type="button" id="resume">Resume: ' + esc(EXERCISES[run.current().type].name.toLowerCase()) + ' (' + (run.results().length + 1) + ' of ' + (run.results().length + run.upcoming().length) + ') <kbd>Enter</kbd></button>' +
         '<button class="btn" type="button" id="prog">Start over</button>'
         : '<button class="btn primary" type="button" id="prog">Start daily training · ' + FT.programme.totalMinutes(def) + ' min <kbd>Enter</kbd></button>') +
       '</div>' +
@@ -60,11 +61,12 @@
     var one = first ? function () { startExercise('targeted', { pinned: [first.key], minutes: 3 }); } : null;
     document.getElementById('start').onclick = relaxedOnly;
     document.getElementById('bench').onclick = startBenchmark;
-    document.getElementById('prog').onclick = function () { startProgramme(null); };
+    var primary = !steps.length ? function () { go('settings/training'); } : function () { startProgramme(run); };
+    document.getElementById('prog').onclick = steps.length ? function () { startProgramme(null); } : primary;
     var r = document.getElementById('resume');
-    if (r) r.onclick = function () { startProgramme(run); };
+    if (r) r.onclick = primary;
     if (one) document.getElementById('one').onclick = one;
-    app.keys = { Enter: function () { startProgramme(run); }, r: relaxedOnly, b: startBenchmark };
+    app.keys = { Enter: primary, r: relaxedOnly, b: startBenchmark };
     if (one) app.keys.f = one;
   }
 
@@ -134,7 +136,9 @@
     var c = app.run && app.run.current();
     if (!c) { viewProgrammeSummary(); return; }
     if (c.type === 'prose') {
+      var gen = app.screenGen;
       currentText().then(function (text) {
+        if (app.screenGen !== gen) return; // the user moved on meanwhile
         if (text && text.pos < text.words.length) startExercise('prose', { minutes: c.minutes, programme: true, text: text, run: app.run.id() });
         else viewNeedText(c);
       });
@@ -167,10 +171,9 @@
       home: function () { go('home'); },
     };
     // ending today's training asks once (button or x)
-    var pend = document.getElementById('pend'), armed = false;
+    var pend = document.getElementById('pend');
     function askEnd() {
-      if (armed) { act.end(); return; }
-      armed = true;
+      if (pend.classList.contains('armed')) { act.end(); return; }
       pend.classList.add('armed');
       pend.innerHTML = 'Press again to end <kbd>x</kbd>';
       U.announce('Press x again to end today\'s training.');

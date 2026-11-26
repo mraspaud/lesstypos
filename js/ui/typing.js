@@ -55,7 +55,11 @@
     renderWords(0);
     ty.detach = FT.input.attach(ty.capture, {
       onText: onText, onBack: onBack, onBackWord: onBackWord,
-      onKey: function (k) { if (ty && ty.first != null && !ty.stopped) ty.keys.push(k); },
+      onKey: function (k) {
+        if (!ty || ty.stopped) return;
+        if (ty.first != null) ty.keys.push(k);
+        else if (k.k === 'd') ty.startKey = k; // the keydown that will start the exercise comes before its letter
+      },
       onEscape: onEscape, onTab: onTab,
       onEnter: function () { if (ty && ty.stopped) finishExercise(); },
       onDelete: function () { if (ty && ty.stopped) discard(); },
@@ -152,12 +156,16 @@
   function beginIfNeeded(t) {
     if (ty.burst && ty.burst.phase === 'ready') {
       ty.burst.phase = 'run'; ty.burst.start = t; ty.burst.startNow = performance.now();
-      if (ty.first == null) { ty.first = t; ty.startedAt = Date.now(); ty.t0 = performance.now(); ty.timer = setInterval(tick, 200); }
+      if (ty.first == null) {
+        ty.first = t; ty.startedAt = Date.now(); ty.t0 = performance.now(); ty.timer = setInterval(tick, 200);
+        if (ty.startKey) ty.keys.push(ty.startKey);
+      }
       hint('');
       return;
     }
     if (ty.first != null) return;
     ty.first = t; ty.startedAt = Date.now(); ty.t0 = performance.now();
+    if (ty.startKey) ty.keys.push(ty.startKey);
     hint('');
     ty.timer = setInterval(tick, 200);
   }
