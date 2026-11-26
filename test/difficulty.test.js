@@ -74,14 +74,20 @@ test('speed is never a criterion', () => {
   assert.equal(d.update(win({ wpm: 12 })).action, 'advance');
 });
 
-test('the frontier stays within bounds and a manual override is respected', () => {
-  const d = FT.difficulty.create({ frontier: 120, min: 100, max: 1000 });
+test('the frontier stays within its bounds', () => {
+  const d = FT.difficulty.create({ frontier: 120 }, { min: 100, max: 1000 });
   for (let i = 0; i < 5; i++) d.update(win({ firstAttemptAccuracy: 0.9 }));
   assert.equal(d.state().frontier, 100);
   d.override(5000);
   assert.equal(d.state().frontier, 1000);
+});
+
+test('a fixed vocabulary is respected until released', () => {
+  const d = FT.difficulty.create({ frontier: 300 });
+  d.override(800);
   assert.equal(d.state().manual, true);
   assert.equal(d.update(win()).action, 'manual');
+  assert.equal(d.state().frontier, 800);
   d.override(null);
   assert.equal(d.state().manual, false);
 });
@@ -94,4 +100,20 @@ test('decisions are logged with reasons and survive serialisation', () => {
   assert.equal(h.length, 1);
   assert.equal(h[0].action, 'advance');
   assert.ok(h[0].reasons.length > 0);
+});
+
+// Functionality: the controller's state is only what it learned; its tuning
+// comes from the code, so a change of tuning reaches stored profiles.
+test('the stored state holds what was learned, not the tuning', () => {
+  const d = FT.difficulty.create({ frontier: 500, low: 0.5, high: 0.6, windows: [], history: [] });
+  assert.deepEqual(Object.keys(plain(d.toJSON())).sort(), ['frontier', 'history', 'manual', 'pending', 'windows']);
+  for (let i = 0; i < 3; i++) d.update({ words: 60, firstAttemptAccuracy: 0.97 });
+  assert.equal(d.state().frontier < 500, true); // retreats by the real band, not the stored 0.5
+});
+
+test('an exercise without an accuracy figure does not count as 0% accuracy', () => {
+  const d = FT.difficulty.create({ frontier: 500 });
+  const r = d.update({ words: 200, firstAttemptAccuracy: null });
+  assert.notEqual(r.action, 'retreat');
+  assert.equal(d.state().frontier, 500);
 });

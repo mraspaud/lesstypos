@@ -2,15 +2,15 @@
 // the same speed is progress, as is more speed at the same effort).
 (function (FT) {
   'use strict';
-  var N = 5, MIN = 2, ACC_TOL = 0.01;
+  var N = 5, MIN = 2, ACC_TOL = 0.01, MIN_WORDS = 50;
 
   function comparable(h, cur) {
-    return h.type === cur.type && h.wpm != null && h.effort != null && h.words >= 50 &&
+    return h.type === cur.type && h.wpm != null && h.effort != null && h.words >= MIN_WORDS &&
       (cur.faa == null || h.faa == null || h.faa >= cur.faa - ACC_TOL);
   }
 
   function compare(history, cur) {
-    if (!cur || cur.effort == null || cur.wpm == null) return null;
+    if (!cur || cur.effort == null || cur.wpm == null || !(cur.words >= MIN_WORDS)) return null;
     var pool = history.filter(function (h) { return h !== cur && comparable(h, cur); });
     var same = pool.filter(function (h) { return h.effort === cur.effort; }).slice(-N);
     var higher = pool.filter(function (h) { return h.effort > cur.effort; }).slice(-N);
@@ -32,7 +32,8 @@
 
   // Per-word timeline: speed of each word (its characters including the
   // following space, from the previous word's last keystroke to its own last
-  // keystroke; the first word from its first keystroke), running speed (correct
+  // keystroke; the first word from its first keystroke, so over the characters
+  // after it), running speed (correct
   // characters so far / 5 per minute since the first keystroke), and whether
   // the word's first attempt contained an error.
   function timeline(words) {
@@ -44,7 +45,7 @@
       var first = w.stream[0].t, end = w.stream[w.stream.length - 1].t;
       if (t0 === null) t0 = first;
       var start = prevEnd === null ? first : prevEnd;
-      var chars = Array.from(w.target).length + 1;
+      var chars = Array.from(w.target).length + 1 - (prevEnd === null ? 1 : 0);
       correct += an.counts.C;
       var dur = end - start, el = end - t0;
       out.push({

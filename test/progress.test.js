@@ -61,10 +61,10 @@ test('the timeline gives per-word and running speed and marks errors', () => {
   assert.ok(tl[1].running > 60 && tl[1].running < 120);
 });
 
-test('the first word is timed from its first keystroke', () => {
+test('the first word is timed from its first keystroke, over the characters after it', () => {
   const words = typedWords([['abcd', 'abcd ', 100]]);
   const tl = FT.progress.timeline(words);
-  assert.equal(Math.round(tl[0].burst), 150); // 5 chars over 0.4 s between first and last keydown
+  assert.equal(Math.round(tl[0].burst), 120); // 4 keystrokes after the first, in 0.4 s
 });
 
 // Functionality: progress series keep only comparable sessions together and
@@ -178,4 +178,10 @@ test('common-pair timing comes from relaxed practice only, weighted by intervals
 test('a missed multi-letter press counts as one full error on its key', () => {
   const words = analysed([['the', 'xe']]).map((w) => Object.assign(w, { analysis: FT.align.analyzeWord('the ', w.stream, { macros: ['th'] }) }));
   assert.deepEqual(plain(FT.progress.keyStats(words, ['th']).keys.th), [1, 1]);
+});
+
+test('an exercise too short to count gets no comparison', () => {
+  const h = [50, 52, 51].map((wpm) => ({ type: 'relaxed', wpm, faa: 0.99, effort: 3, words: 200 }));
+  const cur = { type: 'relaxed', wpm: 90, faa: 1, effort: 3, words: 3 };
+  assert.equal(FT.progress.compare(h, cur), null);
 });

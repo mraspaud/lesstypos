@@ -17,7 +17,7 @@
     var p = opts.profile || {};
     var model = p.model ? FT.model.fromJSON(p.model) : FT.model.create();
     var subs = FT.subs.create(p.subs || null);
-    var difficulty = FT.difficulty.create(p.difficulty || { frontier: 200, max: corpus.size });
+    var difficulty = FT.difficulty.create(p.difficulty, { max: corpus.size });
     var bursts = FT.bursts.create(p.bursts || null);
     // A session, for the sequence statistics, is one programme run or one
     // standalone exercise (user decision). Only exercises that feed the
@@ -168,7 +168,7 @@
     function expectedRatio(ev) {
       return function (r) {
         var full = r.ctx + r.ch;
-        for (var k = Math.min(3, full.length); k >= 1; k--) {
+        for (var k = Math.min(FT.model.MAX_ORDER, full.length); k >= 1; k--) {
           var j = ev.get(full.slice(-k));
           if (j && j.latN >= model.config.minN) return Math.exp(j.mu);
         }
