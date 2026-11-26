@@ -34,17 +34,23 @@
         noTargets: !!def.reportsMissingTargets && !pinned && !targets.length };
     };
   }
-  function benchmark(ctx) {
-    var corpus = ctx.corpus, rng = FT.rng(ctx.nextSeed()), last = null;
-    function take(n) {
+  // The benchmark's words: drawn uniformly from the BENCHMARK_RANKS most
+  // common, never the same word twice in a row. Returns take(n) -> words.
+  function benchmarkSampler(corpus, rng) {
+    var last = null;
+    return function take(n) {
       var out = [];
       while (out.length < n) {
         var w = corpus.words[Math.floor(rng() * Math.min(BENCHMARK_RANKS, corpus.size))];
         if (w === last && corpus.size > 1) continue;
-        out.push({ word: w, source: 'benchmark' }); last = w;
+        out.push(w); last = w;
       }
       return out;
-    }
+    };
+  }
+  function benchmark(ctx) {
+    var sample = benchmarkSampler(ctx.corpus, FT.rng(ctx.nextSeed()));
+    function take(n) { return sample(n).map(function (w) { return { word: w, source: 'benchmark' }; }); }
     return { type: 'benchmark', words: take(FIRST_BATCH), more: take, targets: [] };
   }
   // The next words of the current text, from its saved position.
@@ -137,6 +143,6 @@
   function feeds(type, learner) { return !!(TYPES[type] && TYPES[type].feeds[learner]); }
   function build(ctx, o) { return TYPES[o.type].build(ctx, o); }
 
-  FT.exercises = { name: name, instructions: instructions, feeds: feeds, build: build, TYPE_NAMES: Object.keys(TYPES),
+  FT.exercises = { name: name, instructions: instructions, feeds: feeds, build: build, benchmarkSampler: benchmarkSampler, TYPE_NAMES: Object.keys(TYPES),
     BURST_ROUND_MS: BURST_ROUND_MS, BURST_REST_MS: BURST_REST_MS, BENCHMARK_TRIALS: BENCHMARK_TRIALS, BENCHMARK_MINUTES: BENCHMARK_MINUTES };
 })(globalThis.FT);
