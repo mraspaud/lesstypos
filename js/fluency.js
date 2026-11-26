@@ -68,6 +68,8 @@
   // timed context takes the scale and the overall error rate (design choice).
   // The later letters of a declared key come with its first: no time, and no
   // part of the coverage.
+  // Design choice: contexts of two characters or more count as covered, as
+  // single letters carry no sequence information.
   var MIN_COVERED_ORDER = 2;
   function predict(evaluation, scale, ref, opts) {
     var minN = FT.valueOr(opts && opts.minN, FT.model.DEFAULTS.minN), totalMs = 0, covered = 0, pressed = 0;
@@ -140,7 +142,8 @@
       errorCostMs: errorCostMs(recent) };
   }
 
-  // Variant B's exercises: rated effort 1 or 2 of 5.
+  // Variant B's exercises: rated effort 1 or 2 of 5 (design choice: the two
+  // lowest ratings).
   var EFFORTLESS_MAX = 2;
   function effortless(h) { return h.effort != null && h.effort <= EFFORTLESS_MAX; }
 
