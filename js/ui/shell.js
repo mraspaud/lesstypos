@@ -79,7 +79,9 @@
   function sectionOf(route) { return String(route || '').split('/')[0]; }
   function go(name) {
     name = resolve(name);
-    if (location.hash.slice(1) !== name) { try { location.hash = name; } catch (e) { /* ignore */ } }
+    // our own address change arrives later as a hashchange: it must not undo
+    // what happened in between (e.g. an exercise started right after)
+    if (location.hash.slice(1) !== name) { app.ownHash = name; try { location.hash = name; } catch (e) { /* ignore */ } }
     show(name);
   }
   function show(name) {
@@ -243,6 +245,7 @@
     app.$nav.addEventListener('click', function (e) { var b = e.target.closest('[data-go]'); if (b) go(b.dataset.go); });
     window.addEventListener('hashchange', function () {
       var h = location.hash.slice(1);
+      if (h === app.ownHash) { app.ownHash = null; return; }
       if (!h || resolve(h) === app.current) return;
       if (h !== resolve(h)) { go(h); return; } // an older page name: show its new place
       show(h);
