@@ -346,7 +346,7 @@
   //   positions[i]: { status: ok | bad | untyped, group, press } (group: the
   //                 first letter of the wrong target press, for one joined
   //                 mark; press: a multi-letter press is involved);
-  //   extras:       letters of presses beyond the word ({ before: length, ch });
+  //   extras:       letters of presses beyond the word, shown after it;
   //   cursor:       number of rendered letters typed.
   function displayWord(word, stream, macros) {
     var target = Array.from(word);
@@ -371,7 +371,7 @@
       }
       at += want.length;
     });
-    typedPresses.slice(k).forEach(function (tp) { tp.forEach(function (e) { extras.push({ before: target.length, ch: e.ch }); }); });
+    typedPresses.slice(k).forEach(function (tp) { tp.forEach(function (e) { extras.push(e.ch); }); });
     var typed = positions.filter(function (p) { return p.status !== 'untyped'; }).length;
     return { positions: positions, extras: extras, cursor: typed + extras.length };
   }

@@ -179,7 +179,7 @@ test('display: a single key for the th press marks t and h as one group', () => 
 test('display: letters are compared by position, extra ones shown at the end', () => {
   const d = DW('cat', 'caat', []);
   assert.equal(statuses(d), 'ok ok bad');
-  assert.deepEqual(d.extras.map((x) => [x.before, x.ch]), [[3, 't']]);
+  assert.deepEqual(d.extras, ['t']);
 });
 
 test('display: a red letter stays where the mistake was made as the word goes on', () => {

@@ -109,20 +109,18 @@
     var d = FT.align.displayWord(w.target, w.stream, macros());
     var T = Array.from(w.target), html = '';
     var letter = function (cls, ch) { return '<span class="l' + cls + '">' + esc(ch) + '</span>'; };
-    var extrasBefore = function (p) { return d.extras.filter(function (x) { return x.before === p; }); };
-    for (var p = 0; p <= T.length; p++) {
-      extrasBefore(p).forEach(function (x) { html += letter(' extra', x.ch); });
-      if (p === T.length) break;
+    for (var p = 0; p < T.length; p++) {
       var pos = d.positions[p];
       if (pos.press) {
         var q = p;
-        while (q + 1 < T.length && d.positions[q + 1].press && d.positions[q + 1].group === pos.group && !extrasBefore(q + 1).length) q++;
+        while (q + 1 < T.length && d.positions[q + 1].press && d.positions[q + 1].group === pos.group) q++;
         html += '<span class="press-bad">' + T.slice(p, q + 1).map(function (ch) { return letter(' bad', ch); }).join('') + '</span>';
         p = q;
         continue;
       }
       html += letter(pos.status === 'ok' ? ' ok' : pos.status === 'bad' ? ' bad' : '', T[p]);
     }
+    d.extras.forEach(function (ch) { html += letter(' extra', ch); });
     el.innerHTML = html;
     el.dataset.cursor = d.cursor;
   }
