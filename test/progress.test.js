@@ -37,7 +37,7 @@ test('no comparison without enough comparable sessions or an effort rating', () 
 
 // Functionality: progress series keep only comparable sessions together and
 // summarise each day by its median.
-const D = (d, h = 9) => Date.UTC(2026, 0, d, h);
+const D = (d, h = 9) => new Date(2026, 0, d, h).getTime();   // local time: days are local days
 const HIST = [
   { type: 'relaxed', startedAt: D(1), wpm: 50, firstAttemptAccuracy: 0.98, effort: 3, words: 200, commonPairMs: 120, wordStartMs: 90, rhythmCv: 0.5 },
   { type: 'relaxed', startedAt: D(1, 18), wpm: 54, firstAttemptAccuracy: 0.99, effort: 2, words: 200, commonPairMs: 110, wordStartMs: 80, rhythmCv: 0.4 },
