@@ -70,6 +70,27 @@ test('coverage is the share of keystrokes timed from a context of two characters
   assert.equal(FT.fluency.predict(withLetters({ ab: {} }), evenly(200), AB).coverage, 2 / 6);
 });
 
+// A declared multi-letter key (such as th) is one press: its later letters
+// come with the first (FT.presses.ofTarget), as when typing.
+const THE = (macros) => FT.fluency.referenceOf(['the', 'the'], macros);   // t h e space, twice
+const withThe = judged({ t: {}, h: {}, e: {}, ' ': {}, th: {} });
+
+test('the later letters of a declared multi-letter key take no time', () => {
+  assert.equal(FT.fluency.predict(withThe, evenly(200), THE()).wpm, wpmOf(8, 8 * 200));
+  assert.equal(FT.fluency.predict(withThe, evenly(200), THE(['th'])).wpm, wpmOf(8, 6 * 200));
+});
+
+test('the later letters of a declared key are not part of the coverage', () => {
+  assert.equal(FT.fluency.predict(withThe, evenly(200), THE(['th'])).coverage, 0);
+});
+
+test('the reference text of a corpus marks the declared keys it is given', () => {
+  const corpus = FT.corpus.get('en'), keyed = FT.fluency.reference(corpus, ['th']);
+  assert.equal(keyed.words, FT.fluency.reference(corpus).words);
+  assert.ok(keyed.keystrokes.some((k) => k.sameKey) && !FT.fluency.reference(corpus).keystrokes.some((k) => k.sameKey));
+  assert.equal(FT.fluency.reference(corpus, ['th']), keyed);
+});
+
 // History entries of relaxed practice with their centres (ms).
 const relaxed = (within, initial, more = {}) => Object.assign({ type: 'relaxed', words: 100, wpm: 50, effort: 3, centreMs: { within, initial } }, more);
 

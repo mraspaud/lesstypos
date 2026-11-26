@@ -21,25 +21,27 @@
   var REFERENCE_WORDS = 1000, REFERENCE_SEED = 20261126;
 
   // The keystrokes of a text of words, each followed by a space: the context
-  // key the model judges (up to MAX_ORDER characters ending at it) and
-  // whether it starts a word.
-  function referenceOf(words) {
-    var text = words.join(' ') + ' ', order = FT.evidence.MAX_ORDER, keystrokes = [];
+  // key the model judges (up to MAX_ORDER characters ending at it), whether
+  // it starts a word, and whether it comes with the keystroke before it as one
+  // press of a declared multi-letter key (macros; FT.presses.ofTarget).
+  function referenceOf(words, macros) {
+    var text = words.join(' ') + ' ', order = FT.evidence.MAX_ORDER, press = FT.presses.ofTarget(text, macros), keystrokes = [];
     for (var i = 0; i < text.length; i++) {
-      keystrokes.push({ key: text.slice(Math.max(0, i - order + 1), i + 1), initial: i === 0 || text[i - 1] === ' ' });
+      keystrokes.push({ key: text.slice(Math.max(0, i - order + 1), i + 1), initial: i === 0 || text[i - 1] === ' ',
+        sameKey: i > 0 && press[i] === press[i - 1] });
     }
     return { words: words, keystrokes: keystrokes };
   }
 
   // The reference text of a corpus: drawn once, seeded, as the benchmark
-  // draws its words (FT.exercises.benchmarkSampler).
+  // draws its words (FT.exercises.benchmarkSampler); its keystrokes for each
+  // set of declared keys.
   var references = new Map();
-  function reference(corpus) {
-    if (!references.has(corpus)) {
-      var words = FT.exercises.benchmarkSampler(corpus, FT.rng(REFERENCE_SEED))(REFERENCE_WORDS);
-      references.set(corpus, referenceOf(words));
-    }
-    return references.get(corpus);
+  function reference(corpus, macros) {
+    if (!references.has(corpus)) references.set(corpus, { words: FT.exercises.benchmarkSampler(corpus, FT.rng(REFERENCE_SEED))(REFERENCE_WORDS), keyed: {} });
+    var drawn = references.get(corpus), keys = (macros || []).join('\n');
+    if (!drawn.keyed[keys]) drawn.keyed[keys] = referenceOf(drawn.words, macros);
+    return drawn.keyed[keys];
   }
 
   // Predicted WPM on the reference (FT.metrics' WPM: characters / 5 per
@@ -49,18 +51,20 @@
   // opts.minN: timed keystrokes a context needs (the model's).
   // A keystroke takes exp(mu) x scale of its population; one without a timed
   // context takes the scale and the overall error rate (design choice).
-  // Each error adds two keystrokes of the same time.
+  // Each error adds two keystrokes of the same time. The later letters of a
+  // declared key come with its first: no time, and no part of the coverage.
   var SLIP_AND_BACKSPACE = 2, MIN_COVERED_ORDER = 2;
   function predict(evaluation, scale, ref, opts) {
-    var minN = FT.valueOr(opts && opts.minN, FT.model.DEFAULTS.minN), totalMs = 0, covered = 0;
+    var minN = FT.valueOr(opts && opts.minN, FT.model.DEFAULTS.minN), totalMs = 0, covered = 0, pressed = 0;
     ref.keystrokes.forEach(function (k) {
+      if (k.sameKey) return;
+      pressed++;
       var c = FT.model.timedContext(evaluation, k.key, minN);
       var ratio = c ? Math.exp(c.mu) : 1, errorRate = c ? c.errorRate : evaluation.global.rate;
       totalMs += ratio * (k.initial ? scale.initial : scale.within) * (1 + SLIP_AND_BACKSPACE * errorRate);
       if (c && c.key.length >= MIN_COVERED_ORDER) covered++;
     });
-    var n = ref.keystrokes.length;
-    return { wpm: n / 5 / (totalMs / 60000), coverage: covered / n };
+    return { wpm: ref.keystrokes.length / 5 / (totalMs / 60000), coverage: covered / pressed };
   }
 
   // The scale: per population, the geometric mean of the session centres
