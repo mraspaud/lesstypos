@@ -36,6 +36,7 @@
         '<label for="showTimer">Remaining time</label><div><select id="showTimer"><option value="1"' + (s.showTimer ? ' selected' : '') + '>Show</option><option value="0"' + (!s.showTimer ? ' selected' : '') + '>Hide</option></select></div>' +
         '<label for="vocabMode">Vocabulary</label><div class="row"><select id="vocabMode"><option value="auto"' + (!d.manual ? ' selected' : '') + '>Adapt automatically</option><option value="manual"' + (d.manual ? ' selected' : '') + '>Fixed</option></select>' +
         '<input type="number" id="frontier" min="100" max="' + app.trainer.corpus.size + '" step="50" value="' + Math.round(d.frontier) + '" style="max-width:8rem" aria-label="Number of common words"' + (d.manual ? '' : ' disabled') + '> <span class="muted">most common words</span></div>' +
+        '<label for="showInstructions">Instructions</label><div><label class="row"><input type="checkbox" id="showInstructions"' + (s.showInstructions !== false ? ' checked' : '') + '> Show the instructions before each exercise (Enter starts)</label></div>' +
         '<label for="accents">Prose characters</label><div><label class="row"><input type="checkbox" id="accents"' + (s.accents !== false ? ' checked' : '') + '> Accept letters without accents (e for é)</label>' +
         '<p class="help">Curly quotes and long dashes always accept their plain keyboard versions.</p></div>',
       training:
@@ -78,6 +79,7 @@
       else if (id === 'fontSize') s.fontSize = (+v || 26) / 16;
       else if (id === 'theme') s.theme = v;
       else if (id === 'accents') s.accents = e.target.checked;
+      else if (id === 'showInstructions') s.showInstructions = e.target.checked;
       else if (e.target.dataset.step != null) {
         var def = JSON.parse(JSON.stringify(programmeDef())), st = def.steps[+e.target.dataset.step];
         if (e.target.type === 'checkbox') st.enabled = e.target.checked; else st.minutes = Math.max(0.5, Math.min(30, +v || st.minutes));

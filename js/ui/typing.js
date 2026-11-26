@@ -34,6 +34,7 @@
     var ex = app.trainer.newExercise({ type: type, pinned: opts.pinned, text: opts.text, run: opts.run });
     var durationMs = (opts.minutes || app.settings.durationMin) * 60000;
     var nRounds = Math.max(1, Math.floor(durationMs / (2 * burstRun())));
+    var withCard = app.settings.showInstructions !== false && !/[?&]nocards\b/.test(location.search);
     setView('<section class="typing">' +
       '<div class="ex-head"><span class="name">' + esc(exDef.name) + (opts.pinned ? ' ' + opts.pinned.map(seq).join(' ') : '') + '</span>' +
       '<span>' + esc(exDef.goal) + '</span>' +
@@ -41,8 +42,9 @@
       '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' ? '' : ' hidden') + '>' + (type === 'bursts' ? 'Round 1 of ' + nRounds : clock(durationMs)) + '</span></div>' +
       (type === 'bursts' ? '<div class="pace" id="pace" aria-hidden="true"><div class="pace-fill" id="pacefill"></div><div class="pace-target" id="pacetarget"></div></div>' +
         '<div class="pace-label muted num" id="pacelabel">Target ' + Math.round(app.trainer.bursts.target()) + ' WPM</div>' : '') +
-      '<div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div></div>' +
-      '<div class="focus-hint" id="hint">Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.</div>' +
+      '<div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div>' +
+      (withCard ? briefing(exDef, nRounds, type) : '') + '</div>' +
+      '<div class="focus-hint" id="hint">' + (withCard ? '' : 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.') + '</div>' +
       '<div id="stopbar" class="stopbar" hidden></div>' +
       '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"></textarea>' +
       '</section>');
@@ -50,7 +52,8 @@
     var fed = 120;
     ty = { type: type, ex: ex, session: session, fed: fed, durationMs: durationMs, keys: [], first: null, startedAt: null,
       els: [], inner: document.getElementById('inner'), caret: document.getElementById('caret'),
-      win: document.getElementById('window'), capture: document.getElementById('capture'), stopped: false, opts: opts, offset: 0, pauses: [] };
+      win: document.getElementById('window'), capture: document.getElementById('capture'), stopped: false, opts: opts, offset: 0, pauses: [],
+      briefing: withCard };
     if (type === 'bursts') ty.burst = { total: nRounds, rounds: [], phase: 'ready', target: app.trainer.bursts.target(), ref: app.trainer.bursts.reference() };
     renderWords(0);
     ty.detach = FT.input.attach(ty.capture, {
@@ -61,12 +64,12 @@
         else if (k.k === 'd') ty.startKey = k; // the keydown that will start the exercise comes before its letter
       },
       onEscape: onEscape, onTab: onTab,
-      onEnter: function () { if (ty && ty.stopped) finishExercise(); },
+      onEnter: function () { if (ty && ty.briefing) closeBriefing(); else if (ty && ty.stopped) finishExercise(); },
       onDelete: function () { if (ty && ty.stopped) discard(); },
     });
     ty.win.addEventListener('click', focusCapture);
     ty.capture.addEventListener('blur', function () { if (ty) { ty.win.classList.add('blurred'); hint('Click here or press any key to continue typing.'); } });
-    ty.capture.addEventListener('focus', function () { if (ty) { ty.win.classList.remove('blurred'); hint(ty.first == null ? 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.' : ''); } });
+    ty.capture.addEventListener('focus', function () { if (ty) { ty.win.classList.remove('blurred'); hint(ty.first == null && !ty.briefing ? 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.' : ''); } });
     focusCapture();
     placeCaret();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (ty) placeCaret(); });
@@ -232,7 +235,23 @@
     var w = ty.session.current();
     return FT.text.isPrefix(w.typed, w.target + ' ');
   }
+  // The card over the text: what to do and what counts, read before starting.
+  function briefing(exDef, nRounds, type) {
+    return '<div class="briefing" id="briefing" role="dialog" aria-labelledby="briefing-title">' +
+      '<h2 id="briefing-title">' + esc(exDef.name) + (type === 'bursts' ? ' · ' + nRounds + ' rounds' : '') + '</h2>' +
+      '<p>' + esc(exDef.goal) + '</p><p class="muted">' + esc(exDef.counts) + '</p>' +
+      '<p><kbd>Enter</kbd> start · <kbd>Esc</kbd> leave · <kbd>Tab</kbd> restart</p></div>';
+  }
+  function closeBriefing() {
+    ty.briefing = false;
+    var el = document.getElementById('briefing');
+    if (el) el.remove();
+    hint('Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.');
+    focusCapture();
+  }
+
   function onText(data, t) {
+    if (ty && ty.briefing) return; // read the card first: Enter starts
     if (ty && ty.stopped) { hint('Paused: <kbd>Esc</kbd> resumes, <kbd>Enter</kbd> saves, <kbd>Del</kbd> discards.'); return; } // typing never discards
     if (!ty) return;
     if (ty.burst && ty.burst.phase === 'rest') return;

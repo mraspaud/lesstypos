@@ -8,7 +8,9 @@ import assert from 'node:assert/strict';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const url = 'file://' + path.join(root, 'index.html');
+// ?nocards: the steps type straight away; the instruction card has its own step.
+const plainUrl = 'file://' + path.join(root, 'index.html');
+const url = plainUrl + '?nocards';
 const shots = process.env.SHOTS;
 
 const browser = await chromium.launch();
@@ -909,6 +911,34 @@ await step('a rebuild finishing after you left does not touch the new screen', a
   await page.locator('[data-go="home"][aria-current="page"]').waitFor();
   await page.waitForTimeout(500);
   assert.deepEqual(errors, []);
+});
+
+
+await step('an instruction card comes before the exercise; Enter starts, letters before it do nothing', async () => {
+  await page.goto(plainUrl);
+  await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  try {
+    await page.evaluate(() => window.FT.ui.startExercise('bursts', { minutes: 1 }));
+    const card = page.locator('#briefing');
+    await card.waitFor();
+    assert.match(await card.textContent(), /95%/);
+    await page.keyboard.type('abc');
+    assert.equal(await page.locator('.w .l.ok, .w .l.bad').count(), 0);
+    assert.ok(await card.isVisible());
+    await page.keyboard.press('Enter');
+    assert.equal(await card.isVisible(), false);
+    await typeWords(1);
+    assert.ok(await page.locator('.w .l.ok, .w .l.bad').count() > 0);
+    await page.keyboard.press('Escape'); await page.keyboard.press('Delete');
+    await page.evaluate(() => { window.FT.app.settings.showInstructions = false; });
+    await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
+    await page.locator('.w').first().waitFor();
+    assert.equal(await page.locator('#briefing').count(), 0);
+    await page.keyboard.press('Escape');
+  } finally {
+    await page.goto(url);
+    await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  }
 });
 
 await step('phone width has no horizontal scroll', async () => {
