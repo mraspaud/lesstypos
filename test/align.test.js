@@ -2,16 +2,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
+const { stream } = require('./helpers/typing');
+const { near } = require('./helpers/assert');
 
 // Functionality: character-level error analysis of the input stream
 // (Wobbrock & Myers 2006; MacKenzie & Soukoreff 2002; Soukoreff & MacKenzie 2003).
-// '<' in the test notation is a backspace.
+// Typing notation: test/helpers/typing.js.
 
 const FT = load();
-function stream(str, dt = 100) {
-  return Array.from(str).map((ch, i) =>
-    ch === '<' ? { k: 'b', t: i * dt } : { k: 'c', ch, t: i * dt, g: i });
-}
 const A = (p, s) => FT.align.analyzeWord(p, stream(s));
 const errs = (r) => plain(r.events.filter((e) => e.type !== 'none').map((e) => [e.type, e.corrected, e.pos, e.expected ?? null, e.actual ?? null]));
 const firstErr = (r) => plain(r.targets.map((x) => x.err));
@@ -86,8 +84,8 @@ test('ambiguous alignments are weighted by 1/number of alignments', () => {
   const om = r.events.filter((e) => e.type === 'omit');
   assert.ok(om.length >= 1);
   const total = om.reduce((s, e) => s + e.w, 0);
-  assert.ok(Math.abs(total - 1) < 1e-9);
-  assert.ok(Math.abs(r.counts.INF - 1) < 1e-9);
+  near(total, 1);
+  near(r.counts.INF, 1);
 });
 
 test('each target position records the time of its first attempt', () => {
@@ -115,18 +113,7 @@ test('a word abandoned with a space keeps its trailing omissions', () => {
 // Functionality: one key action = one mistake. Letters of one wrong press, on
 // the typed side (th key) or the target side (a missed th press), count as one
 // error, shared between the positions they cover.
-// Notation: [..] is one multi-character input event; '<' a backspace.
-function pressStream(typed, gapMs = 100) {
-  const out = [];
-  let g = 0, t = 0;
-  for (const part of typed.match(/\[[^\]]+\]|./g)) {
-    g++; t += gapMs;
-    if (part === '<') { out.push({ k: 'b', t }); continue; }
-    for (const ch of part.replace(/^\[|\]$/g, '')) out.push({ k: 'c', ch, t, g });
-  }
-  return out;
-}
-const AP = (p, typed, macros = ['th']) => FT.align.analyzeWord(p, pressStream(typed), { macros });
+const AP = (p, typed, macros = ['th']) => FT.align.analyzeWord(p, stream(typed), { macros });
 const total = (r) => r.targets.reduce((a, x) => a + x.err, 0);
 
 test('th pressed for y in "you": only y is wrong, one error', () => {
@@ -160,7 +147,7 @@ test('ordinary errors are unchanged by press grouping', () => {
 // Functionality: the word on screen compares by position, press by press
 // (user decision), so a red letter stays where the mistake was made; one mark
 // per wrong press, and extra letters at the end.
-const DW = (word, typed, macros) => plain(FT.align.displayWord(word, pressStream(typed), { macros }));
+const DW = (word, typed, macros) => plain(FT.align.displayWord(word, stream(typed), { macros }));
 const statuses = (d) => d.positions.map((x) => x.status).join(' ');
 
 test('display: th typed for y in "you" marks only y', () => {

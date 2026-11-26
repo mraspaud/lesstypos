@@ -2,17 +2,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load } = require('./helpers/load');
+const { stream } = require('./helpers/typing');
+const { near } = require('./helpers/assert');
 
 // Functionality: session metrics. Error rates per Soukoreff & MacKenzie (2003);
 // WPM uses the 5-character word; first-attempt accuracy is the share of target
 // characters whose first attempt was correct (corrected errors still count).
 
 const FT = load();
-function stream(str, t0 = 0, dt = 100) {
-  return Array.from(str).map((ch, i) =>
-    ch === '<' ? { k: 'b', t: t0 + i * dt } : { k: 'c', ch, t: t0 + i * dt, g: i });
-}
-const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
 
 test('error rates follow the C/INF/IF/F definitions', () => {
   const words = [

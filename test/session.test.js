@@ -2,24 +2,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
+const { typist } = require('./helpers/typing');
 
 // Functionality: a typing session tracks the target text, what the user typed,
 // and the full timestamped input stream (including backspaces) per word.
 
-function typeString(s, str, t0 = 0, dt = 100) {
-  let t = t0;
-  for (const ch of str) {
-    if (ch === '<') s.input({ kind: 'back', t });
-    else s.input({ kind: 'text', data: ch, t });
-    t += dt;
-  }
-  return t;
-}
+// Typing notation: test/helpers/typing.js.
 
 test('typing a word and a space commits it with its stream', () => {
   const FT = load();
   const s = FT.session.create(['the', 'cat']);
-  typeString(s, 'the ');
+  typist(s).type('the ');
   const st = s.state();
   assert.equal(st.wordIndex, 1);
   assert.equal(st.words[0].committed, true);
@@ -31,7 +24,7 @@ test('typing a word and a space commits it with its stream', () => {
 test('backspace edits the current word but keeps the stream', () => {
   const FT = load();
   const s = FT.session.create(['cat']);
-  typeString(s, 'cx<at');
+  typist(s).type('cx<at');
   const w = s.state().words[0];
   assert.equal(w.typed, 'cat');
   assert.deepEqual(plain(w.stream.map((e) => e.k)), ['c', 'c', 'b', 'c', 'c']);
@@ -40,7 +33,7 @@ test('backspace edits the current word but keeps the stream', () => {
 test('extra characters beyond the word are kept', () => {
   const FT = load();
   const s = FT.session.create(['cat', 'dog']);
-  typeString(s, 'catt ');
+  typist(s).type('catt ');
   assert.equal(s.state().words[0].typed, 'catt ');
   assert.equal(s.state().wordIndex, 1);
 });
@@ -48,7 +41,7 @@ test('extra characters beyond the word are kept', () => {
 test('backspace cannot cross into correct words when nothing nearby is wrong', () => {
   const FT = load();
   const s = FT.session.create(['a', 'b']);
-  typeString(s, 'a <<b');
+  typist(s).type('a <<b');
   const st = s.state();
   assert.equal(st.words[0].typed, 'a ');
   assert.equal(st.words[1].typed, 'b');
@@ -57,7 +50,7 @@ test('backspace cannot cross into correct words when nothing nearby is wrong', (
 test('backspace can return into a previous word that contains an error', () => {
   const FT = load();
   const s = FT.session.create(['cat', 'dog']);
-  typeString(s, 'cot <<<at dog ');
+  typist(s).type('cot <<<at dog ');
   const st = s.state();
   assert.equal(st.words[0].typed, 'cat ');
   assert.equal(st.words[0].committed, true);
@@ -70,7 +63,7 @@ test('backspace can return into a previous word that contains an error', () => {
 test('a space at the start of a word is ignored', () => {
   const FT = load();
   const s = FT.session.create(['a', 'b']);
-  typeString(s, 'a  b');
+  typist(s).type('a  b');
   const st = s.state();
   assert.equal(st.words[1].typed, 'b');
   assert.equal(st.words[1].stream.length, 1);
@@ -94,7 +87,7 @@ test('words can be appended while typing and onCommit fires', () => {
   const committed = [];
   s.onCommit((w, i) => committed.push([w.target, i]));
   s.append(['b']);
-  typeString(s, 'a b ');
+  typist(s).type('a b ');
   assert.deepEqual(plain(committed), [['a', 0], ['b', 1]]);
 });
 
@@ -110,7 +103,7 @@ test('words can carry generator metadata', () => {
 test('backspace reaches back through correct words to a nearby error', () => {
   const FT = load();
   const s = FT.session.create(['have', 'school', 'life', 'home']);
-  typeString(s, 'have schcol life ' + '<'.repeat(9) + 'ool life ');
+  typist(s).type('have schcol life ' + '<'.repeat(9) + 'ool life ');
   const st = s.state();
   assert.equal(st.words[1].typed, 'school ');
   assert.equal(st.words[2].typed, 'life ');
@@ -120,17 +113,17 @@ test('backspace reaches back through correct words to a nearby error', () => {
 test('backspace does not reopen correct words when no error is near', () => {
   const FT = load();
   const s = FT.session.create(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']);
-  typeString(s, 'x b c d e f g ');   // the only error is 7 words back
+  typist(s).type('x b c d e f g ');   // the only error is 7 words back
   assert.equal(s.input({ kind: 'back', t: 1 }), false);
 });
 
 test('a backspace reports whether it changed anything', () => {
   const FT = load();
   const s = FT.session.create(['cat', 'dog', 'sun']);
-  typeString(s, 'cat dog ');
+  typist(s).type('cat dog ');
   assert.equal(s.input({ kind: 'back', t: 1 }), false); // nothing wrong nearby
   const s2 = FT.session.create(['cat', 'dog']);
-  typeString(s2, 'cot ');
+  typist(s2).type('cot ');
   assert.equal(s2.input({ kind: 'back', t: 1 }), true); // into the wrong "cot"
   assert.equal(s2.input({ kind: 'back', t: 2 }), true);
 });
@@ -149,10 +142,10 @@ test('backspace removes a whole character, even outside the basic plane', () => 
 test('a space typed before the end of a word stays in the word as a wrong character', () => {
   const FT = load();
   const s = FT.session.create(['the', 'cat']);
-  typeString(s, 'th ');
+  typist(s).type('th ');
   assert.equal(s.state().wordIndex, 0);
   assert.equal(s.state().words[0].typed, 'th ');
-  typeString(s, '<e ', 1000);
+  typist(s, { at: 1000 }).type('<e ');
   assert.equal(s.state().wordIndex, 1);
   assert.equal(s.state().words[0].typed, 'the ');
 });
@@ -160,20 +153,20 @@ test('a space typed before the end of a word stays in the word as a wrong charac
 test('a word with all its letters typed, right or wrong, ends at the space', () => {
   const FT = load();
   const s = FT.session.create(['the', 'cat']);
-  typeString(s, 'teh ');
+  typist(s).type('teh ');
   assert.equal(s.state().wordIndex, 1);
 });
 
 test('an early Enter at a paragraph end is a typo in place too', () => {
   const FT = load();
   const s = FT.session.create([{ word: 'end.', sep: '\n' }, 'Next']);
-  typeString(s, 'end\n');
+  typist(s).type('end\n');
   assert.equal(s.state().wordIndex, 0);
 });
 
 test('with a multi-letter key, a word is complete when it has as many presses as the word needs', () => {
   const FT = load();
   const s = FT.session.create(['the', 'cat'], { macros: ['th'] });
-  typeString(s, 'xe ');   // one key where the th key was meant, then e: two presses, as "the" needs
+  typist(s).type('xe ');   // one key where the th key was meant, then e: two presses, as "the" needs
   assert.equal(s.state().wordIndex, 1);
 });

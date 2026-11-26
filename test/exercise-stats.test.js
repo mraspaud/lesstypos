@@ -2,21 +2,15 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
+const helpers = require('./helpers/typing');
 
 const FT = load();
 
 // Functionality: a per-word timeline of the exercise (like Monkeytype's
 // result chart): speed of each word, running average speed, and the words
 // whose first attempt had an error.
-function typedWords(script) {
-  const s = FT.session.create(script.map((x) => x[0]));
-  let t = 0;
-  for (const [, typed, dt] of script) for (const ch of typed) {
-    t += dt;
-    s.input(ch === '<' ? { kind: 'back', t } : { kind: 'text', data: ch, t });
-  }
-  return s.state().words.filter((w) => w.committed);
-}
+// Words typed by script: [[target, typed, dt], ...] (notation: test/helpers/typing.js).
+const typedWords = (script) => helpers.typedWords(FT, script.map((x) => x[0]), script.map((x) => x.slice(1)));
 const timeline = (words) => FT.exerciseStats.timeline(words, FT.align.analyzeWords(words));
 
 test('the timeline gives per-word and running speed and marks errors', () => {
@@ -45,19 +39,8 @@ test('the running speed starts after the first keystroke too', () => {
 
 // Functionality: per-key error statistics for the heatmap. A multi-letter key
 // (th) is one press; where wrong presses land is counted too.
-// Words as typed: [target, typed], where [..] in typed is one multi-character input event.
-function wordsWithPresses(pairs) {
-  return pairs.map(([p, typed]) => {
-    const stream = [];
-    let g = 0, t = 0;
-    for (const part of (typed + ' ').match(/\[[^\]]+\]|./g)) {
-      g++; t += 100;
-      if (part === '<') { stream.push({ k: 'b', t }); continue; }
-      for (const ch of part.replace(/^\[|\]$/g, '')) stream.push({ k: 'c', ch, t, g });
-    }
-    return { target: p, stream };
-  });
-}
+// Words as typed: [target, typed], each ending with a space.
+const wordsWithPresses = (pairs) => pairs.map(([target, typed]) => helpers.word(target, typed + ' '));
 const keyStats = (words, macros, analysisOpts) => FT.exerciseStats.keyStats(words, FT.align.analyzeWords(words, analysisOpts), { macros });
 
 test('key statistics count presses, with multi-letter keys as one press', () => {

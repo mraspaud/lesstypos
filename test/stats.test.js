@@ -5,7 +5,7 @@ const { load, plain } = require('./helpers/load');
 
 // Functionality: statistical primitives used by the sequence model.
 const FT = load();
-const near = (a, b, eps) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
+const { near } = require('./helpers/assert');
 
 test('regularized incomplete beta matches known values', () => {
   near(FT.stats.betaCdf(0.5, 1, 1), 0.5, 1e-9);

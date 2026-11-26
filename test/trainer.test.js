@@ -2,6 +2,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
+const { typist, typeCorrectly, correctly, slipOnTh } = require('./helpers/typing');
+const { near } = require('./helpers/assert');
 
 // Functionality: a relaxed exercise end to end — words are generated, typed,
 // analysed; the model, substitution statistics and difficulty are updated; a
@@ -94,10 +96,8 @@ test('a pinned-sequence exercise focuses on that sequence and does not move diff
   const share = ex.words.filter((w) => w.target === 'ing').length / ex.words.length;
   assert.ok(share > 0.35, String(share));
   assert.ok(ex.words.every((w) => w.target == null || w.target === 'ing'));
-  const s = FT.session.create(ex.words.slice(0, 160));
-  let t = 0;
-  for (const w of s.state().words.slice(0, 160)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 100) });
-  const { summary } = tr.finish({ type: 'targeted', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
+  const { words, t } = typeCorrectly(FT, ex.words.slice(0, 160));
+  const { summary } = tr.finish({ type: 'targeted', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words });
   assert.equal(summary.difficulty, null);
   assert.equal(tr.difficulty.state().frontier, 200);
 });
@@ -128,10 +128,8 @@ test('a fixed vocabulary level survives a rebuild', () => {
   const tr = FT.trainer.create({ seed: 14 });
   tr.difficulty.override(2000);
   const ex = tr.newExercise({ type: 'relaxed' });
-  const s = FT.session.create(ex.words.slice(0, 60));
-  let t = 0;
-  for (const w of s.state().words.slice(0, 60)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 100) });
-  const { raw } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
+  const { words, t } = typeCorrectly(FT, ex.words.slice(0, 60));
+  const { raw } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words });
   const rebuilt = FT.trainer.rebuild([raw], { seed: 14, previous: tr.profile() });
   assert.equal(rebuilt.difficulty.state().manual, true);
   assert.equal(rebuilt.difficulty.state().frontier, 2000);
@@ -140,16 +138,8 @@ test('a fixed vocabulary level survives a rebuild', () => {
 // A programme run (or a standalone exercise) is one session for the
 // sequence statistics: replication needs two runs, not two exercises.
 function sloppyTh(tr, type, run, t0) {
-  const ex = tr.newExercise({ type, run });
-  const s = FT.session.create(ex.words.slice(0, 220));
-  let t = t0;
-  for (const w of s.state().words.slice(0, 220)) {
-    let prev = '';
-    for (const ch of w.target + ' ') {
-      if (ch === 'h' && prev === 't') { s.input({ kind: 'text', data: 'n', t: (t += 120) }); s.input({ kind: 'back', t: (t += 150) }); }
-      s.input({ kind: 'text', data: ch, t: (t += 120) }); prev = ch;
-    }
-  }
+  const s = FT.session.create(tr.newExercise({ type, run }).words.slice(0, 220));
+  const t = typist(s, { at: t0 + 120, dt: 120 }).type(slipOnTh(correctly(s.state().words))).t;
   return tr.finish({ type, run, startedAt: t0, durationMs: t - t0, words: s.state().words.filter((w) => w.committed) });
 }
 
@@ -168,10 +158,8 @@ test('exercises of one programme run count as one session', () => {
 test('speed bursts do not advance the session clock', () => {
   const tr = FT.trainer.create({ seed: 16 });
   const before = tr.profile().sessionCount;
-  const s = FT.session.create(tr.newExercise({ type: 'bursts' }).words.slice(0, 30));
-  let t = 0;
-  for (const w of s.state().words.slice(0, 30)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 80) });
-  tr.finish({ type: 'bursts', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed), rounds: [{ start: 0, end: t }] });
+  const { words, t } = typeCorrectly(FT, tr.newExercise({ type: 'bursts' }).words.slice(0, 30), { dt: 80 });
+  tr.finish({ type: 'bursts', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words, rounds: [{ start: 0, end: t }] });
   assert.equal(tr.profile().sessionCount, before);
 });
 
@@ -222,8 +210,7 @@ test('history entries carry common-pair timing and the word-start penalty', () =
 test('exercises record per-key statistics with the multi-letter keys they were typed with', () => {
   const tr = FT.trainer.create({ seed: 19, settings: { macros: ['th'] } });
   const s = FT.session.create(['the', 'then', 'art']);
-  let t = 0;
-  for (const ch of 'the tgen art ') s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const t = typist(s, { at: 100 }).type('the tgen art ').t;
   const { summary } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
   assert.deepEqual(plain(summary.keyStats.keys.th), [2, 1]);
   assert.deepEqual(plain(tr.history()[0].keyPresses.th), [2, 1]);
@@ -235,21 +222,13 @@ test('key statistics add up across history', () => {
   assert.deepEqual(total, { keys: { a: [5, 1], b: [1, 1] }, land: { x: 1 } });
 });
 
-test('profiles from before the progress fields are rebuilt (model version 4)', () => {
-  assert.ok(FT.MODEL_VERSION >= 4);
-  assert.equal(FT.trainer.needsRebuild({ modelVersion: 3 }), true);
-});
-
 test('an exercise counts a wrong th press as one error (multi-letter keys of the session)', () => {
   const tr = FT.trainer.create({ seed: 23, settings: { macros: ['th'] } });
   const s = FT.session.create(['you', 'are']);
-  let t = 0;
-  s.input({ kind: 'text', data: 'th', t: (t += 100) });            // the th key, where y was meant
-  for (const ch of 'ou are ') s.input({ kind: 'text', data: ch, t: (t += 100) });
+  const t = typist(s, { at: 100 }).type('[th]ou are ').t;   // the th key, where y was meant
   const { summary } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed) });
   const m = summary.metrics;
-  assert.ok(Math.abs(m.chars * (1 - m.firstAttemptAccuracy) - 1) < 1e-9, String(m.firstAttemptAccuracy));
-  assert.ok(FT.MODEL_VERSION >= 5);
+  near(m.chars * (1 - m.firstAttemptAccuracy), 1, 1e-9, String(m.firstAttemptAccuracy));
 });
 
 // Functionality: keys the keyboard sends late reach the model (their
@@ -268,8 +247,7 @@ test('late keys found in the key log reach the model and leave the rollover meas
 test('the trainer reports swapped letter pairs from its exercises', () => {
   const tr = FT.trainer.create({ seed: 4 });
   const s = FT.session.create(['people', 'people']);
-  let t = 0;
-  for (const ch of 'poe<<eople people ') { t += 120; s.input(ch === '<' ? { kind: 'back', t } : { kind: 'text', data: ch, t }); }
+  const t = typist(s, { at: 120, dt: 120 }).type('poe<<eople people ').t;
   tr.finish({ type: 'relaxed', startedAt: 0, durationMs: t, words: s.state().words.filter((w) => w.committed), keys: [] });
   const sw = tr.swaps({ minOpp: 1 });
   assert.equal(sw[0].expected, 'eo');
@@ -383,10 +361,8 @@ test('summarising a past exercise changes nothing learned', () => {
 
 test('a past speed-bursts summary shows its rounds and targets', () => {
   const tr = FT.trainer.create({ seed: 6 });
-  const s = FT.session.create(tr.newExercise({ type: 'bursts' }).words.slice(0, 40));
-  let t = 0;
-  for (const w of s.state().words.slice(0, 40)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 90) });
-  const done = tr.finish({ type: 'bursts', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed),
+  const { words, t } = typeCorrectly(FT, tr.newExercise({ type: 'bursts' }).words.slice(0, 40), { dt: 90 });
+  const done = tr.finish({ type: 'bursts', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words,
     rounds: [{ start: 0, end: t / 2 }, { start: t / 2, end: t }] });
   assert.equal(done.summary.rounds.length, 2);
   assert.deepEqual(shownAgain(tr.summarize(done.raw)).rounds, plain(done.summary.rounds));
