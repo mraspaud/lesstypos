@@ -256,3 +256,7 @@ details.tableview summary { cursor: pointer; color: var(--muted); }
 .focuslist li { cursor: pointer; }
 .focuslist li.selected .rowbtn { text-decoration: underline; text-underline-offset: 4px; }
 details > summary { cursor: pointer; font-weight: 600; }
+
+.status a.big { font-size: inherit; font-weight: 700; color: var(--accent); text-decoration: none; }
+.status a.big:hover, .status a.big:focus-visible { text-decoration: underline; }
+.row.more { align-items: center; }

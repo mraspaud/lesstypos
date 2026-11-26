@@ -600,6 +600,21 @@ await step('three sections by number keys; tabs by [ ] and arrows; old addresses
   await page.locator('[data-stab="settings/texts"][aria-current="page"]').waitFor();
 });
 
+
+await step('home: one primary action, a few alternatives by key, three numbers', async () => {
+  await page.keyboard.press('1');
+  assert.equal(await page.locator('.status > div').count(), 3);
+  await page.getByRole('button', { name: /Enter/ }).first().waitFor();       // the key hint is on the button
+  await page.keyboard.press('r');
+  await page.locator('.w').first().waitFor();
+  assert.match(await page.locator('.ex-head .name').textContent(), /Relaxed practice/);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('b');
+  await page.locator('.w').first().waitFor();
+  assert.match(await page.locator('.ex-head .name').textContent(), /Benchmark/);
+  await page.keyboard.press('Escape');
+});
+
 await step('phone width has no horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   for (const k of ['p', 't', 'q', 'h', 's', 'd']) {

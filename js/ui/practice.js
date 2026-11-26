@@ -20,48 +20,52 @@
   function today() { return U.today.apply(null, arguments); }
 
   // ---------- home ----------
+  // One primary action (Enter), a few alternatives by key, three numbers.
   function viewHome() {
     var t = app.trainer, d = t.difficulty.state(), h = t.history();
-    var targets = t.targets().slice(0, 6);
+    var targets = t.targets();
     var relaxed = h.filter(function (x) { return x.type === 'relaxed'; });
     var last = relaxed[relaxed.length - 1];
     var def = programmeDef(), run = FT.programme.resume(app.settings.programmeRun, today());
     var steps = def.steps.filter(function (x) { return x.enabled; });
+    var first = targets[0];
     var html = '<section class="home-start">' +
       '<h1>Daily training</h1>' +
       '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + x.minutes + ' min'; }).join(' · ') + '.</p>' +
       '<div class="row">' +
-      (run ? '<button class="btn primary" type="button" id="resume">Resume: ' + esc(EXERCISES[run.current().type].name.toLowerCase()) + ' (' + (run.results().length + 1) + ' of ' + (run.results().length + run.upcoming().length) + ')</button>' +
+      (run ? '<button class="btn primary" type="button" id="resume">Resume: ' + esc(EXERCISES[run.current().type].name.toLowerCase()) + ' (' + (run.results().length + 1) + ' of ' + (run.results().length + run.upcoming().length) + ') <kbd>Enter</kbd></button>' +
         '<button class="btn" type="button" id="prog">Start over</button>'
-        : '<button class="btn primary" type="button" id="prog">Start daily training · ' + FT.programme.totalMinutes(def) + ' min</button>') +
-      '<span class="muted">or press <kbd>Enter</kbd></span></div>' +
-      '<div class="row"><button class="btn" type="button" id="start">Relaxed practice only · ' + app.settings.durationMin + ' min</button>' +
-      '<button class="btn" type="button" id="bench">Benchmark · 3 × 1 min</button><span class="muted">' + benchmarkDue(h) + '</span></div>' +
+        : '<button class="btn primary" type="button" id="prog">Start daily training · ' + FT.programme.totalMinutes(def) + ' min <kbd>Enter</kbd></button>') +
+      '</div>' +
+      '<div class="row more"><span class="muted">More:</span>' +
+      '<button class="btn" type="button" id="start">Relaxed practice only · ' + app.settings.durationMin + ' min <kbd>r</kbd></button>' +
+      '<button class="btn" type="button" id="bench">Benchmark · 3 × 1 min <kbd>b</kbd></button>' +
+      (first ? '<button class="btn" type="button" id="one">Practise ' + seq(first.key) + ' · 3 min <kbd>f</kbd></button>' : '') +
+      '<span class="muted">' + benchmarkDue(h) + '</span></div>' +
       '</section>' +
-      '<section class="stack"><h3>Where you are</h3><div class="status">' +
-      '<div><b class="num">' + Math.round(d.frontier) + '</b><span>common words in use' + (d.manual ? ' (fixed)' : '') + '</span></div>' +
-      '<div><b class="num">' + t.targets().length + '</b><span>in the focus list</span></div>' +
-      '<div><b class="num">' + h.length + '</b><span>exercises so far</span></div>' +
-      (last ? '<div><b class="num">' + fix(last.wpm) + ' · ' + pct(last.faa) + '</b><span>last relaxed WPM · accuracy</span></div>' : '') +
+      '<section class="stack"><div class="status">' +
+      '<div><b class="num">' + Math.round(d.frontier).toLocaleString('en-US') + '</b><span>common words in use' + (d.manual ? ' (fixed)' : '') + '</span></div>' +
+      '<div><a class="num big" href="#insights/focus">' + targets.length + '</a><span>in the focus list</span></div>' +
+      '<div><b class="num">' + (last ? fix(last.wpm) + ' · ' + pct(last.faa) : '–') + '</b><span>last relaxed WPM · accuracy</span></div>' +
       '</div></section>';
-    if (targets.length) {
-      html += '<section class="stack"><h3>Focus list</h3><div class="row">' +
-        targets.map(function (x) { return seq(x.key) + ' ' + FT.fmt.stagePill(x.stage); }).join('&nbsp;&nbsp;') + '</div>' +
-        '<p class="muted">These sequences will appear inside ordinary words. <a href="#insights/focus">Why these?</a></p></section>';
-    } else if (!h.length) {
+    if (!h.length) {
       html += '<section class="stack panel"><h2>How this works</h2>' +
         '<p>LessTypos watches every keystroke and learns which letter sequences, including those across spaces, cost you errors or hesitation. ' +
         'Later exercises weave those sequences into everyday words, while about a fifth of the words stay random so progress can be measured fairly.</p>' +
         '<p>Vocabulary grows when your accuracy (first try) stays above 99.5% and typing feels comfortable. It never asks for a minimum speed.</p>' +
-        '<p class="muted">For the prose exercise, add a text you would like to read in <a href="#settings/texts">Settings: Texts</a>. If your keyboard has keys that type several letters at once (such as <span class="seq">th</span>), declare them in <a href="#settings/keyboard">Settings: Keyboard</a>.</p></section>';
+        '<p class="muted">For the prose exercise, add a text you would like to read in <a href="#settings/texts">Settings: Texts</a>. If your keyboard has keys that type several letters at once (such as <span class="seq">th</span>), declare them in <a href="#settings/keyboard">Settings: Keyboard</a>. Press <kbd>?</kbd> for all shortcuts.</p></section>';
     }
     setView(html);
-    document.getElementById('start').onclick = function () { startExercise('relaxed'); };
+    var relaxedOnly = function () { startExercise('relaxed'); };
+    var one = first ? function () { startExercise('targeted', { pinned: [first.key], minutes: 3 }); } : null;
+    document.getElementById('start').onclick = relaxedOnly;
     document.getElementById('bench').onclick = startBenchmark;
     document.getElementById('prog').onclick = function () { startProgramme(null); };
     var r = document.getElementById('resume');
     if (r) r.onclick = function () { startProgramme(run); };
-    app.keys = { Enter: function () { startProgramme(run); } };
+    if (one) document.getElementById('one').onclick = one;
+    app.keys = { Enter: function () { startProgramme(run); }, r: relaxedOnly, b: startBenchmark };
+    if (one) app.keys.f = one;
   }
 
   // ---------- benchmark ----------
