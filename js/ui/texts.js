@@ -57,7 +57,14 @@
         var resume = function () {   // the place as stored now: it may have moved since home was drawn
           app.store.getText(t.id).then(U.onThisScreen(function (now) { startExercise('prose', { text: now || t, free: true }); })).catch(storageError);
         };
-        return { label: 'Continue reading: ' + t.title + (c ? ' · ' + c.title : ''), act: resume };
+        var choice = { label: 'Continue reading: ' + t.title + (c ? ' · ' + c.title : ''), act: resume };
+        if (c && t.pos > c.start) {
+          choice.chapterStart = { label: 'Start of this chapter: ' + c.title, act: function () {
+            app.store.getText(t.id).then(function (now) { now.pos = c.start; return app.store.saveText(now).then(function () { return now; }); })
+              .then(U.onThisScreen(function (now) { startExercise('prose', { text: now, free: true }); })).catch(storageError);
+          } };
+        }
+        return choice;
       }
       if (offer) return { label: 'Read ' + offer.title, act: function () { addBundled().then(function (b) { startExercise('prose', { text: b, free: true }); }).catch(storageError); } };
       return null;
@@ -113,6 +120,13 @@
       }).catch(storageError);
     });
   }
+  // A click handler that asks first: the first press arms the button, the second acts.
+  function onSecondPress(button, askLabel, act) {
+    return function () {
+      if (!button.classList.contains('armed')) { button.classList.add('armed'); button.textContent = askLabel; return; }
+      act();
+    };
+  }
   function viewTexts() {
     Promise.all([app.store.listTexts(), bundledOffer()]).then(U.onThisScreen(function (got) {
       var list = got[0], offer = got[1];
@@ -124,7 +138,8 @@
             return '<tr><td>' + esc(t.title) + (cur ? ' ' + pill('current') : '') + '</td><td class="num">' + t.words.length.toLocaleString() + '</td><td class="num">' +
               '<span data-progress="' + esc(t.id) + '">' + proseProgress(t, t.pos) + '</span>' + chapterChoice(t) + '</td><td><div class="row">' +
               (cur ? '' : '<button class="btn" type="button" data-use="' + esc(t.id) + '">Make current</button>') +
-              (t.pos < t.words.length ? '<button class="btn" type="button" data-type="' + esc(t.id) + '">Type now</button>'
+              (t.pos < t.words.length ? '<button class="btn" type="button" data-type="' + esc(t.id) + '">Type now</button>' +
+                  (t.pos > 0 ? '<button class="btn" type="button" data-startover="' + esc(t.id) + '">Start over</button>' : '')
                 : '<button class="btn" type="button" data-restart="' + esc(t.id) + '">Start over</button>') +
               '<button class="btn danger" type="button" data-del="' + esc(t.id) + '">Delete</button></div></td></tr>';
           }).join('') + '</tbody></table></div>';
@@ -156,11 +171,13 @@
             .then(U.onThisScreen(function (t) { startExercise('prose', { text: t }); }));
         };
       });
+      app.$view.querySelectorAll('[data-startover]').forEach(function (b) {
+        b.onclick = onSecondPress(b, 'Click again to start over', function () {
+          app.store.getText(b.dataset.startover).then(function (t) { t.pos = 0; return app.store.saveText(t); }).then(U.onThisScreen(viewTexts)).catch(storageError);
+        });
+      });
       app.$view.querySelectorAll('[data-del]').forEach(function (b) {
-        b.onclick = function () {
-          if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Click again to delete'; return; }
-          app.store.deleteText(b.dataset.del).then(U.onThisScreen(viewTexts));
-        };
+        b.onclick = onSecondPress(b, 'Click again to delete', function () { app.store.deleteText(b.dataset.del).then(U.onThisScreen(viewTexts)); });
       });
     }));
   }

@@ -1136,6 +1136,32 @@ await step('timed prose that runs out of time ends at the end of the sentence, n
   await page.keyboard.press('0');                             // skip the effort rating
 });
 
+await step('any text can start over, after a second press', async () => {
+  await page.evaluate(async () => { const a = window.FT.app; const t = await a.store.getText('alice'); t.pos = 500; await a.store.saveText(t); });
+  await nav('settings/texts');
+  const again = page.locator('tr', { hasText: 'Alice' }).getByRole('button', { name: 'Start over' });
+  await again.click();
+  assert.equal(await page.evaluate(async () => (await window.FT.app.store.getText('alice')).pos), 500);   // the first press only asks
+  await page.locator('tr', { hasText: 'Alice' }).getByRole('button', { name: /again to start over/ }).click();
+  await page.waitForFunction(async () => (await window.FT.app.store.getText('alice')).pos === 0);
+  await page.locator('tr', { hasText: 'Alice' }).getByText(/word 0 of/).waitFor();   // the page shows it
+});
+
+await step('home goes back to the start of the chapter being read', async () => {
+  await page.evaluate(async () => {
+    const a = window.FT.app; const t = await a.store.getText('alice');
+    t.pos = t.chapters[1].start + 40; await a.store.saveText(t); a.settings.currentText = 'alice';
+  });
+  await nav('home');
+  const back = page.getByRole('button', { name: /Start of this chapter/ });
+  await back.waitFor();
+  await back.click();
+  await page.locator('.w').first().waitFor();
+  assert.equal(await page.locator('.w').first().textContent(), await page.evaluate(async () => { const t = await window.FT.app.store.getText('alice'); return t.words[t.chapters[1].start]; }));
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Delete');
+});
+
 await step('the chapter choice steps with the arrow keys and keeps the focus', async () => {
   await nav('settings/texts');
   const select = page.locator('select[data-chapter="alice"]');

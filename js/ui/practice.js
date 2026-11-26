@@ -44,7 +44,8 @@
     // Drawn at once from the last known way into the book, redrawn if it changed.
     renderHome(app.reading);
     U.readingChoice().then(U.onThisScreen(function (reading) {
-      var changed = (reading && reading.label) !== (app.reading && app.reading.label);
+      var shown = function (r) { return r ? r.label + '|' + (r.chapterStart ? r.chapterStart.label : '') : ''; };
+      var changed = shown(reading) !== shown(app.reading);
       app.reading = reading;
       if (changed) renderHome(reading);
     }));
@@ -58,7 +59,8 @@
         '<div class="row"><button class="btn primary" type="button" id="primary">' + esc(main.label) + ' <kbd>Enter</kbd></button>' +
         (run ? '<button class="btn" type="button" id="restart">Start over</button>' : '') +
         (readingFirst ? '<button class="btn" type="button" id="again">Daily training again · ' + FT.programme.totalMinutes(def) + ' min <kbd>a</kbd></button>'
-          : reading ? '<button class="btn" type="button" id="read">' + esc(reading.label) + ' <kbd>c</kbd></button>' : '') + '</div>' +
+          : reading ? '<button class="btn" type="button" id="read">' + esc(reading.label) + ' <kbd>c</kbd></button>' : '') +
+        (reading && reading.chapterStart ? '<button class="btn" type="button" id="chapterstart">' + esc(reading.chapterStart.label) + '</button>' : '') + '</div>' +
         '<div class="row more"><span class="muted">More:</span>' +
         '<button class="btn" type="button" id="start">Relaxed practice only · ' + esc(String(app.settings.durationMin)) + ' min <kbd>r</kbd></button>' +
         '<button class="btn" type="button" id="bench">Benchmark · 3 × 1 min <kbd>b</kbd></button>' +
@@ -88,6 +90,7 @@
       if (one) document.getElementById('one').onclick = one;
       app.keys = { Enter: main.act, r: relaxedOnly, b: startBenchmark };
       if (one) app.keys.f = one;
+      if (reading && reading.chapterStart) document.getElementById('chapterstart').onclick = reading.chapterStart.act;
       if (reading) { app.keys.c = reading.act; if (!readingFirst) document.getElementById('read').onclick = reading.act; }
       if (readingFirst) { var train = function () { startProgramme(null); }; document.getElementById('again').onclick = train; app.keys.a = train; }
     }
