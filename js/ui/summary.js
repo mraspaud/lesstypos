@@ -37,8 +37,10 @@
       var tags = FT.conditions.parseTags(box.value);
       box.value = tagText(tags);
       app.trainer.tag(ids, tags);
-      Promise.all([app.store.tagSessions(ids, tags), U.saveProfile()]).catch(U.storageError);
-      document.getElementById('tagmsg').textContent = tags.length ? 'Saved: ' + tagText(tags) + '.' : 'Saved without tags.';
+      var msg = document.getElementById('tagmsg');
+      Promise.all([app.store.tagSessions(ids, tags), U.saveProfile()]).then(function () {   // "saved" once it is
+        msg.textContent = tags.length ? 'Saved: ' + tagText(tags) + '.' : 'Saved without tags.';
+      }).catch(U.storageError);
       if (next) next.focus();
     });
     if (focus) box.focus();
