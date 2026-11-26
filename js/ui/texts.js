@@ -32,6 +32,20 @@
       return t || list.filter(function (x) { return x.pos < x.words.length; })[0] || null;
     });
   }
+  // The book that comes with the app, offered until the user has texts of their own.
+  function bundledOffer() {
+    var b = FT.books.bundled();
+    if (!b) return Promise.resolve(null);
+    return app.store.getText(FT.books.BUNDLED_ID).then(function (stored) { return stored ? null : b; });
+  }
+  function addBundled() {
+    var t = FT.books.toText(FT.books.bundled(), FT.books.BUNDLED_ID);
+    return app.store.saveText(t).then(function () {
+      app.settings.currentText = t.id;
+      return saveSettings();
+    }).then(function () { return t; });
+  }
+  function bundledLabel(b) { return b.title + ' · ' + b.author; }
   function textForm() {
     return '<form class="stack" id="tform"><label for="ttitle">Title</label><input type="text" id="ttitle" placeholder="Moby-Dick, chapter 1">' +
       '<label for="tbody">Text</label><textarea id="tbody" class="mono" placeholder="Paste the text here"></textarea>' +
@@ -75,7 +89,8 @@
     });
   }
   function viewTexts() {
-    app.store.listTexts().then(U.onThisScreen(function (list) {
+    Promise.all([app.store.listTexts(), bundledOffer()]).then(U.onThisScreen(function (got) {
+      var list = got[0], offer = list.length ? null : got[1];
       var html = '<section class="stack">' + U.sectionHead('settings') + '<p class="muted">Prose exercises continue the current text from where you stopped. Texts stay in this browser and are included in backups.</p></section>';
       if (list.length) {
         html += '<div class="tablewrap"><table><thead><tr><th>Title</th><th>Words</th><th>Progress</th><th></th></tr></thead><tbody>' +
@@ -89,8 +104,16 @@
               '<button class="btn danger" type="button" data-del="' + esc(t.id) + '">Delete</button></div></td></tr>';
           }).join('') + '</tbody></table></div>';
       }
+      if (offer) {
+        html += '<div class="tablewrap"><table><thead><tr><th>Comes with the app</th><th>Words</th><th></th></tr></thead><tbody><tr><td>' + esc(bundledLabel(offer)) +
+          '</td><td class="num">' + offer.chapters.reduce(function (n, c) { return n + c.words.length; }, 0).toLocaleString() +
+          '</td><td><button class="btn" type="button" id="usebundled">Type now</button></td></tr></tbody></table></div>';
+      }
       html += '<section class="panel stack"><h2>Add a text</h2>' + textForm() + '</section>';
       setView(html);
+      if (offer) document.getElementById('usebundled').onclick = function () {
+        addBundled().then(U.onThisScreen(function (t) { startExercise('prose', { text: t }); })).catch(storageError);
+      };
       bindTextForm(function () { viewTexts(); });
       app.$view.querySelectorAll('[data-use]').forEach(function (b) { b.onclick = function () { app.settings.currentText = b.dataset.use; saveSettings().then(viewTexts); }; });
       app.$view.querySelectorAll('[data-type]').forEach(function (b) {
@@ -116,5 +139,6 @@
     }));
   }
 
-  Object.assign(U, { proseProgress: proseProgress, currentText: currentText, textForm: textForm, bindTextForm: bindTextForm, viewTexts: viewTexts });
+  Object.assign(U, { proseProgress: proseProgress, currentText: currentText, textForm: textForm, bindTextForm: bindTextForm, viewTexts: viewTexts,
+    bundledOffer: bundledOffer, addBundled: addBundled, bundledLabel: bundledLabel });
 })(globalThis.FT);

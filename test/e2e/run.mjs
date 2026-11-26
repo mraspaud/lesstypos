@@ -645,13 +645,6 @@ await step('in a text box, Esc leaves it and Ctrl+Enter submits it', async () =>
   await page.locator('[data-go="home"][aria-current="page"]').waitFor();
 });
 
-await step('"Prose needs a text" puts the cursor in the text box', async () => {
-  await page.evaluate(() => window.FT.ui.viewNeedText({ type: 'prose', minutes: 1 }));
-  await page.getByText('Prose needs a text').waitFor();
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'tbody');
-  await page.keyboard.press('Escape');
-  await page.keyboard.press('1');
-});
 
 
 // ---- review of the UI iteration ----
@@ -971,6 +964,51 @@ await step('a long text added before chapters existed says how to get them', asy
   });
   await page.keyboard.press('t');
   await page.locator('tr', { hasText: 'Old plain book' }).getByText(/add it again from its EPUB/).waitFor();
+});
+
+
+await step('with no texts, prose starts in Alice in Wonderland', async () => {
+  await page.evaluate(async () => {
+    for (const t of await window.FT.app.store.listTexts()) await window.FT.app.store.deleteText(t.id);
+    window.FT.app.settings.currentText = null;
+  });
+  await nav('settings/texts');
+  await page.locator('tr', { hasText: 'Alice' }).waitFor();
+  await page.locator('tr', { hasText: 'Alice' }).getByRole('button', { name: /Type now/ }).click();
+  await page.locator('.w').first().waitFor();
+  assert.equal(await page.locator('.w').first().textContent(), 'Alice');
+  assert.match(await page.locator('.ex-head').textContent(), /Down the Rabbit-Hole/);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Delete');
+});
+
+await step('"Prose needs a text" offers Alice in Wonderland on Enter, else the text box', async () => {
+  const noTexts = () => page.evaluate(async () => {
+    for (const t of await window.FT.app.store.listTexts()) await window.FT.app.store.deleteText(t.id);
+    window.FT.app.settings.currentText = null;
+  });
+  const startProseTraining = async () => {
+    await page.keyboard.press('1');
+    await page.getByRole('button', { name: /Start (daily training|over)/ }).first().click();
+    await page.getByText('Prose needs a text').waitFor();
+  };
+  await withProgramme([{ type: 'prose', minutes: 0.1, enabled: true }], async () => {
+    await noTexts();
+    await startProseTraining();
+    assert.match(await page.evaluate(() => document.activeElement.textContent), /Alice/);
+    await page.keyboard.press('Enter');
+    await page.locator('.w').first().waitFor();
+    assert.equal(await page.locator('.w').first().textContent(), 'Alice');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Delete');
+    await page.evaluate(async () => {                        // Alice already added and finished
+      const t = await window.FT.app.store.getText('alice'); t.pos = t.words.length; await window.FT.app.store.saveText(t);
+    });
+    await startProseTraining();
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'tbody');
+    await page.keyboard.press('Escape');
+  });
+  await page.keyboard.press('1');
 });
 
 await step('phone width has no horizontal scroll', async () => {

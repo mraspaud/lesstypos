@@ -193,5 +193,14 @@
     return found;
   }
 
-  FT.books = { fromEpub: fromEpub, fromText: fromText, toText: toText, chapterAt: chapterAt, readXhtml: readXhtml };
+  var BUNDLED_ID = 'alice';
+  function bundled() {
+    var b = FT.data && FT.data.alice;
+    if (!b) return null;
+    return { title: b.title, author: b.author, start: 0,
+      chapters: b.chapters.map(function (c) { return { title: c.title, words: c.text.split(' ') }; }) };
+  }
+
+  FT.books = { fromEpub: fromEpub, fromText: fromText, toText: toText, chapterAt: chapterAt, readXhtml: readXhtml,
+    bundled: bundled, BUNDLED_ID: BUNDLED_ID };
 })(globalThis.FT);

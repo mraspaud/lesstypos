@@ -68,3 +68,16 @@ test('a paragraph opening in capitals for typography is typed in normal case', (
   assert.deepEqual(words.slice(0, 2), ['There', 'was']);
   assert.ok(words.includes('NASA') && words.includes('BBC'));
 });
+
+// Functionality: a book comes with the app, so prose works from the start.
+test('Alice in Wonderland comes with the app, ready at Chapter I', () => {
+  const alice = FT.books.bundled();
+  assert.equal(alice.title, 'Alice’s Adventures in Wonderland');
+  assert.equal(alice.chapters.length, 12);
+  assert.equal(alice.chapters[0].title, 'CHAPTER I. Down the Rabbit-Hole');
+  assert.equal(alice.chapters[0].words.slice(0, 4).join(' '), 'Alice was beginning to');
+  assert.equal(alice.start, 0);
+  const stored = FT.books.toText(alice, 'alice');
+  assert.equal(stored.pos, 0);
+  assert.ok(stored.words.length > 25000);
+});

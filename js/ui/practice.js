@@ -205,13 +205,22 @@
   function viewNeedText(c) {
     app.current = 'needtext';
     renderNav();
-    setView('<section class="stack"><h1>Prose needs a text</h1><p>Paste something you would enjoy reading: a chapter, an article, a public-domain book from Project Gutenberg. ' +
-      'LessTypos remembers where you stop.</p>' + textForm() +
-      '<div class="row"><button class="btn" type="button" id="skipprose">Skip prose today</button></div></section>');
-    bindTextForm(function () { runStep(); });
-    document.getElementById('tbody').focus();
-    document.getElementById('skipprose').onclick = function () { app.run.skip(); saveRun(); viewBetween(); };
-    app.keys = { Escape: function () { go('home'); } };
+    U.bundledOffer().then(U.onThisScreen(function (offer) {
+      setView('<section class="stack"><h1>Prose needs a text</h1>' +
+        (offer ? '<div class="row"><button class="btn primary" type="button" id="usebundled">Type ' + esc(U.bundledLabel(offer)) + '</button></div>' +
+          '<p class="muted">It comes with the app. Or add a text you would enjoy reading:</p>'
+          : '<p>Paste something you would enjoy reading: a chapter, an article, a public-domain book from Project Gutenberg. LessTypos remembers where you stop.</p>') +
+        textForm() +
+        '<div class="row"><button class="btn" type="button" id="skipprose">Skip prose today</button></div></section>');
+      bindTextForm(function () { runStep(); });
+      if (offer) {
+        var use = document.getElementById('usebundled');
+        use.onclick = function () { U.addBundled().then(U.onThisScreen(function () { runStep(); })).catch(U.storageError); };
+        use.focus();
+      } else document.getElementById('tbody').focus();
+      document.getElementById('skipprose').onclick = function () { app.run.skip(); saveRun(); viewBetween(); };
+      app.keys = { Escape: function () { go('home'); } };
+    }));
   }
   function viewProgrammeSummary() {
     app.current = 'summary';
