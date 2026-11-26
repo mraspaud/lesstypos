@@ -75,22 +75,30 @@
     return { wpm: ref.keystrokes.length / 5 / (totalMs / 60000), coverage: covered / pressed };
   }
 
-  // The scale: per population, the mean of the mean clean intervals
-  // (FT.timing meanMs) of the last SCALE_EXERCISES comparable relaxed
-  // exercises that pass filter, and the mean of their costs per error (0 when
-  // none had an error); null before MIN_SCALE_EXERCISES of them.
-  // Design choices: 5 and 3. Relaxed practice is the pace the index is about.
+  // The last SCALE_EXERCISES comparable relaxed exercises with measured mean
+  // intervals (FT.timing meanMs) that pass filter. Design choice: 5. Relaxed
+  // practice is the pace the index is about.
   var SCALE_EXERCISES = 5, MIN_SCALE_EXERCISES = 3;
-  function scale(history, filter) {
-    var picked = history.filter(function (h) {
+  function recent(history, filter) {
+    return history.filter(function (h) {
       return FT.history.isComparableRelaxed(h) && h.meanMs && h.meanMs.within != null && h.meanMs.initial != null && (!filter || filter(h));
     }).slice(-SCALE_EXERCISES);
+  }
+  var meanOf = function (entries, value) { return FT.stats.mean(entries.map(value).filter(function (v) { return v != null; })); };
+  // The mean cost per error of exercises (FT.timing correction), or null when
+  // none had an error.
+  function errorCostMs(entries) { return meanOf(entries, function (h) { return h.errorCostMs; }); }
+
+  // The scale: per population, the mean of the mean clean intervals of the
+  // recent exercises, and the mean of their costs per error (0 when none had
+  // an error); null before MIN_SCALE_EXERCISES of them (design choice: 3).
+  function scale(history, filter) {
+    var picked = recent(history, filter);
     if (picked.length < MIN_SCALE_EXERCISES) return null;
-    var meanOf = function (value) { return FT.stats.mean(picked.map(value).filter(function (v) { return v != null; })); };
     return {
-      within: meanOf(function (h) { return h.meanMs.within; }),
-      initial: meanOf(function (h) { return h.meanMs.initial; }),
-      errorCostMs: FT.valueOr(meanOf(function (h) { return h.errorCostMs; }), 0),
+      within: meanOf(picked, function (h) { return h.meanMs.within; }),
+      initial: meanOf(picked, function (h) { return h.meanMs.initial; }),
+      errorCostMs: FT.valueOr(errorCostMs(picked), 0),
     };
   }
   // Variant B's exercises: rated effort 1 or 2 of 5.
@@ -105,6 +113,6 @@
     return { wpm: a.wpm, effortlessWpm: low ? predict(evaluation, low, ref, opts).wpm : undefined, coverage: a.coverage };
   }
 
-  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, scale: scale, effortless: effortless, index: index,
+  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, recent: recent, errorCostMs: errorCostMs, scale: scale, effortless: effortless, index: index,
     REFERENCE_WORDS: REFERENCE_WORDS, MIN_SCALE_EXERCISES: MIN_SCALE_EXERCISES, EFFORTLESS_MAX: EFFORTLESS_MAX };
 })(globalThis.FT);
