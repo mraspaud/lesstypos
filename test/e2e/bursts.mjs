@@ -80,7 +80,7 @@ export default async function bursts() {
       await page.getByText('Benchmark result').waitFor();
       await page.getByText('WPM (median of 3 trials)').waitFor();
       if (shots) await page.screenshot({ path: shots + '/benchmark.png', fullPage: true });
-      const n = await page.evaluate(() => { const b = window.FT.app.trainer.history().filter((h) => h.type === 'benchmark'); const last = b[b.length - 1].benchmarkSet; return b.filter((h) => h.benchmarkSet === last).length; });
+      const n = await page.evaluate(() => { const b = window.FT.ui.app.trainer.history().filter((h) => h.type === 'benchmark'); const last = b[b.length - 1].benchmarkSet; return b.filter((h) => h.benchmarkSet === last).length; });
       assert.equal(n, 3);
       await page.keyboard.press('Enter');
       await page.getByRole('button', { name: /Benchmark/ }).waitFor();

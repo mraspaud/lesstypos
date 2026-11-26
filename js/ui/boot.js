@@ -61,7 +61,6 @@
     }).catch(function (e) {
       app.$view.innerHTML = '<p class="notice">LessTypos could not start: ' + FT.fmt.esc(e && e.message || e) + '</p>';
     });
-    FT.app = app;
     FT.ready = ready;
   }
 

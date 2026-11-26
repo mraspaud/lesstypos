@@ -247,13 +247,21 @@
     return kept.length ? kept : als;
   }
 
+  // Disjoint sets over 0..n-1 (union by linking roots, path halving).
+  function unionFind(n) {
+    var parent = [];
+    for (var i = 0; i < n; i++) parent.push(i);
+    function find(i) { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; }
+    return { find: find, union: function (into, other) { parent[find(other)] = find(into); } };
+  }
+
   // Wrong first attempts typed by the same press are one mistake; so are an
   // omitted letter and a substituted letter of the same target press (one key
   // pressed where a multi-letter key was meant). Separate wrong presses stay
   // separate. Each group totals one error. Omissions are not linked through
   // the keystroke that followed them. (Design choice, user decision.)
   function sharePressErrors(first, presses, links) {
-    var groups = FT.presses.unionFind(first.length);
+    var groups = unionFind(first.length);
     (links || []).forEach(function (l) { groups.union(l[0], l[1]); }); // a transposition is one error
     var byTyped = {};
     first.forEach(function (f, pos) {

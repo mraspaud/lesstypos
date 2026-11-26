@@ -216,7 +216,7 @@
       substitutions: function (o) { return subs.matrix(o); },
       swaps: function (o) { return subs.swaps(o); },
       difficulty: difficulty, model: model, corpus: corpus,
-      bursts: { target: function () { return bursts.peek(history); }, step: FT.bursts.step,
+      bursts: { target: function () { return bursts.peek(history); },
         reference: function () { return FT.bursts.relaxedMedian(history); } },
       history: function () { return history; },
       // Tags typed after the exercises were processed (the raw records get them too).

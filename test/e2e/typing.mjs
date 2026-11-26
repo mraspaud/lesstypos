@@ -227,7 +227,7 @@ export default async function typing() {
     await typeWords(page, 14);
     await finishWithEffort(page, 0);
     await page.getByText(/finished/).waitFor();
-    const first = await page.evaluate(() => window.FT.app.store.listSessions().then((l) => l[l.length - 1].keys[0]));
+    const first = await page.evaluate(() => window.FT.ui.app.store.listSessions().then((l) => l[l.length - 1].keys[0]));
     assert.equal(first.k, 'd');
   });
 

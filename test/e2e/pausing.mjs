@@ -91,7 +91,7 @@ export default async function pausing() {
 
   await step('a page that finishes loading after an exercise has started does not replace it', async () => {
     await page.evaluate(() => { window.FT.ui.viewTexts(); window.FT.ui.startExercise('relaxed', { minutes: 1 }); });
-    await page.evaluate(() => window.FT.app.store.listTexts().then(() => window.FT.app.store.listTexts()));   // the texts page's data has come
+    await page.evaluate(() => window.FT.ui.app.store.listTexts().then(() => window.FT.ui.app.store.listTexts()));   // the texts page's data has come
     assert.ok(await page.locator('#window').isVisible());
     await page.keyboard.press('Escape');
   });

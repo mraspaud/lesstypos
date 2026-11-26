@@ -50,13 +50,5 @@
     return out;
   }
 
-  // Disjoint sets over 0..n-1 (union by linking roots, path halving).
-  function unionFind(n) {
-    var parent = [];
-    for (var i = 0; i < n; i++) parent.push(i);
-    function find(i) { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; }
-    return { find: find, union: function (into, other) { parent[find(other)] = find(into); } };
-  }
-
-  FT.presses = { ids: ids, ofTarget: ofTarget, unionFind: unionFind, MACRO_GAP_MS: MACRO_GAP_MS };
+  FT.presses = { ids: ids, ofTarget: ofTarget, MACRO_GAP_MS: MACRO_GAP_MS };
 })(globalThis.FT);

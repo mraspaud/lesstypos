@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import { step, freshPage, closePage, nav, reload, startExercise, typeWords, finishWithEffort, effortQuestion, effortReady, history,
   historyLength, practise, seedExercises, discard } from './harness.mjs';
 
-const lastEffort = (page) => page.evaluate(() => window.FT.app.trainer.history().slice(-1)[0].effort);
-const storedTags = (page) => page.evaluate(async () => (await window.FT.app.store.getSession(window.FT.app.trainer.history().at(-1).id)).tags);
+const lastEffort = (page) => page.evaluate(() => window.FT.ui.app.trainer.history().slice(-1)[0].effort);
+const storedTags = (page) => page.evaluate(async () => (await window.FT.ui.app.store.getSession(window.FT.ui.app.trainer.history().at(-1).id)).tags);
 // The last exercise, as if done hours ago.
-const hoursAgo = (page, hours) => page.evaluate((ms) => { const last = window.FT.app.trainer.history().at(-1); last.startedAt -= ms; last.endedAt -= ms; }, hours * 3600e3);
-const storedTagsOf = (page, ids) => page.evaluate((list) => Promise.all(list.map(async (id) => (await window.FT.app.store.getSession(id)).tags || null)), ids);
-const lastIds = (page, n) => page.evaluate((count) => window.FT.app.trainer.history().slice(-count).map((h) => h.id), n);
+const hoursAgo = (page, hours) => page.evaluate((ms) => { const last = window.FT.ui.app.trainer.history().at(-1); last.startedAt -= ms; last.endedAt -= ms; }, hours * 3600e3);
+const storedTagsOf = (page, ids) => page.evaluate((list) => Promise.all(list.map(async (id) => (await window.FT.ui.app.store.getSession(id)).tags || null)), ids);
+const lastIds = (page, n) => page.evaluate((count) => window.FT.ui.app.trainer.history().slice(-count).map((h) => h.id), n);
 // Pauses and saves the exercise on view; waits for the effort question.
 async function saveAndAsk(page) {
   await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
@@ -33,7 +33,7 @@ export default async function effort() {
     await page.getByText(/Press 1–5/).waitFor();
     await effortReady(page);
     await page.keyboard.press('2');
-    await page.waitForFunction((n) => window.FT.app.trainer.history().length > n, before);
+    await page.waitForFunction((n) => window.FT.ui.app.trainer.history().length > n, before);
     assert.equal(await lastEffort(page), 2);
   });
 
@@ -76,7 +76,7 @@ export default async function effort() {
     await startExercise(page, 'relaxed', { minutes: 1 });
     await typeWords(page, 14);
     await saveAndAsk(page);
-    await page.waitForFunction(() => window.FT.app.store.getDraft().then((d) => !!d));
+    await page.waitForFunction(() => window.FT.ui.app.store.getDraft().then((d) => !!d));
     await reload(page);
     await effortQuestion(page).waitFor();
     await effortReady(page);
@@ -85,7 +85,7 @@ export default async function effort() {
     const h = await history(page);
     assert.equal(h.length, before + 1);
     assert.equal(h[h.length - 1].effort, 3);
-    await page.waitForFunction(() => window.FT.app.store.getDraft().then((d) => !d));
+    await page.waitForFunction(() => window.FT.ui.app.store.getDraft().then((d) => !d));
     await reload(page);
     assert.equal(await effortQuestion(page).count(), 0);
   });
@@ -123,7 +123,7 @@ export default async function effort() {
     await page.locator('#tags').press('Enter');
     await page.getByText(/Saved: #desk/).waitFor();
     await page.waitForFunction(async () => {
-      const s = await window.FT.app.store.getSession(window.FT.app.trainer.history().at(-1).id);
+      const s = await window.FT.ui.app.store.getSession(window.FT.ui.app.trainer.history().at(-1).id);
       return JSON.stringify(s.tags) === '["desk"]';
     });
   });

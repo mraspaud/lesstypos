@@ -29,7 +29,7 @@ export async function step(name, fn) {
 
 // ---------- pages ----------
 const EFFORT_QUESTION = 'How much effort did that take?';
-export const ready = (page) => page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+export const ready = (page) => page.waitForFunction(() => window.FT && window.FT.ui && window.FT.ui.app.trainer);
 
 // A new page in its own browser context, so its storage starts empty.
 // cards: whether instruction cards come before exercises (off, so steps type at once).
@@ -47,16 +47,16 @@ export async function closePage(page) { await page.context().close(); }
 export async function reload(page) { await page.reload(); await ready(page); }
 
 export const nav = (page, route) => page.evaluate((r) => window.FT.ui.go(r), route);
-export const showCards = (page, on) => page.evaluate(async (v) => { window.FT.app.settings.showInstructions = v; await window.FT.ui.saveSettings(); }, on);
+export const showCards = (page, on) => page.evaluate(async (v) => { window.FT.ui.app.settings.showInstructions = v; await window.FT.ui.saveSettings(); }, on);
 // Settings changed and saved as the settings page would.
-export const saveSettings = (page, change) => page.evaluate(async (c) => { Object.assign(window.FT.app.settings, c); await window.FT.ui.saveSettings(); }, change);
-export const history = (page) => page.evaluate(() => window.FT.app.trainer.history());
-export const historyLength = (page) => page.evaluate(() => window.FT.app.trainer.history().length);
+export const saveSettings = (page, change) => page.evaluate(async (c) => { Object.assign(window.FT.ui.app.settings, c); await window.FT.ui.saveSettings(); }, change);
+export const history = (page) => page.evaluate(() => window.FT.ui.app.trainer.history());
+export const historyLength = (page) => page.evaluate(() => window.FT.ui.app.trainer.history().length);
 export const current = (page) => page.evaluate(() => window.FT.ui.app.current);
 export const activeId = (page) => page.evaluate(() => document.activeElement.id);
-export const exportBackup = (page) => page.evaluate(() => window.FT.app.store.exportAll().then((d) => JSON.parse(JSON.stringify(d))));
+export const exportBackup = (page) => page.evaluate(() => window.FT.ui.app.store.exportAll().then((d) => JSON.parse(JSON.stringify(d))));
 export async function importBackup(page, backup, mode = 'replace') {
-  await page.evaluate(async ([d, m]) => { await window.FT.app.store.importAll(d, { mode: m }); await window.FT.ui.reloadFromStore(m === 'merge'); }, [backup, mode]);
+  await page.evaluate(async ([d, m]) => { await window.FT.ui.app.store.importAll(d, { mode: m }); await window.FT.ui.reloadFromStore(m === 'merge'); }, [backup, mode]);
 }
 
 // ---------- the daily training ----------
@@ -66,12 +66,12 @@ export const START_TRAINING = /Start (daily training|over)|Daily training again/
 const steps = (types, minutes = 0.1) => types.map((type) => ({ type, minutes, enabled: true }));
 export async function setProgramme(page, types, minutes) {
   await saveSettings(page, { programme: { name: 'test', steps: steps(types, minutes) }, programmeRun: null });
-  await page.evaluate(() => { window.FT.app.run = null; });
+  await page.evaluate(() => { window.FT.ui.app.run = null; });
 }
 // Runs fn with a daily-training definition (step objects), restoring the
 // default afterwards even when fn fails.
 export async function withProgramme(page, stepList, fn) {
-  const reset = (st) => { const a = window.FT.app; a.settings.programme = st && { name: 'test', steps: st }; a.settings.programmeRun = null; a.run = null; };
+  const reset = (st) => { const a = window.FT.ui.app; a.settings.programme = st && { name: 'test', steps: st }; a.settings.programmeRun = null; a.run = null; };
   await page.evaluate(reset, stepList);
   try { await fn(); } finally { await page.evaluate(reset, null); }
 }
@@ -105,7 +105,7 @@ export async function typeNextWord(page, delay = 8) {
 export const typedCount = (page) => page.evaluate(() => document.querySelectorAll('.w .l.ok, .w .l.bad').length);
 
 // After the timer or the text ends an exercise, keys are ignored for a moment.
-export const effortReady = (page) => page.waitForFunction(() => Date.now() >= (window.FT.app.effortGuardUntil || 0));
+export const effortReady = (page) => page.waitForFunction(() => Date.now() >= (window.FT.ui.app.effortGuardUntil || 0));
 export const effortQuestion = (page) => page.getByText(EFFORT_QUESTION);
 // Types the next words until the effort question appears and takes keys.
 export async function typeUntilEffort(page, limitMs = 60000) {
@@ -148,7 +148,7 @@ export async function discard(page) { await page.keyboard.press('Escape'); await
 export async function seedExercises(page, opts = {}) {
   const o = Object.assign({ count: 1, type: 'relaxed', words: 60, slips: 0.04, slipsAfter: [], effort: 2, run: null, tags: null, set: null, seed: 1 }, opts);
   await page.evaluate(async (o) => {
-    const FT = window.FT, U = FT.ui, app = FT.app, rng = FT.rng(o.seed);
+    const FT = window.FT, U = FT.ui, app = FT.ui.app, rng = FT.rng(o.seed);
     const before = (await app.store.listSessions()).length;
     for (let i = 0; i < o.count; i++) {
       const ex = app.trainer.newExercise({ type: o.type, run: o.run });
@@ -180,16 +180,16 @@ export async function seedExercises(page, opts = {}) {
 // A text for prose, stored (and made the current one unless current: false).
 export async function seedText(page, text, { current = true } = {}) {
   await page.evaluate(async ([t, c]) => {
-    const app = window.FT.app;
+    const app = window.FT.ui.app;
     await app.store.saveText(Object.assign({ addedAt: Date.now(), pos: 0 }, t));
     if (c) { app.settings.currentText = t.id; await window.FT.ui.saveSettings(); }
   }, [text, current]);
 }
-export const storedText = (page, id) => page.evaluate((i) => window.FT.app.store.getText(i), id);
+export const storedText = (page, id) => page.evaluate((i) => window.FT.ui.app.store.getText(i), id);
 export async function removeTexts(page) {
   await page.evaluate(async () => {
-    for (const t of await window.FT.app.store.listTexts()) await window.FT.app.store.deleteText(t.id);
-    window.FT.app.settings.currentText = null;
+    for (const t of await window.FT.ui.app.store.listTexts()) await window.FT.ui.app.store.deleteText(t.id);
+    window.FT.ui.app.settings.currentText = null;
   });
 }
 // A layout with multi-letter keys (th, qu), as typed in Settings: Keyboard.

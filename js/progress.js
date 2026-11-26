@@ -66,11 +66,6 @@
     return v.length ? FT.stats.median(v) : null;
   }
 
-  // Comparable progress series (comparable sessions only, one point per day):
-  //   relaxed       comparable relaxed practice (FT.history.isComparableRelaxed): WPM, accuracy, effort, rhythm, word-start penalty;
-  //   benchmark     complete sets of 3 trials (median and range);
-  //   commonPairMs  common-pair timing from relaxed practice (one exercise
-  //                 type, so comparable), weighted by the number of intervals behind each.
 
   // Complete benchmark sets (3 full trials), oldest first.
   function completeSets(history) {
@@ -90,6 +85,11 @@
     var days = last ? FT.days.between(last.startedAt, now) : null;
     return { last: last, days: days, due: !last || days >= DUE_DAYS };
   }
+  // Comparable progress series (comparable sessions only, one point per day):
+  //   relaxed       comparable relaxed practice (FT.history.isComparableRelaxed): WPM, accuracy, effort, rhythm, word-start penalty;
+  //   benchmark     complete sets of 3 trials (median and range);
+  //   commonPairMs  common-pair timing from relaxed practice (one exercise
+  //                 type, so comparable), weighted by the number of intervals behind each.
   function series(history) {
     var relaxed = history.filter(FT.history.isComparableRelaxed);
     var effort = function (l) {

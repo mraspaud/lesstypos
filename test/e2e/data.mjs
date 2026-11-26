@@ -48,8 +48,8 @@ export default async function data() {
     const backup = await exportBackup(page);
     backup.profile.modelVersion = 1; backup.profile.history.forEach((h) => { delete h.keyPresses; });
     await importBackup(page, backup);
-    const [version, current, rebuilt] = await page.evaluate(() => [window.FT.app.trainer.profile().modelVersion, window.FT.MODEL_VERSION,
-      window.FT.app.trainer.history().some((h) => h.keyPresses)]);
+    const [version, current, rebuilt] = await page.evaluate(() => [window.FT.ui.app.trainer.profile().modelVersion, window.FT.MODEL_VERSION,
+      window.FT.ui.app.trainer.history().some((h) => h.keyPresses)]);
     assert.equal(version, current);
     assert.equal(rebuilt, true);
   });
@@ -68,11 +68,11 @@ export default async function data() {
 
   await step('a rebuild finishing after you left does not touch the new screen', async () => {
     await nav(page, 'settings/data');
-    await page.evaluate(() => { window.trainerBefore = window.FT.app.trainer; });
+    await page.evaluate(() => { window.trainerBefore = window.FT.ui.app.trainer; });
     await page.locator('#rebuild').click();
     await page.keyboard.press('1');
     await page.locator('[data-go="home"][aria-current="page"]').waitFor();
-    await page.waitForFunction(() => window.FT.app.trainer !== window.trainerBefore);   // the rebuild has finished
+    await page.waitForFunction(() => window.FT.ui.app.trainer !== window.trainerBefore);   // the rebuild has finished
     assert.equal(await page.locator('#resetmsg').count(), 0);
   });
 
@@ -84,7 +84,7 @@ export default async function data() {
     await page.locator('#layoutText').dispatchEvent('change');
     await page.getByText(/Layout read: 40 keys, multi-letter: th qu/).waitFor();
     await page.getByText('From your layout: th qu').waitFor();
-    assert.deepEqual(await page.evaluate(() => window.FT.app.settings.macros), ['th', 'qu']);
+    assert.deepEqual(await page.evaluate(() => window.FT.ui.app.settings.macros), ['th', 'qu']);
   });
 
   await step('slips of an exercise show on the Errors page by kind', async () => {

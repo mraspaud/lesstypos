@@ -17,7 +17,7 @@ async function startedByTwoPresses(key, { withBook }) {
   const page = await freshPage();
   try {
     await page.evaluate(async (book) => {
-      const U = window.FT.ui, app = window.FT.app;
+      const U = window.FT.ui, app = window.FT.ui.app;
       app.settings.programme = { name: 'test', steps: [{ type: 'prose', minutes: 1, enabled: true }] };   // starts once the text is read
       if (book) await U.addBundled();
       window.started = { programmes: 0, exercises: 0 };
@@ -31,7 +31,7 @@ async function startedByTwoPresses(key, { withBook }) {
       for (let i = 0; i < 2; i++) document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
     }, key);
     await page.locator('.w').first().waitFor();
-    await page.evaluate(() => window.FT.app.store.listTexts().then(() => new Promise((r) => setTimeout(r, 100))));   // the second press's work, if any, has settled
+    await page.evaluate(() => window.FT.ui.app.store.listTexts().then(() => new Promise((r) => setTimeout(r, 100))));   // the second press's work, if any, has settled
     return await page.evaluate(() => window.started);
   } finally { await closePage(page); }
 }
@@ -71,7 +71,7 @@ export default async function daily() {
     await startTraining(page);
     await page.locator('.w').first().waitFor();
     await typeStep(page);
-    await page.waitForFunction(() => window.FT.app.store.load().then((d) => d.settings.programmeRun && d.settings.programmeRun.results.length === 1));
+    await page.waitForFunction(() => window.FT.ui.app.store.load().then((d) => d.settings.programmeRun && d.settings.programmeRun.results.length === 1));
     await reload(page);
     await page.getByRole('button', { name: /Resume: relaxed practice \(2 of 5\)/ }).waitFor();
     await setProgramme(page, ALL_STEPS);   // a new run next time
@@ -155,8 +155,8 @@ export default async function daily() {
       await page.keyboard.press('Enter');
       await page.getByText(/Saved: #home #wrist-rest/).waitFor();
       const tagged = await page.evaluate(async () => {
-        const h = window.FT.app.trainer.history().slice(-2);
-        return Promise.all(h.map(async (x) => [x.tags, (await window.FT.app.store.getSession(x.id)).tags]));
+        const h = window.FT.ui.app.trainer.history().slice(-2);
+        return Promise.all(h.map(async (x) => [x.tags, (await window.FT.ui.app.store.getSession(x.id)).tags]));
       });
       assert.deepEqual(tagged, [[['home', 'wrist-rest'], ['home', 'wrist-rest']], [['home', 'wrist-rest'], ['home', 'wrist-rest']]]);
       await page.keyboard.press('Enter');   // Done
@@ -187,7 +187,7 @@ export default async function daily() {
       assert.equal(await page.locator('.w').first().textContent(), 'Alice');
       await discard(page);
       await page.evaluate(async () => {                        // Alice already added and finished
-        const t = await window.FT.app.store.getText('alice'); t.pos = t.words.length; await window.FT.app.store.saveText(t);
+        const t = await window.FT.ui.app.store.getText('alice'); t.pos = t.words.length; await window.FT.ui.app.store.saveText(t);
       });
       await startProseTraining();
       assert.equal(await page.evaluate(() => document.activeElement.id), 'tbody');
