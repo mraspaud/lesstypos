@@ -2,11 +2,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
+const { typist } = require('./helpers/typing');
 
 // Functionality: prose keeps its paragraphs; Enter ends a paragraph, as in
 // the text, and a space there is an error like any other.
 const FT = load();
-const typeAll = (s, str, t0 = 0) => { let t = t0; for (const ch of str) s.input({ kind: 'text', data: ch, t: (t += 100) }); return t; };
 
 test('a book records where its paragraphs end', () => {
   const stored = FT.books.toText(FT.books.fromText('One two.\n\nThree four five.\n\nSix.'), 'p');
@@ -32,7 +32,7 @@ test('a prose exercise ends the words of a paragraph with Enter', () => {
 
 test('Enter commits a word, and an Enter or a space at the start of a word is ignored', () => {
   const s = FT.session.create([{ word: 'two.', sep: '\n' }, 'Three']);
-  typeAll(s, 'two.\n\n Three ');
+  typist(s).type('two.\n\n Three ');
   const w = s.state().words;
   assert.equal(w[0].typed, 'two.\n');
   assert.equal(w[1].typed, 'Three ');
@@ -41,7 +41,7 @@ test('Enter commits a word, and an Enter or a space at the start of a word is ig
 test('at a paragraph end Enter is correct and a space is one error', () => {
   const errors = (typed) => {
     const s = FT.session.create([{ word: 'two.', sep: '\n' }]);
-    typeAll(s, typed);
+    typist(s).type(typed);
     const word = s.state().words[0];
     return FT.align.analyzeWord(FT.session.targetOf(word), word.stream).targets.reduce((a, x) => a + x.err, 0);
   };
@@ -51,7 +51,7 @@ test('at a paragraph end Enter is correct and a space is one error', () => {
 
 test('the Enter keystroke is part of the timing and sequence records', () => {
   const s = FT.session.create([{ word: 'two.', sep: '\n' }, 'Three']);
-  typeAll(s, 'two.\nThree ');
+  typist(s).type('two.\nThree ');
   const words = s.state().words;
   const { records } = FT.timing.extract(words, FT.align.analyzeWords(words));
   assert.deepEqual(plain(records.map((r) => r.ch).slice(3, 6)), ['.', '\n', 'T']);

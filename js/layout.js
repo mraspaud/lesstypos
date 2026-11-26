@@ -167,6 +167,7 @@
   // alternation reference), first-attempt error rate, and the slowest pairs.
   // Word-boundary pairs are left out: their timing is relative to a different
   // baseline (word starts). Descriptive only. evaluation: model.evaluate().
+  var SLOWEST_SHOWN = 3;
   function breakdown(evaluation, layout) {
     var groups = {};
     Object.keys(evaluation.all).forEach(function (k) {
@@ -177,20 +178,20 @@
       // each pair counts in its movement type, and also in any tag it carries
       // (scissors, lateral stretches), which therefore overlap the main rows
       [cls.type].concat(cls.tags.filter(function (t) { return t !== 'sfb'; })).forEach(function (type, i) {
-        var g = groups[type] || (groups[type] = { type: type, overlapping: i > 0, pairs: 0, n: 0, errors: 0, latN: 0, latSum: 0, items: [] });
-        g.pairs++; g.n += c.n; g.errors += c.errors;
-        if (c.latN && c.rawMu != null) { g.latN += c.latN; g.latSum += c.latN * Math.exp(c.rawMu); }
-        g.items.push(c);
+        var group = groups[type] || (groups[type] = { type: type, overlapping: i > 0, pairs: 0, n: 0, errors: 0, latN: 0, latSum: 0, items: [] });
+        group.pairs++; group.n += c.n; group.errors += c.errors;
+        if (c.latN && c.rawMu != null) { group.latN += c.latN; group.latSum += c.latN * Math.exp(c.rawMu); }
+        group.items.push(c);
       });
     });
     var list = Object.keys(groups).map(function (t) { return groups[t]; });
-    var total = list.reduce(function (a, g) { return a + (g.overlapping ? 0 : g.n); }, 0);
-    var alt = groups.alternate, ref = alt && alt.latN ? alt.latSum / alt.latN : null;
+    var total = list.reduce(function (sum, group) { return sum + (group.overlapping ? 0 : group.n); }, 0);
+    var alternation = groups.alternate, reference = alternation && alternation.latN ? alternation.latSum / alternation.latN : null;
     return list.map(function (g) {
-      var worst = g.items.slice().sort(function (a, b) { return (b.latRel || 0) - (a.latRel || 0) || b.errors / b.n - a.errors / a.n; })
-        .slice(0, 3).map(function (c) { return c.key; });
+      var slowest = g.items.slice().sort(function (a, b) { return (b.latRel || 0) - (a.latRel || 0) || b.errors / b.n - a.errors / a.n; })
+        .slice(0, SLOWEST_SHOWN).map(function (c) { return c.key; });
       return { type: g.type, overlapping: g.overlapping, share: total ? g.n / total : null, pairs: g.pairs, n: g.n, errorRate: g.n ? g.errors / g.n : null,
-        time: g.latN && ref ? (g.latSum / g.latN) / ref : null, worst: worst };
+        time: g.latN && reference ? (g.latSum / g.latN) / reference : null, worst: slowest };
     }).sort(function (a, b) { return (a.overlapping - b.overlapping) || b.n - a.n; });
   }
 

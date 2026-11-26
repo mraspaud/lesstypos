@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load } = require('./helpers/load');
+const helpers = require('./helpers/typing');
 
 // Functionality: a finished exercise becomes a raw record without the DOM:
 // paused time does not count, exercises too short to analyse are not
@@ -19,10 +20,7 @@ function freshApp() {
 }
 // Types the words correctly, one key every 100 ms from t = 1000 (keystroke clock).
 function typedWords(targets) {
-  const session = FT.session.create(targets.map((word) => ({ word, source: 'random' })));
-  let t = 1000;
-  for (const w of targets) for (const ch of w + ' ') { session.input({ kind: 'text', data: ch, t }); t += 100; }
-  return session.state().words.filter((w) => w.committed);
+  return helpers.typedWords(FT, targets.map((word) => ({ word, source: 'random' })), targets.join(' ') + ' ', { at: 1000 });
 }
 function typed(words, more) {
   return Object.assign({ type: 'relaxed', startedAt: START, words, keys: [], firstKeyAt: 1000, pauses: [], opts: {}, text: null, rounds: null, textFinished: false }, more);

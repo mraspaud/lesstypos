@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
+const { typedWords } = require('./helpers/typing');
 
 // Functionality: per-character timing records with cleaning and normalisation.
 // IKI = gap between successive keydowns. Cleaning: >5 s is a pause (Dhakal et
@@ -13,19 +14,9 @@ const FT = load();
 
 const extract = (words, analysisOpts) => FT.timing.extract(words, FT.align.analyzeWords(words, analysisOpts));
 
-// Build committed words from a typing script: [[target, typedScript, dt]...]
-function run(script, analysisOpts) {
-  const s = FT.session.create(script.map((x) => x[0]));
-  let t = 0;
-  for (const [, typed, dts] of script) {
-    Array.from(typed).forEach((ch, i) => {
-      t += Array.isArray(dts) ? dts[i] : dts;
-      if (ch === '<') s.input({ kind: 'back', t });
-      else s.input({ kind: 'text', data: ch, t });
-    });
-  }
-  return extract(s.state().words.filter((w) => w.committed), analysisOpts);
-}
+// Timing records of a typing script: [[target, typed, dt], ...] (notation:
+// test/helpers/typing.js; dt: the gap before each press, or a list of them).
+const run = (script, analysisOpts) => extract(typedWords(FT, script.map((x) => x[0]), script.map((x) => x.slice(1))), analysisOpts);
 
 test('records carry the preceding context including spaces', () => {
   const r = run([['ab', 'ab ', 100], ['cd', 'cd ', 100]]);
@@ -144,12 +135,12 @@ test('common-pair timing uses only the fixed pairs and clean keystrokes', () => 
   for (let i = 0; i < 25; i++) recs.push({ clean: true, wordInitial: false, ctx: 'xt', ch: 'h', iki: 100 + i });  // "th"
   recs.push({ clean: true, wordInitial: false, ctx: 'zz', ch: 'q', iki: 900 });   // "zq": not a common pair
   recs.push({ clean: false, wordInitial: false, ctx: 'xt', ch: 'h', iki: 5000 }); // not clean
-  assert.equal(FT.timing.commonPairMs(recs), 112);
+  assert.equal(FT.timing.commonPairStats(recs).ms, 112);
 });
 
 test('common-pair timing needs enough intervals', () => {
   const recs = Array.from({ length: 10 }, () => ({ clean: true, wordInitial: false, ctx: 'h', ch: 'e', iki: 100 }));
-  assert.equal(FT.timing.commonPairMs(recs), null);
+  assert.equal(FT.timing.commonPairStats(recs).ms, null);
 });
 
 // Functionality: extra time at the start of a word, beyond within-word timing

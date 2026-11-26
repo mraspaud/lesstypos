@@ -34,9 +34,9 @@
     Object.keys(state.contexts).forEach(function (k) {
       var c = state.contexts[k];
       contexts[k] = { b: c.buckets.map(function (b) {
-        var a = [b.session, b.day, b.count, b.errors, b.latencyCount, sig9(b.latencySum), sig9(b.latencySquares), b.distinctWords];
-        if (b.block != null) a.push(b.block);
-        return a;
+        var fields = [b.session, b.day, b.count, b.errors, b.latencyCount, sig9(b.latencySum), sig9(b.latencySquares), b.distinctWords];
+        if (b.block != null) fields.push(b.block);
+        return fields;
       }), ex: c.examples, stage: c.stage };
     });
     return Object.assign({}, state, { contexts: contexts, packed: 1 });
@@ -47,9 +47,9 @@
     delete state.packed;
     Object.keys(stored.contexts).forEach(function (k) {
       var c = stored.contexts[k];
-      state.contexts[k] = { buckets: c.b.map(function (a) {
+      state.contexts[k] = { buckets: c.b.map(function (fields) {
         var b = {};
-        STORED_FIELDS.forEach(function (f, i) { if (i < a.length) b[f] = a[i]; });
+        STORED_FIELDS.forEach(function (f, i) { if (i < fields.length) b[f] = fields[i]; });
         return b;
       }), examples: c.ex, stage: c.stage };
     });
@@ -85,10 +85,10 @@
       if (r.t === null) continue;
       var keys = contextsOf(r);
       for (var j = 0; j < keys.length; j++) {
-        var a = byContext[keys[j]] || (byContext[keys[j]] = { count: 0, errors: 0, latencies: [], words: {} });
-        a.count++; a.errors += r.err;
-        if (r.clean && r.logRatio != null && isFinite(r.logRatio)) a.latencies.push(r.logRatio);
-        if (r.word) a.words[r.word] = true;
+        var counted = byContext[keys[j]] || (byContext[keys[j]] = { count: 0, errors: 0, latencies: [], words: {} });
+        counted.count++; counted.errors += r.err;
+        if (r.clean && r.logRatio != null && isFinite(r.logRatio)) counted.latencies.push(r.logRatio);
+        if (r.word) counted.words[r.word] = true;
       }
     }
     return byContext;
@@ -150,23 +150,25 @@
     return Math.floor((b.session - 1) / cfg.block);
   }
   function compact(c, session, cfg) {
-    var out = [], cur = null, curBlock = null;
+    var out = [], merging = null, mergingBlock = null;
     for (var i = 0; i < c.buckets.length; i++) {
-      var x = c.buckets[i], block = blockOf(x, session, cfg);
-      if (block === null) { if (cur) { out.push(cur); cur = null; } out.push(x); continue; }
-      if (cur && curBlock === block) {
-        var n = cur.count + x.count || 1;
-        cur.session = (cur.session * cur.count + x.session * x.count) / n; cur.day = (cur.day * cur.count + x.day * x.count) / n;
-        cur.count += x.count; cur.errors += x.errors;
-        cur.latencyCount += x.latencyCount; cur.latencySum += x.latencySum; cur.latencySquares += x.latencySquares;
-        cur.distinctWords = Math.max(cur.distinctWords, x.distinctWords); cur.block = block;
-      } else {
-        if (cur) out.push(cur);
-        cur = Object.assign({}, x, { block: block }); curBlock = block;
+      var bucket = c.buckets[i], block = blockOf(bucket, session, cfg);
+      if (block === null) { if (merging) { out.push(merging); merging = null; } out.push(bucket); continue; }
+      if (merging && mergingBlock === block) mergeInto(merging, bucket, block);
+      else {
+        if (merging) out.push(merging);
+        merging = Object.assign({}, bucket, { block: block }); mergingBlock = block;
       }
     }
-    if (cur) out.push(cur);
+    if (merging) out.push(merging);
     c.buckets = out;
+  }
+  function mergeInto(merged, b, block) {
+    var n = merged.count + b.count || 1;
+    merged.session = (merged.session * merged.count + b.session * b.count) / n; merged.day = (merged.day * merged.count + b.day * b.count) / n;
+    merged.count += b.count; merged.errors += b.errors;
+    merged.latencyCount += b.latencyCount; merged.latencySum += b.latencySum; merged.latencySquares += b.latencySquares;
+    merged.distinctWords = Math.max(merged.distinctWords, b.distinctWords); merged.block = block;
   }
 
   // The last session a bucket covers: a merged block's copies in different
@@ -190,13 +192,13 @@
 
   // Weighted sums of a context's buckets.
   function aggregateWith(c, weight) {
-    var g = { count: 0, errors: 0, latencyCount: 0, latencySum: 0, latencySquares: 0 };
+    var sum = { count: 0, errors: 0, latencyCount: 0, latencySum: 0, latencySquares: 0 };
     for (var i = 0; i < c.buckets.length; i++) {
       var b = c.buckets[i], w = weight(b);
-      g.count += w * b.count; g.errors += w * b.errors;
-      g.latencyCount += w * b.latencyCount; g.latencySum += w * b.latencySum; g.latencySquares += w * b.latencySquares;
+      sum.count += w * b.count; sum.errors += w * b.errors;
+      sum.latencyCount += w * b.latencyCount; sum.latencySum += w * b.latencySum; sum.latencySquares += w * b.latencySquares;
     }
-    return g;
+    return sum;
   }
   function aggregate(c, day, cfg) { return aggregateWith(c, weightsFor(c, day, cfg)); }
   // a without b (an aggregate without the part of it that b covers).

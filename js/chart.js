@@ -91,17 +91,21 @@
     });
   }
 
+  // The charts' frames (px): the drawing's width follows its box, down to a minimum.
+  var TIMELINE = { minWidth: 300, width: 600, height: 230, margin: { left: 44, right: 54, top: 22, bottom: 26 } };
+  var PROGRESS = { minWidth: 280, width: 480, height: 190, margin: { left: 46, right: 14, top: 12, bottom: 26 } };
+
   // Exercise timeline: one WPM axis over the words; error marks are
   // annotations, not a scale. tl: FT.exerciseStats.timeline.
   function timelineGeometry(tl, clientWidth) {
-    var W = Math.max(300, clientWidth || 600), H = 230, L = 44, R = 54, T = 22, B = 26;
+    var width = Math.max(TIMELINE.minWidth, clientWidth || TIMELINE.width), height = TIMELINE.height, m = TIMELINE.margin;
     var bursts = tl.map(function (p) { return p.burst; }).filter(function (x) { return x != null; }).sort(function (a, b) { return a - b; });
     var p98 = bursts[Math.floor(0.98 * (bursts.length - 1))] || 0;
     var top = Math.max(p98, Math.max.apply(null, tl.map(function (p) { return p.running || 0; }))) * 1.1 || 10;
     var step = niceStep(top), yMax = Math.ceil(top / step) * step;
     var n = tl.length;
-    var x = function (i) { return L + (W - L - R) * (n === 1 ? 0.5 : (i - 1) / (n - 1)); };
-    var y = function (v) { return T + (H - T - B) * (1 - Math.min(v, yMax) / yMax); };
+    var x = function (i) { return m.left + (width - m.left - m.right) * (n === 1 ? 0.5 : (i - 1) / (n - 1)); };
+    var y = function (v) { return m.top + (height - m.top - m.bottom) * (1 - Math.min(v, yMax) / yMax); };
     var yTicks = [];
     for (var v = 0; v <= yMax + 1e-9; v += step) yTicks.push({ value: v, y: y(v), label: String(Math.round(v)) });
     var xs = Math.max(1, Math.round(niceStep(Math.max(n - 1, 1) * 0.8))), xTicks = [];
@@ -112,14 +116,14 @@
     };
     var last = tl[n - 1];
     return {
-      width: W, height: H, left: L, right: W - R, top: T, bottom: H - B, x: x, y: y, yTicks: yTicks, xTicks: xTicks,
+      width: width, height: height, left: m.left, right: width - m.right, top: m.top, bottom: height - m.bottom, x: x, y: y, yTicks: yTicks, xTicks: xTicks,
       burstPath: path(function (p, k) { return smooth[k]; }),
       runningPath: path(function (p) { return p.running; }),
-      errorMarks: tl.filter(function (p) { return p.error; }).map(function (p) { return { x: x(p.i), y: T - 11 }; }),
+      errorMarks: tl.filter(function (p) { return p.error; }).map(function (p) { return { x: x(p.i), y: m.top - 11 }; }),
       endLabel: last.running != null ? { x: x(n) + 8, y: y(last.running) + 4, text: String(Math.round(last.running)) } : null,
       // The word under svg x-coordinate sx.
       pointAt: function (sx) {
-        var k = Math.round(1 + (sx - L) / (W - L - R) * (n - 1));
+        var k = Math.round(1 + (sx - m.left) / (width - m.left - m.right) * (n - 1));
         return tl[Math.min(n, Math.max(1, k)) - 1];
       },
     };
@@ -129,7 +133,7 @@
   // cfg: { points: [{ t, y, lo, hi, fill (0..1 or null), tip }], log, yMin, yMax }
   function progressGeometry(cfg, clientWidth) {
     var pts = cfg.points;
-    var W = Math.max(280, clientWidth || 480), H = 190, L = 46, R = 14, T = 12, B = 26;
+    var width = Math.max(PROGRESS.minWidth, clientWidth || PROGRESS.width), height = PROGRESS.height, m = PROGRESS.margin;
     var ys = [];
     pts.forEach(function (p) { ys.push(p.y); if (p.lo != null) ys.push(p.lo, p.hi); });
     var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys);
@@ -137,12 +141,12 @@
     if (cfg.yMax != null) hi = Math.max(hi, cfg.yMax);
     var tk = cfg.log ? logTicks(lo, hi) : ticks(lo - (hi - lo) * 0.1, hi + (hi - lo) * 0.1);
     if (cfg.yMax != null) tk = tk.filter(function (v) { return v <= cfg.yMax; });
-    var y = scale([tk[0], tk[tk.length - 1]], [H - B, T], cfg.log);
+    var y = scale([tk[0], tk[tk.length - 1]], [height - m.bottom, m.top], cfg.log);
     var t0 = pts[0].t, t1 = pts[pts.length - 1].t;
     if (t1 - t0 < DAY) { t0 -= DAY; t1 += DAY; }
-    var x = scale([t0, t1], [L + 8, W - R - 8]);
+    var x = scale([t0, t1], [m.left + 8, width - m.right - 8]);
     return {
-      width: W, height: H, left: L, right: W - R, top: T, bottom: H - B, x: x, y: y,
+      width: width, height: height, left: m.left, right: width - m.right, top: m.top, bottom: height - m.bottom, x: x, y: y,
       yTicks: tk.map(function (v) { return { value: v, y: y(v) }; }),
       dayTicks: dayTicks(t0, t1).map(function (t) { return { t: t, x: x(t) }; }),
       trendPath: pts.length > 1 ? monotonePath(pts.map(function (p) { return [x(p.t), y(p.y)]; })) : null,

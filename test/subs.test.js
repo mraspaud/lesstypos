@@ -2,15 +2,13 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
+const { stream } = require('./helpers/typing');
 
 // Functionality: recurring substitutions (expected x typed as y), normalised by
 // opportunities of x, shrunk toward a global base rate, with contextual
 // examples. Independent of the sequence-weakness model.
 
 const FT = load();
-function stream(str, t0 = 0) {
-  return Array.from(str).map((ch, i) => (ch === '<' ? { k: 'b', t: t0 + i * 100 } : { k: 'c', ch, t: t0 + i * 100, g: i }));
-}
 function feed(subs, pairs, meta = { exercise: 'relaxed', session: 1, t: 0 }) {
   subs.ingest(pairs.map(([p, s]) => FT.align.analyzeWord(p + ' ', stream(s + ' '))), meta);
 }

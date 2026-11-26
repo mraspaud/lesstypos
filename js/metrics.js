@@ -9,12 +9,12 @@
   function ratio(a, b) { return b > 0 ? a / b : null; }
 
   function summarize(words, opts) {
-    var C = 0, INF = 0, IF = 0, F = 0, targets = 0, firstErr = 0, typed = 0, Tlen = 0;
+    var C = 0, INF = 0, IF = 0, F = 0, targets = 0, firstErr = 0, typed = 0, transcribed = 0;
     for (var i = 0; i < words.length; i++) {
-      var w = words[i];
+      var w = words[i], length = Array.from(w.T).length;
       C += w.counts.C; INF += w.counts.INF; IF += w.counts.IF; F += w.counts.F;
-      Tlen += Array.from(w.T).length;
-      typed += w.counts.IF + Array.from(w.T).length + w.counts.F;
+      transcribed += length;
+      typed += w.counts.IF + length + w.counts.F;
       for (var j = 0; j < w.targets.length; j++) { targets++; firstErr += w.targets[j].err; }
     }
     var all = C + INF + IF;
@@ -27,7 +27,7 @@
       correctedErrorRate: ratio(IF, all),
       totalErrorRate: ratio(INF + IF, all),
       conscientiousness: ratio(IF, IF + INF),
-      kspc: ratio(typed, Tlen),
+      kspc: ratio(typed, transcribed),
       firstAttemptAccuracy: targets ? 1 - firstErr / targets : null,
       finalAccuracy: all ? C / Math.max(C + INF, 1) : null,
       wpm: minutes > 0 && words.length ? C / 5 / minutes : null,

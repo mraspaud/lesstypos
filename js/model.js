@@ -3,6 +3,15 @@
 // one object that the trainer keeps in the profile.
 (function (FT) {
   'use strict';
+  // Design choices, except minSessions (user decision: replicated in 2 sessions):
+  //   stabilityDays, halfLifeObs     recency weighting (FT.evidence);
+  //   minN, minSessionN              keystrokes to judge a context, and to count
+  //                                  a session towards replication;
+  //   pFlag                          posterior probability of a deficit to flag;
+  //   minErrAbs, minErrRel, minLatRel  the smallest excess that matters, in error
+  //                                  rate (absolute and relative) and time ratio;
+  //   maxExamples                    example words kept per context;
+  //   exactSessions, block, bigAfter, bigBlock  compaction (FT.evidence).
   var DEFAULTS = {
     stabilityDays: 30, halfLifeObs: 60, minN: 8, minSessions: 2, minSessionN: 3, pFlag: 0.95, minErrAbs: 0.005, minErrRel: 1.25,
     minLatRel: 1.10, maxExamples: 12, exactSessions: 24, block: 8, bigAfter: 120, bigBlock: 64,

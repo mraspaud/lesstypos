@@ -2,16 +2,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
+const { typist, typeCorrectly, correctly, slipOnTh } = require('./helpers/typing');
 
 // Functionality: each exercise type draws its words from the right source.
 const FT = load();
 
-function typeAll(items, t0 = 0) {
-  const s = FT.session.create(items);
-  let t = t0;
-  for (const w of s.state().words) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 110) });
-  return { words: s.state().words.filter((w) => w.committed), t };
-}
+const typeAll = (items, t0 = 0) => typeCorrectly(FT, items, { dt: 110, at: t0 + 110 });
 
 test('warm-up uses familiar words below the current vocabulary frontier', () => {
   const tr = FT.trainer.create({ seed: 1 });
@@ -35,14 +31,7 @@ test('targeted practice is denser in training sequences than relaxed practice', 
   for (let i = 0; i < 2; i++) {
     const ex = tr.newExercise({ type: 'relaxed' });
     const s = FT.session.create(ex.words.slice(0, 200));
-    let t = i * 1e7;
-    for (const w of s.state().words.slice(0, 200)) {
-      let prev = '';
-      for (const ch of w.target + ' ') {
-        if (ch === 'h' && prev === 't') { s.input({ kind: 'text', data: 'n', t: (t += 120) }); s.input({ kind: 'back', t: (t += 150) }); }
-        s.input({ kind: 'text', data: ch, t: (t += 120) }); prev = ch;
-      }
-    }
+    typist(s, { at: i * 1e7 + 120, dt: 120 }).type(slipOnTh(correctly(s.state().words)));
     tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1) + i * 864e5, durationMs: 1, words: s.state().words.filter((w) => w.committed) });
   }
   const share = (type) => { const w = tr.newExercise({ type }).words; return w.filter((x) => x.source === 'target').length / w.length; };

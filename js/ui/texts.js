@@ -43,18 +43,18 @@
       if (t) {
         var c = FT.books.chapterAt(t, t.pos);
         var resume = function () {   // the place as stored now: it may have moved since home was drawn
-          app.store.getText(t.id).then(U.onThisScreen(function (now) { U.startExercise('prose', { text: now || t, free: true }); })).catch(U.storageError);
+          return app.store.getText(t.id).then(U.onThisScreen(function (now) { U.startExercise('prose', { text: now || t, free: true }); })).catch(U.storageError);
         };
         var choice = { label: 'Continue reading: ' + t.title + (c ? ' · ' + c.title : ''), act: resume };
         if (c && t.pos > c.start) {
           choice.chapterStart = { label: 'Start of this chapter: ' + c.title, act: function () {
-            app.store.getText(t.id).then(function (now) { now.pos = c.start; return app.store.saveText(now).then(function () { return now; }); })
+            return app.store.getText(t.id).then(function (now) { now.pos = c.start; return app.store.saveText(now).then(function () { return now; }); })
               .then(U.onThisScreen(function (now) { U.startExercise('prose', { text: now, free: true }); })).catch(U.storageError);
           } };
         }
         return choice;
       }
-      if (offer) return { label: 'Read ' + offer.title, act: function () { addBundled().then(function (b) { U.startExercise('prose', { text: b, free: true }); }).catch(U.storageError); } };
+      if (offer) return { label: 'Read ' + offer.title, act: function () { return addBundled().then(U.onThisScreen(function (b) { U.startExercise('prose', { text: b, free: true }); })).catch(U.storageError); } };
       return null;
     });
   }
@@ -112,7 +112,7 @@
   function onSecondPress(askLabel, act) {
     return function (button) {
       if (!button.classList.contains('armed')) { button.classList.add('armed'); button.textContent = askLabel; return; }
-      act();
+      return act();
     };
   }
   function button(label, onClick, kind) { return U.keyButton({ label: label, kind: kind, onClick: onClick }); }
@@ -124,13 +124,13 @@
     var current = t.id === app.settings.currentText, unfinished = t.pos < t.words.length;
     var fromStart = function (t) { t.pos = 0; };
     var actions =
-      (current ? '' : button('Make current', function () { app.settings.currentText = t.id; U.saveSettings().then(U.onThisScreen(U.redraw)); })) +
-      (unfinished ? button('Type now', function () { app.store.getText(t.id).then(U.onThisScreen(typeText)); }) +
+      (current ? '' : button('Make current', function () { app.settings.currentText = t.id; return U.saveSettings().then(U.onThisScreen(U.redraw)); })) +
+      (unfinished ? button('Type now', function () { return app.store.getText(t.id).then(U.onThisScreen(typeText)); }) +
           (t.pos > 0 ? button('Start over', onSecondPress('Click again to start over', function () {
-            storedText(t.id, fromStart).then(U.onThisScreen(U.redraw)).catch(U.storageError);
+            return storedText(t.id, fromStart).then(U.onThisScreen(U.redraw)).catch(U.storageError);
           })) : '')
-        : button('Start over', function () { storedText(t.id, fromStart).then(U.onThisScreen(typeText)); })) +
-      button('Delete', onSecondPress('Click again to delete', function () { app.store.deleteText(t.id).then(U.onThisScreen(U.redraw)); }), 'danger');
+        : button('Start over', function () { return storedText(t.id, fromStart).then(U.onThisScreen(typeText)); })) +
+      button('Delete', onSecondPress('Click again to delete', function () { return app.store.deleteText(t.id).then(U.onThisScreen(U.redraw)); }), 'danger');
     return H.row([H.cell(esc(t.title) + (current ? ' ' + pill('current') : '')), H.cell(t.words.length.toLocaleString(), 'num'),
       H.cell('<span data-progress="' + esc(t.id) + '">' + FT.fmt.textProgress(t, t.pos) + '</span>' + chapterChoice(t), 'num'),
       H.cell('<div class="row">' + actions + '</div>')]);
@@ -143,7 +143,7 @@
         if (list.length) html += H.table(['Title', 'Words', 'Progress', ''], list.map(textRow));
         if (offer) {
           html += H.table(['Comes with the app', 'Words', ''], [H.row([H.cell(esc(bundledLabel(offer))), H.cell(offer.words.length.toLocaleString(), 'num'),
-            H.cell(U.keyButton({ label: 'Type now', id: 'usebundled', onClick: function () { addBundled().then(U.onThisScreen(typeText)).catch(U.storageError); } }))])]);
+            H.cell(U.keyButton({ label: 'Type now', id: 'usebundled', onClick: function () { return addBundled().then(U.onThisScreen(typeText)).catch(U.storageError); } }))])]);
         }
         html += H.panel('Add a text', textForm());
         U.paint(html);

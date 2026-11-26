@@ -26,57 +26,84 @@
 (function (FT) {
   'use strict';
   var S = FT.stats, E = FT.evidence;
+  // Design choice: a parent's error rate is bounded to [MIN_RATE, MAX_RATE]
+  // before it centres a prior (so a context is never judged against 0).
+  var MIN_RATE = 1e-4, MAX_RATE = 0.5;
+  // Design choices for the hyperparameters' estimation: which contexts inform
+  // it, the defaults when too few do, and the bounds the estimates keep to.
+  var HYPER = {
+    errorsMinCount: 30, latencyMinCount: 10, minContexts: 5,
+    kappa: { fallback: 200, unbounded: 2000, min: 20, max: 2000 },
+    sigma2: { fallback: 0.1, min: 1e-3 },
+    tau2: { fallback: 0.05, min: 0.0025, max: 0.5 },
+  };
+  function clamp(x, lo, hi) { return Math.min(Math.max(x, lo), hi); }
 
-  // Judge one context's aggregate g against a parent aggregate (excluding g).
-  function judge(g, parentRate, parentMu, hyper, cfg, meansOnly) {
-    var kappa = hyper.kappa, m = Math.min(Math.max(parentRate, 1e-4), 0.5);
-    var a = kappa * m + g.errors, b = kappa * (1 - m) + (g.count - g.errors);
-    var rate = a / (a + b);
+  // Judges one context's evidence against its parent's estimate (made
+  // without that evidence): error rate (beta-binomial) and mean log time
+  // ratio (normal), each shrunk towards the parent. meansOnly: only the
+  // shrunk estimates.
+  function judge(evidence, parentRate, parentMu, hyper, cfg, meansOnly) {
+    var kappa = hyper.kappa, m = clamp(parentRate, MIN_RATE, MAX_RATE);
+    var alpha = kappa * m + evidence.errors, beta = kappa * (1 - m) + (evidence.count - evidence.errors);
+    var rate = alpha / (alpha + beta);
     var sigma2 = hyper.sigma2, tau2 = hyper.tau2;
-    var prec = 1 / tau2 + g.latencyCount / sigma2;
-    var mu = (parentMu / tau2 + g.latencySum / sigma2) / prec;
+    var precision = 1 / tau2 + evidence.latencyCount / sigma2;
+    var mu = (parentMu / tau2 + evidence.latencySum / sigma2) / precision;
     if (meansOnly) return { errorRate: rate, mu: mu };
-    var pWorse = 1 - S.betaCdf(m, a, b);
-    var sd = Math.sqrt(1 / prec);
-    var pSlower = g.latencyCount > 0 ? S.normCdf((mu - parentMu) / sd) : 0.5;
-    var insufficient = g.count < cfg.minN;
+    var pWorse = 1 - S.betaCdf(m, alpha, beta);
+    var sd = Math.sqrt(1 / precision);
+    var pSlower = evidence.latencyCount > 0 ? S.normCdf((mu - parentMu) / sd) : 0.5;
+    var insufficient = evidence.count < cfg.minN;
     var weak = !insufficient && pWorse > cfg.pFlag && rate - m >= cfg.minErrAbs && rate / m >= cfg.minErrRel;
     var latRel = Math.exp(mu - parentMu);
-    var hesitant = g.latencyCount >= cfg.minN && pSlower > cfg.pFlag && latRel >= cfg.minLatRel;
+    var hesitant = evidence.latencyCount >= cfg.minN && pSlower > cfg.pFlag && latRel >= cfg.minLatRel;
     return { errorRate: rate, parentErrorRate: m, pWorse: pWorse, mu: mu, muSd: sd, parentMu: parentMu,
       latRel: latRel, pSlower: pSlower, weak: weak, hesitant: hesitant, insufficient: insufficient };
   }
 
-  // Method-of-moments hyperparameters per order.
-  // items: [{g, m, mu}] with parent rate m and parent mean mu
+  // Method-of-moments hyperparameters of one order: kappa, the prior strength
+  // of error rates; sigma2, the keystroke variance of log time ratios; tau2,
+  // the variance of contexts' mean log ratios around their parents'.
+  // items: [{ evidence, parentRate, parentMu }].
   function hyperFor(items) {
-    var big = items.filter(function (x) { return x.g.count >= 30; });
-    var kappa = 200;
-    if (big.length >= 5) {
-      var V = 0, B = 0, Q = 0;
+    var sigma2 = keystrokeVariance(items);
+    return { kappa: priorStrength(items), sigma2: sigma2, tau2: contextVariance(items, sigma2) };
+  }
+  function priorStrength(items) {
+    var big = items.filter(function (x) { return x.evidence.count >= HYPER.errorsMinCount; });
+    var kappa = HYPER.kappa.fallback;
+    if (big.length >= HYPER.minContexts) {
+      var spread = 0, sampling = 0, binomial = 0;
       big.forEach(function (x) {
-        var r = x.g.errors / x.g.count, m = Math.max(x.m, 1e-4);
-        V += (r - m) * (r - m); B += m * (1 - m) / x.g.count; Q += m * (1 - m);
+        var r = x.evidence.errors / x.evidence.count, m = Math.max(x.parentRate, MIN_RATE);
+        spread += (r - m) * (r - m); sampling += m * (1 - m) / x.evidence.count; binomial += m * (1 - m);
       });
-      V /= big.length; B /= big.length; Q /= big.length;
-      kappa = V - B > 1e-9 ? Q / (V - B) - 1 : 2000;
+      spread /= big.length; sampling /= big.length; binomial /= big.length;
+      kappa = spread - sampling > 1e-9 ? binomial / (spread - sampling) - 1 : HYPER.kappa.unbounded;
     }
-    kappa = Math.min(Math.max(kappa, 20), 2000);
-    var num = 0, den = 0;
+    return clamp(kappa, HYPER.kappa.min, HYPER.kappa.max);
+  }
+  function keystrokeVariance(items) {
+    var squares = 0, df = 0;
     items.forEach(function (x) {
-      var g = x.g;
-      if (g.latencyCount >= 2) { num += g.latencySquares - g.latencySum * g.latencySum / g.latencyCount; den += g.latencyCount - 1; }
+      var e = x.evidence;
+      if (e.latencyCount >= 2) { squares += e.latencySquares - e.latencySum * e.latencySum / e.latencyCount; df += e.latencyCount - 1; }
     });
-    var sigma2 = den > 0 ? Math.max(num / den, 1e-3) : 0.1;
-    var lat = items.filter(function (x) { return x.g.latencyCount >= 10; });
-    var tau2 = 0.05;
-    if (lat.length >= 5) {
-      var D = 0, Ev = 0;
-      lat.forEach(function (x) { var d = x.g.latencySum / x.g.latencyCount - x.mu; D += d * d; Ev += sigma2 / x.g.latencyCount; });
-      tau2 = (D - Ev) / lat.length;
+    return df > 0 ? Math.max(squares / df, HYPER.sigma2.min) : HYPER.sigma2.fallback;
+  }
+  function contextVariance(items, sigma2) {
+    var timed = items.filter(function (x) { return x.evidence.latencyCount >= HYPER.latencyMinCount; });
+    var tau2 = HYPER.tau2.fallback;
+    if (timed.length >= HYPER.minContexts) {
+      var observed = 0, sampling = 0;
+      timed.forEach(function (x) {
+        var d = x.evidence.latencySum / x.evidence.latencyCount - x.parentMu;
+        observed += d * d; sampling += sigma2 / x.evidence.latencyCount;
+      });
+      tau2 = (observed - sampling) / timed.length;
     }
-    tau2 = Math.min(Math.max(tau2, 0.0025), 0.5);
-    return { kappa: kappa, sigma2: sigma2, tau2: tau2 };
+    return clamp(tau2, HYPER.tau2.min, HYPER.tau2.max);
   }
 
   // Judgement of every context on `day`, in steps:
@@ -102,12 +129,12 @@
 
   // Unigrams are judged against all typing: the pooled unigram evidence.
   function globalPrior(agg) {
-    var g = { count: 0, errors: 0, latencyCount: 0, latencySum: 0 };
-    Object.keys(agg).forEach(function (k) {
-      if (k.length !== 1) return;
-      g.count += agg[k].count; g.errors += agg[k].errors; g.latencyCount += agg[k].latencyCount; g.latencySum += agg[k].latencySum;
-    });
-    return { rate: (g.errors + 1) / (g.count + 2), mu: g.latencyCount ? g.latencySum / g.latencyCount : 0 };
+    var all = { count: 0, errors: 0, latencyCount: 0, latencySum: 0 };
+    Object.keys(agg).forEach(function (k) { if (k.length === 1) addEvidence(all, agg[k]); });
+    return { rate: (all.errors + 1) / (all.count + 2), mu: all.latencyCount ? all.latencySum / all.latencyCount : 0 };
+  }
+  function addEvidence(sum, e) {
+    sum.count += e.count; sum.errors += e.errors; sum.latencyCount += e.latencyCount; sum.latencySum += e.latencySum;
   }
 
   // Ascending order, so each parent is judged before its children.
@@ -118,13 +145,13 @@
         .map(function (k) { return parentEstimate(state, cfg, k, order, agg, out, hypers, prior, day); });
       var hyper = hypers[order] = hyperFor(items);
       items.forEach(function (x) {
-        var r = judge(x.g, x.m, x.mu, hyper, cfg);
-        r.key = x.k; r.order = order; r.parent = order > 1 ? x.k.slice(1) : null;
-        r.n = x.g.count; r.errors = x.g.errors; r.latN = x.g.latencyCount;
-        r.rawMu = x.g.latencyCount ? x.g.latencySum / x.g.latencyCount : null; // measured mean log ratio (no shrinkage)
+        var r = judge(x.evidence, x.parentRate, x.parentMu, hyper, cfg), e = x.evidence;
+        r.key = x.key; r.order = order; r.parent = order > 1 ? x.key.slice(1) : null;
+        r.n = e.count; r.errors = e.errors; r.latN = e.latencyCount;
+        r.rawMu = e.latencyCount ? e.latencySum / e.latencyCount : null; // measured mean log ratio (no shrinkage)
         if (x.redundant) { r.redundant = true; r.weak = false; r.hesitant = false; }
-        if (order === 1 && state.late && state.late[x.k]) { r.lateKey = true; r.hesitant = false; }
-        out[x.k] = r;
+        if (order === 1 && state.late && state.late[x.key]) { r.lateKey = true; r.hesitant = false; }
+        out[x.key] = r;
       });
     }
     return { out: out, hypers: hypers };
@@ -133,28 +160,29 @@
   // The parent's estimate without this child's own data, weighted with the
   // child's weights (a comparison matched in time).
   function parentEstimate(state, cfg, k, order, agg, out, hypers, prior, day) {
-    var item = { k: k, g: agg[k], m: prior.rate, mu: prior.mu, redundant: false };
-    var pk = k.slice(1), pe = order > 1 && out[pk];
-    if (!pe) return item;
-    var pg = E.minus(E.aggregateWith(state.contexts[pk], E.weightsFor(state.contexts[k], day, cfg)), agg[k]);
-    var pj = judge(pg, pe.parentErrorRate, pe.parentMu, hypers[order - 1], cfg, true);
-    item.m = pj.errorRate; item.mu = pj.mu; item.redundant = pg.count < cfg.minN;
+    var item = { key: k, evidence: agg[k], parentRate: prior.rate, parentMu: prior.mu, redundant: false };
+    var parentKey = k.slice(1), parent = order > 1 && out[parentKey];
+    if (!parent) return item;
+    var parentWithout = E.minus(E.aggregateWith(state.contexts[parentKey], E.weightsFor(state.contexts[k], day, cfg)), agg[k]);
+    var estimate = judge(parentWithout, parent.parentErrorRate, parent.parentMu, hypers[order - 1], cfg, true);
+    item.parentRate = estimate.errorRate; item.parentMu = estimate.mu; item.redundant = parentWithout.count < cfg.minN;
     return item;
   }
 
   // Sessions in which the context did worse than its parent in that same
   // session (parent without the context's own data).
-  function replication(state, cfg, k, pk, globalByBucket) {
-    var c = state.contexts[k], parentByKey = {};
-    if (pk) state.contexts[pk].buckets.forEach(function (b) { parentByKey[E.bucketKey(b)] = b; });
+  function replication(state, cfg, k, parentKey, globalByBucket) {
+    var parentByKey = {};
+    if (parentKey) state.contexts[parentKey].buckets.forEach(function (b) { parentByKey[E.bucketKey(b)] = b; });
     var err = 0, lat = 0;
-    c.buckets.forEach(function (b) {
+    state.contexts[k].buckets.forEach(function (b) {
       if (b.count < cfg.minSessionN) return;
-      var p = pk ? E.parentBucket(parentByKey, b, cfg) : globalByBucket[E.bucketKey(b)];
+      var p = parentKey ? E.parentBucket(parentByKey, b, cfg) : globalByBucket[E.bucketKey(b)];
       if (!p) return;
-      var pn = p.count - b.count, pe = p.errors - b.errors, pln = p.latencyCount - b.latencyCount, pls = p.latencySum - b.latencySum;
-      if (pn > 0 && b.errors / b.count > Math.max(pe, 0) / pn) err++;
-      if (b.latencyCount >= cfg.minSessionN && pln > 0 && b.latencySum / b.latencyCount > pls / pln) lat++;
+      var restCount = p.count - b.count, restErrors = p.errors - b.errors;
+      var restTimed = p.latencyCount - b.latencyCount, restLatencySum = p.latencySum - b.latencySum;
+      if (restCount > 0 && b.errors / b.count > Math.max(restErrors, 0) / restCount) err++;
+      if (b.latencyCount >= cfg.minSessionN && restTimed > 0 && b.latencySum / b.latencyCount > restLatencySum / restTimed) lat++;
     });
     return { err: err, lat: lat };
   }
@@ -165,8 +193,8 @@
     Object.keys(state.contexts).forEach(function (k) {
       if (k.length !== 1) return;
       state.contexts[k].buckets.forEach(function (b) {
-        var key = E.bucketKey(b), g = pooled[key] || (pooled[key] = { count: 0, errors: 0, latencyCount: 0, latencySum: 0 });
-        g.count += b.count; g.errors += b.errors; g.latencyCount += b.latencyCount; g.latencySum += b.latencySum;
+        var key = E.bucketKey(b);
+        addEvidence(pooled[key] || (pooled[key] = { count: 0, errors: 0, latencyCount: 0, latencySum: 0 }), b);
       });
     });
     return pooled;
@@ -195,11 +223,11 @@
         var c = out[k];
         if (c.order === order && flagged(c)) (kidsByParent[c.parent] = kidsByParent[c.parent] || []).push(k);
       });
-      Object.keys(kidsByParent).forEach(function (pk) {
-        var p = out[pk];
+      Object.keys(kidsByParent).forEach(function (parentKey) {
+        var p = out[parentKey];
         if (!flagged(p)) return;
-        var kids = kidsByParent[pk], parentWeights = E.weightsFor(state.contexts[pk], day, cfg), rest = agg[pk];
-        kids.forEach(function (kk) { rest = E.minus(rest, E.aggregateWith(state.contexts[kk], parentWeights)); });
+        var kids = kidsByParent[parentKey], parentWeights = E.weightsFor(state.contexts[parentKey], day, cfg), rest = agg[parentKey];
+        kids.forEach(function (kid) { rest = E.minus(rest, E.aggregateWith(state.contexts[kid], parentWeights)); });
         var r = judge(rest, p.parentErrorRate, p.parentMu, hypers[order - 1], cfg);
         if (p.weak && !r.weak) { p.weak = false; p.explainedBy = kids; }
         if (p.hesitant && !r.hesitant) { p.hesitant = false; p.explainedBy = kids; }

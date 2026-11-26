@@ -1,12 +1,12 @@
 // Recurring substitution analysis (expected x typed as y).
 // Rate P(y | x) = count(x->y) / opportunities(x), shrunk toward a global base
-// rate per pair: (count + a*m) / (opp + a), m = total subs / (total opps * K).
-// a = 50, K = 30 are design choices. Independent of FT.model.
+// rate per pair: (count + a*m) / (opp + a), m = total subs / (total opps * K),
+// with a = SHRINKAGE and K = BASE_SPREAD (design choices). Independent of FT.model.
 // Swapped letters (transpositions, Salthouse 1986) are their own kind of slip:
 // counted per intended letter pair over that pair's occurrences in targets.
 (function (FT) {
   'use strict';
-  var MAX_EX = 20, A = 50, K = 30, MIN_OPPORTUNITIES = 20;
+  var MAX_EXAMPLES = 20, SHRINKAGE = 50, BASE_SPREAD = 30, MIN_OPPORTUNITIES = 20;
 
   // meta.equivalence: FT.text.equivalence, as for the analyses.
   function create(state) {
@@ -17,42 +17,55 @@
       var equivalence = meta.equivalence || FT.text.equivalence(), canon = equivalence.canon;
       for (var i = 0; i < words.length; i++) {
         var an = words[i];
-        var P = Array.from(an.P).map(canon);
-        for (var p = 0; p < P.length; p++) {
-          st.opp[P[p]] = (st.opp[P[p]] || 0) + 1;
-          st.totalOpp++;
-          if (p + 1 < P.length && !equivalence.same(P[p], P[p + 1])) st.pairOpp[P[p] + P[p + 1]] = (st.pairOpp[P[p] + P[p + 1]] || 0) + 1;
-        }
+        var target = Array.from(an.P).map(canon);
+        countOpportunities(target, equivalence);
         for (var j = 0; j < an.events.length; j++) {
           var e = an.events[j];
-          if (e.type === 'transpose' && e.swapStart) recordSwap(an, P, e, meta);
-          if (e.type !== 'sub') continue;
-          var ex = canon(e.expected), ac = canon(e.actual);
-          var key = ex + '\u0000' + ac;
-          var r = st.pairs[key] || (st.pairs[key] = { expected: ex, actual: ac, count: 0, examples: [] });
-          r.count += e.w;
-          st.totalSubs += e.w;
-          r.examples.push({
-            word: an.P.trim(),
-            context: P.slice(Math.max(0, e.pos - 3), e.pos).join('') + '[' + P[e.pos] + ']' + P.slice(e.pos + 1, e.pos + 4).join(''),
-            corrected: !!e.corrected, premature: !!e.premature, case: !!e.case, t: FT.valueOr(meta.t, e.t),
-            session: FT.valueOr(meta.session, null), exercise: meta.exercise || null,
-          });
-          if (r.examples.length > MAX_EX) r.examples.shift();
+          if (e.type === 'transpose' && e.swapStart) recordSwap(an, target, e, meta);
+          if (e.type === 'sub') recordSubstitution(an, target, e, meta, canon);
         }
       }
     }
 
-    function recordSwap(an, P, e, meta) {
-      var ex = P[e.pos] + P[e.pos + 1];
-      var r = st.swaps[ex] || (st.swaps[ex] = { expected: ex, actual: P[e.pos + 1] + P[e.pos], count: 0, examples: [] });
+    // Each letter of the target, and each pair of different letters, is an
+    // opportunity for a slip.
+    function countOpportunities(target, equivalence) {
+      for (var p = 0; p < target.length; p++) {
+        st.opp[target[p]] = (st.opp[target[p]] || 0) + 1;
+        st.totalOpp++;
+        if (p + 1 < target.length && !equivalence.same(target[p], target[p + 1])) {
+          st.pairOpp[target[p] + target[p + 1]] = (st.pairOpp[target[p] + target[p + 1]] || 0) + 1;
+        }
+      }
+    }
+    // The letters around position pos, with `marked` in brackets in its place.
+    function contextAround(target, pos, marked, length) {
+      return target.slice(Math.max(0, pos - 3), pos).join('') + '[' + marked + ']' + target.slice(pos + length, pos + length + 3).join('');
+    }
+    function keepExample(r, example) {
+      r.examples.push(example);
+      if (r.examples.length > MAX_EXAMPLES) r.examples.shift();
+    }
+    function recordSubstitution(an, target, e, meta, canon) {
+      var expected = canon(e.expected), actual = canon(e.actual);
+      var key = expected + '\u0000' + actual;
+      var r = st.pairs[key] || (st.pairs[key] = { expected: expected, actual: actual, count: 0, examples: [] });
       r.count += e.w;
-      r.examples.push({
-        word: an.P.trim(),
-        context: (P.slice(Math.max(0, e.pos - 3), e.pos).join('') + '[' + ex + ']' + P.slice(e.pos + 2, e.pos + 5).join('')).replace(/ +$/, ''),
+      st.totalSubs += e.w;
+      keepExample(r, {
+        word: an.P.trim(), context: contextAround(target, e.pos, target[e.pos], 1),
+        corrected: !!e.corrected, premature: !!e.premature, case: !!e.case, t: FT.valueOr(meta.t, e.t),
+        session: FT.valueOr(meta.session, null), exercise: meta.exercise || null,
+      });
+    }
+    function recordSwap(an, target, e, meta) {
+      var expected = target[e.pos] + target[e.pos + 1];
+      var r = st.swaps[expected] || (st.swaps[expected] = { expected: expected, actual: target[e.pos + 1] + target[e.pos], count: 0, examples: [] });
+      r.count += e.w;
+      keepExample(r, {
+        word: an.P.trim(), context: contextAround(target, e.pos, expected, 2).replace(/ +$/, ''),
         corrected: !!e.corrected, t: FT.valueOr(meta.t, e.t), session: FT.valueOr(meta.session, null), exercise: meta.exercise || null,
       });
-      if (r.examples.length > MAX_EX) r.examples.shift();
     }
 
     // Swapped letter pairs: count and occurrences of the intended pair.
@@ -68,13 +81,13 @@
 
     function matrix(opts) {
       var minOpp = FT.valueOr(opts && opts.minOpp, MIN_OPPORTUNITIES);
-      var m = st.totalOpp ? st.totalSubs / (st.totalOpp * K) : 0;
+      var m = st.totalOpp ? st.totalSubs / (st.totalOpp * BASE_SPREAD) : 0;
       return Object.keys(st.pairs).map(function (k) {
         var r = st.pairs[k], opp = st.opp[r.expected] || 0;
         return {
           expected: r.expected, actual: r.actual, count: r.count, opportunities: opp,
           observedRate: opp ? r.count / opp : 0,
-          rate: (r.count + A * m) / (opp + A),
+          rate: (r.count + SHRINKAGE * m) / (opp + SHRINKAGE),
           baseRate: m,
           examples: r.examples.slice().reverse(),
         };

@@ -92,7 +92,8 @@
   }
 
   // Letters typed past the end of an exercise must not act as shortcuts.
-  function typedJustNow() { return Date.now() - (app.typingEndedAt || 0) < 1500; }
+  var IN_FLIGHT_MS = 1500;
+  function typedJustNow() { return Date.now() - (app.typingEndedAt || 0) < IN_FLIGHT_MS; }
   function onGlobalKey(e) {
     if (e.defaultPrevented) return;
     var screen = U.activeScreen();
@@ -109,7 +110,7 @@
     var s = screen.shortcuts[e.key];
     if (s && !(e.key === 'Enter' && /^(BUTTON|A|SUMMARY)$/.test(tag))) { // a focused control handles its own Enter
       if (e.key.length === 1 && typedJustNow()) return;
-      e.preventDefault(); s.act(); return;
+      e.preventDefault(); U.perform(s.act); return;
     }
     if (typedJustNow()) return;
     if ((e.key === '[' || e.key === ']') && U.stepSection(e.key === ']' ? 1 : -1)) { e.preventDefault(); return; }

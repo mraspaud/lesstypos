@@ -25,9 +25,11 @@
     return { ask: !sameSitting, tags: sameSitting ? (prev.tags || []) : lastTags(history) };
   }
 
+  // Design choice: the afternoon runs from noon to 6 pm, local time.
+  var AFTERNOON_FROM = 12, EVENING_FROM = 18;
   function timeOfDay(t) {
-    var h = new Date(t).getHours();
-    return h < 12 ? 'morning' : h < 18 ? 'afternoon' : 'evening';
+    var hour = new Date(t).getHours();
+    return hour < AFTERNOON_FROM ? 'morning' : hour < EVENING_FROM ? 'afternoon' : 'evening';
   }
 
   function mean(xs) { return xs.reduce(function (a, b) { return a + b; }, 0) / xs.length; }
@@ -45,18 +47,18 @@
   }
   // Each tag (and time of day) against the relaxed exercises without it.
   function compare(history) {
-    var rel = history.filter(FT.history.isComparableRelaxed);
+    var relaxed = history.filter(FT.history.isComparableRelaxed);
     var conditions = {};
-    rel.forEach(function (h) {
+    relaxed.forEach(function (h) {
       (h.tags || []).forEach(function (t) { conditions[t] = conditions[t] || { tag: t, automatic: false }; });
       var d = timeOfDay(h.startedAt);
       conditions[d] = conditions[d] || { tag: d, automatic: true };
     });
     var has = function (h, c) { return c.automatic ? timeOfDay(h.startedAt) === c.tag : (h.tags || []).indexOf(c.tag) >= 0; };
     return Object.keys(conditions).map(function (k) {
-      var c = conditions[k], yes = rel.filter(function (h) { return has(h, c); }), no = rel.filter(function (h) { return !has(h, c); });
+      var c = conditions[k], yes = relaxed.filter(function (h) { return has(h, c); }), no = relaxed.filter(function (h) { return !has(h, c); });
       if (yes.length < MIN_EACH || no.length < MIN_EACH) return null;
-      var rng = FT.rng(k.length * 7919 + yes.length);
+      var rng = FT.rng(k.length * 7919 + yes.length);   // seeded, so the page shows the same interval each time
       var pick = function (list, f) { return list.map(function (h) { return h[f]; }); };
       return { tag: c.tag, automatic: c.automatic, with: { n: yes.length }, without: { n: no.length },
         wpm: difference(pick(yes, 'wpm'), pick(no, 'wpm'), rng),

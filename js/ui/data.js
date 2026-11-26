@@ -10,7 +10,7 @@
   function resetButton(what, label) {
     return button(label, function (b) {
       if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Click again to confirm'; return; }
-      app.store.reset(what).then(function () {
+      return app.store.reset(what).then(function () {
         if (what === 'settings' || what === 'all') { app.settings = FT.settings.clean({}); U.applySettings(); }
         return U.reloadFromStore(false);
       }).then(U.onThisScreen(function () { U.redraw(); message('resetmsg', 'Done.'); }));
@@ -20,7 +20,7 @@
 
   function backup() { return app.store.exportAll().then(function (d) { return JSON.stringify(d); }); }
   function download() {
-    backup().then(function (json) {
+    return backup().then(function (json) {
       var a = document.createElement('a'), url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
       a.href = url;
       a.download = 'lesstypos-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -30,7 +30,7 @@
     });
   }
   function copy() {
-    backup().then(function (json) {
+    return backup().then(function (json) {
       return navigator.clipboard.writeText(json).then(function () { message('expmsg', 'Backup copied to the clipboard.'); }, function () {
         var ta = document.getElementById('paste'); ta.value = json; ta.select();
         message('expmsg', 'Copying was refused; the backup is selected in the box below, copy it from there.');
@@ -40,12 +40,12 @@
   function importBackup(text) {
     var mode = document.getElementById('impmode').value, data;
     try { data = JSON.parse(text); } catch (e) { message('impmsg', 'That is not valid JSON.'); return; }
-    app.store.importAll(data, { mode: mode }).then(function () { return U.reloadFromStore(mode === 'merge'); })
+    return app.store.importAll(data, { mode: mode }).then(function () { return U.reloadFromStore(mode === 'merge'); })
       .then(function () { message('impmsg', 'Imported. Statistics are up to date.'); })
       .catch(function (e) { message('impmsg', e.message); });
   }
   function rebuild() {
-    U.reloadFromStore(true).then(U.onThisScreen(function () { message('resetmsg', 'Statistics rebuilt from ' + app.trainer.history().length + ' exercises.'); }));
+    return U.reloadFromStore(true).then(U.onThisScreen(function () { message('resetmsg', 'Statistics rebuilt from ' + app.trainer.history().length + ' exercises.'); }));
   }
   // Storage used, filled in once the browser and the store have answered.
   function showUsage() {
@@ -73,7 +73,7 @@
         H.panel('Import', '<p>Restore a backup. Replacing removes the current data first. Merging adds the exercises and texts from the backup (any with the same identity are replaced), keeps your settings and the furthest reading position, then rebuilds the statistics.</p>' +
           '<div class="row"><input type="file" id="file" accept="application/json,.json">' + H.select({ id: 'impmode' }, [['replace', 'Replace current data'], ['merge', 'Merge with current data']]) + '</div>' +
           '<textarea id="paste" class="mono" placeholder="…or paste a backup here"></textarea><div class="row">' +
-          button('Import pasted backup', function () { importBackup(document.getElementById('paste').value); }, null, 'imp') + '</div><p class="muted" id="impmsg"></p>') +
+          button('Import pasted backup', function () { return importBackup(document.getElementById('paste').value); }, null, 'imp') + '</div><p class="muted" id="impmsg"></p>') +
         H.panel('Rebuild and reset', '<div class="row">' + button('Rebuild statistics from raw exercises', rebuild, null, 'rebuild') + '</div>' +
           '<div class="row">' + resetButton('profile', 'Reset statistics only') + resetButton('settings', 'Reset settings') + resetButton('all', 'Delete everything') + '</div>' +
           '<p class="muted">Resetting statistics keeps raw exercises, so they can be rebuilt. Each button asks once more before acting.</p><p id="resetmsg"></p>'));

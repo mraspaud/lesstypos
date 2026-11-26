@@ -99,7 +99,7 @@ test('decisions are logged with reasons and survive serialisation', () => {
   const h = plain(d2.state().history);
   assert.equal(h.length, 1);
   assert.equal(h[0].action, 'advance');
-  assert.ok(h[0].reasons.length > 0);
+  assert.match(h[0].reasons.join('; '), /accuracy \(first try\) .* at or above/);
 });
 
 // Functionality: the controller's state is only what it learned; its tuning

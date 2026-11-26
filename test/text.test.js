@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
+const { stream } = require('./helpers/typing');
 
 // Functionality: prose may contain typographic characters. Either the exact
 // character or its ASCII equivalent is accepted, and statistics treat them as
@@ -9,9 +10,6 @@ const { load, plain } = require('./helpers/load');
 
 const FT = load();
 const { canon, same, sameStr } = FT.text.equivalence({ accents: true });
-function stream(str) {
-  return Array.from(str).map((ch, i) => (ch === '<' ? { k: 'b', t: i * 100 } : { k: 'c', ch, t: i * 100, g: i }));
-}
 const A = (p, s) => FT.align.analyzeWord(p, stream(s));
 const errors = (r) => r.events.filter((e) => e.type !== 'none').length;
 

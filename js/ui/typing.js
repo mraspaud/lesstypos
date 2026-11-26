@@ -7,6 +7,10 @@
   var U = FT.ui, app = U.app;
   var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, fix = FT.fmt.fix;
   var WORDS_SHOWN = 120, WORDS_ADDED = 100;   // the DOM holds a window of the exercise's words
+  var WORDS_LEFT_BEFORE_MORE = 60;            // more words are added when fewer are left
+  var TICK_MS = 200, TAB_AGAIN_MS = 3000;
+  var EFFORT_GUARD_MS = 1000;                 // keys ignored by the effort question once the timer ends
+  var PACE_SCALE = 1.5;                       // the pace bar runs to 1.5 × the target
   var START_HINT = 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.';
 
   function burstRoundMs() { return U.testing.burstRoundMs || FT.exercises.BURST_ROUND_MS; }
@@ -25,6 +29,25 @@
       '<h2 id="briefing-title">' + esc(exDef.name) + (type === 'bursts' ? ' · ' + nRounds + ' rounds' : '') + '</h2>' +
       '<p>' + esc(exDef.goal) + '</p><p class="muted">' + esc(exDef.counts) + '</p>' +
       '<p><kbd>Enter</kbd> start · <kbd>Esc</kbd> leave · <kbd>Tab</kbd> restart</p></div>';
+  }
+
+  // The typing screen's markup: the exercise's heading, the burst pace bar,
+  // the window of words, the card, the hint, the pause bar and the input.
+  function typingPage(type, opts, exDef, view) {
+    return '<section class="typing">' +
+      '<div class="ex-head"><span class="name">' + esc(exDef.name) + (opts.pinned ? ' ' + opts.pinned.map(seq).join(' ') : '') + '</span>' +
+      '<span>' + esc(exDef.goal) + '</span>' +
+      (type === 'prose' ? '<span class="muted">' + esc(opts.text.title) + proseChapter(opts.text) + ', ' + FT.fmt.textProgress(opts.text, opts.text.pos) + '</span>' : '') +
+      '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' || view.free ? '' : ' hidden') + '>' +
+        (type === 'bursts' ? 'Round 1 of ' + view.rounds : clock(view.free ? 0 : view.durationMs)) + '</span></div>' +
+      (type === 'bursts' ? '<div class="pace" id="pace" aria-hidden="true"><div class="pace-fill" id="pacefill"></div><div class="pace-target" id="pacetarget"></div></div>' +
+        '<div class="pace-label muted num" id="pacelabel">Target ' + Math.round(app.trainer.bursts.target()) + ' WPM</div>' : '') +
+      '<div class="stage"><div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div></div>' +
+      (view.briefing ? briefingCard(exDef, view.rounds, type) : '') + '</div>' +
+      '<div class="focus-hint" id="hint">' + (view.briefing ? '' : START_HINT) + '</div>' +
+      '<div id="stopbar" class="stopbar" hidden></div>' +
+      '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"' + (view.briefing ? ' aria-describedby="briefing"' : '') + '></textarea>' +
+      '</section>';
   }
 
   function startExercise(type, opts) {
@@ -46,31 +69,26 @@
 
     function render() {
       live = true;
-      var exDef = FT.exercises.instructions(type, app.settings);
       ex = app.trainer.newExercise({ type: type, pinned: opts.pinned, text: opts.text, run: opts.run });
       durationMs = (opts.minutes || app.settings.durationMin) * 60000;
-      var nRounds = Math.max(1, Math.floor(durationMs / (2 * burstRoundMs())));
+      var rounds = Math.max(1, Math.floor(durationMs / (2 * burstRoundMs())));
       briefing = app.settings.showInstructions !== false;
       free = type === 'prose' && !!opts.free;   // free reading: no time limit, the clock counts up
-      U.paint('<section class="typing">' +
-        '<div class="ex-head"><span class="name">' + esc(exDef.name) + (opts.pinned ? ' ' + opts.pinned.map(seq).join(' ') : '') + '</span>' +
-        '<span>' + esc(exDef.goal) + '</span>' +
-        (type === 'prose' ? '<span class="muted">' + esc(opts.text.title) + proseChapter(opts.text) + ', ' + FT.fmt.textProgress(opts.text, opts.text.pos) + '</span>' : '') +
-        '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' || free ? '' : ' hidden') + '>' + (type === 'bursts' ? 'Round 1 of ' + nRounds : clock(free ? 0 : durationMs)) + '</span></div>' +
-        (type === 'bursts' ? '<div class="pace" id="pace" aria-hidden="true"><div class="pace-fill" id="pacefill"></div><div class="pace-target" id="pacetarget"></div></div>' +
-          '<div class="pace-label muted num" id="pacelabel">Target ' + Math.round(app.trainer.bursts.target()) + ' WPM</div>' : '') +
-        '<div class="stage"><div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div></div>' +
-        (briefing ? briefingCard(exDef, nRounds, type) : '') + '</div>' +
-        '<div class="focus-hint" id="hint">' + (briefing ? '' : START_HINT) + '</div>' +
-        '<div id="stopbar" class="stopbar" hidden></div>' +
-        '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"' + (briefing ? ' aria-describedby="briefing"' : '') + '></textarea>' +
-        '</section>');
+      U.paint(typingPage(type, opts, FT.exercises.instructions(type, app.settings), { rounds: rounds, durationMs: durationMs, briefing: briefing, free: free }));
       session = FT.session.create(ex.words.slice(0, WORDS_SHOWN), { equivalence: U.equivalence(), macros: U.macros() });
       pending = ex.words.slice(WORDS_SHOWN);
       inner = document.getElementById('inner'); caret = document.getElementById('caret');
       win = document.getElementById('window'); capture = document.getElementById('capture');
-      if (type === 'bursts') burst = { total: nRounds, rounds: [], phase: 'ready', target: app.trainer.bursts.target(), ref: app.trainer.bursts.reference() };
+      if (type === 'bursts') burst = { total: rounds, rounds: [], phase: 'ready', target: app.trainer.bursts.target(), ref: app.trainer.bursts.reference() };
       renderWords(0);
+      listen();
+      focusCapture();
+      placeCaret();
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeCaret);
+    }
+    // The input, the clicks that bring the focus back, and the page's resize
+    // and unload, until stop().
+    function listen() {
       detachInput = FT.input.attach(capture, {
         onText: onText, onBack: onBack, onBackWord: onBackWord,
         onKey: function (k) {
@@ -93,9 +111,6 @@
       capture.addEventListener('focus', function () { if (live) { win.classList.remove('blurred'); hint(firstKeyAt == null && !briefing ? START_HINT : ''); } });
       window.addEventListener('resize', placeCaret);
       window.addEventListener('beforeunload', askBeforeUnload);
-      focusCapture();
-      placeCaret();
-      if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeCaret);
     }
     function stop() {
       if (!live) return;
@@ -199,7 +214,7 @@
     function startClock(t) {
       firstKeyAt = t; startedAt = Date.now(); clockStart = performance.now();
       if (startKey) keys.push(startKey);
-      timer = setInterval(tick, 200);
+      timer = setInterval(tick, TICK_MS);
     }
     function beginIfNeeded(t) {
       if (burst && burst.phase === 'ready') {
@@ -279,11 +294,11 @@
       }
     }
     function paintPace(wpm, target) {
-      var max = target * 1.5, fill = document.getElementById('pacefill'), mark = document.getElementById('pacetarget');
+      var max = target * PACE_SCALE, fill = document.getElementById('pacefill'), mark = document.getElementById('pacetarget');
       if (!fill) return;
       fill.style.width = Math.min(100, ((wpm || 0) / max) * 100) + '%';
       fill.classList.toggle('over', wpm != null && wpm >= target);
-      mark.style.left = (100 / 1.5) + '%';
+      mark.style.left = (100 / PACE_SCALE) + '%';
       document.getElementById('pacelabel').textContent = (wpm != null ? fix(wpm) + ' WPM · ' : '') + 'target ' + Math.round(target) + ' WPM';
     }
     function resting() { return burst && burst.phase === 'rest'; }
@@ -319,7 +334,7 @@
         st = session.state();
       }
       for (var i = before; i <= Math.min(st.wordIndex, st.words.length - 1); i++) paintWord(i);
-      if (st.words.length - st.wordIndex < 60 && !exhausted) {
+      if (st.words.length - st.wordIndex < WORDS_LEFT_BEFORE_MORE && !exhausted) {
         var more = nextWords(WORDS_ADDED);
         if (!more.length) exhausted = true;
         var from = st.words.length;
@@ -423,7 +438,7 @@
     // Tab restarts at once before typing; after that it asks once.
     function onTab() {
       if (!live) return;
-      if (firstKeyAt == null || (tabArmedAt && Date.now() - tabArmedAt < 3000)) { startExercise(type, opts); return; }
+      if (firstKeyAt == null || (tabArmedAt && Date.now() - tabArmedAt < TAB_AGAIN_MS)) { startExercise(type, opts); return; }
       tabArmedAt = Date.now();
       hint('Press <kbd>Tab</kbd> again to restart; what you typed so far is dropped.');
     }
@@ -437,7 +452,7 @@
       app.typingEndedAt = Date.now(); // keys still in flight must not trigger page shortcuts
       // ended by the timer or the text (not by an explicit save): keys still in
       // flight must not answer the effort question either
-      app.effortGuardUntil = paused ? 0 : Date.now() + 1000;
+      app.effortGuardUntil = paused ? 0 : Date.now() + EFFORT_GUARD_MS;
       stop();
       var info = U.recordExercise(typed);
       if (!info) { tooShort(); return; }

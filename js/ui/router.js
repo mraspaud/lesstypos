@@ -76,7 +76,19 @@
   }
   function bindActions(root) {
     var actions = active.actions;
-    root.querySelectorAll('[data-action]').forEach(function (el) { el.onclick = function () { actions[+el.dataset.action](el); }; });
+    root.querySelectorAll('[data-action]').forEach(function (el) { el.onclick = function () { perform(actions[+el.dataset.action], el); }; });
+  }
+  // Runs one of the screen's actions (a click or a shortcut). An action that
+  // returns a promise holds the screen's other actions until it settles, so a
+  // fast second press cannot start the same work twice.
+  function perform(act, arg) {
+    var screen = active;
+    if (screen.busy) return;
+    var result = act(arg);
+    if (!result || typeof result.then !== 'function') return;
+    screen.busy = true;
+    var release = function () { screen.busy = false; };
+    result.then(release, release);
   }
 
   // Draws the screen. Focus moves to the element that had it if it is still
@@ -185,7 +197,7 @@
     return rows;
   }
 
-  Object.assign(U, { route: route, screen: screen, redraw: redraw, activeScreen: activeScreen, onThisScreen: onThisScreen, action: action, paint: paint, fill: fill,
+  Object.assign(U, { route: route, screen: screen, redraw: redraw, activeScreen: activeScreen, onThisScreen: onThisScreen, action: action, perform: perform, paint: paint, fill: fill,
     renderNotice: renderNotice, announce: announce,
     go: go, show: show, followAddress: followAddress, showAddressed: showAddressed, sectionHead: sectionHead,
     stepSection: stepSection, navigateByKey: navigateByKey, navigationHelp: navigationHelp });

@@ -39,20 +39,20 @@
     var records = [], text = '', prev = null;
     words.forEach(function (w, wi) {
       var an = analyses[wi];
-      an.targets.forEach(function (tg, p) {
+      an.targets.forEach(function (position, p) {
         var rec = {
-          ch: tg.ch, ctx: text.slice(-CONTEXT_CHARS), word: w.target, wordIndex: wi, pos: p,
-          t: tg.t, g: tg.g, err: tg.err, iki: null, wordInitial: p === 0,
+          ch: position.ch, ctx: text.slice(-CONTEXT_CHARS), word: w.target, wordIndex: wi, pos: p,
+          t: position.t, g: position.g, err: position.err, iki: null, wordInitial: p === 0,
           clean: false, reason: null, macro: false, source: w.meta && w.meta.source || null,
         };
-        if (prev && prev.t != null && tg.t != null) rec.iki = tg.t - prev.t;
-        rec.reason = exclusion(w, an.presses.typed, tg, p, prev, rec.iki, pauseMs);
+        if (prev && prev.t != null && position.t != null) rec.iki = position.t - prev.t;
+        rec.reason = exclusion(w, an.presses.typed, position, p, prev, rec.iki, pauseMs);
         rec.macro = rec.reason === 'macro';
         rec.clean = rec.reason === null;
         records.push(rec);
-        text += tg.ch;
-        prev = { ch: tg.ch, t: tg.t, g: tg.g, err: tg.err, idx: tg.idx,
-          lastOfWord: p === an.targets.length - 1 && tg.idx === w.stream.length - 1 };
+        text += position.ch;
+        prev = { ch: position.ch, t: position.t, g: position.g, err: position.err, idx: position.idx,
+          lastOfWord: p === an.targets.length - 1 && position.idx === w.stream.length - 1 };
       });
     });
     return records;
@@ -60,14 +60,14 @@
 
   // Why the interval before target character pos is not finger timing, or
   // null when it is (see the header).
-  function exclusion(w, presses, tg, pos, prev, iki, pauseMs) {
-    var typed = tg.idx != null ? w.stream[tg.idx] : null;
+  function exclusion(w, presses, position, pos, prev, iki, pauseMs) {
+    var typed = position.idx != null ? w.stream[position.idx] : null;
     if (typed && typed.auto) return 'auto';
     if (!prev) return 'first';
-    if (tg.err > 0) return 'error';
-    var followsDirectly = tg.idx != null && (pos > 0 ? tg.idx === prev.idx + 1 : (tg.idx === 0 && prev.lastOfWord));
+    if (position.err > 0) return 'error';
+    var followsDirectly = position.idx != null && (pos > 0 ? position.idx === prev.idx + 1 : (position.idx === 0 && prev.lastOfWord));
     if (prev.err > 0 || !followsDirectly) return 'after-error';
-    if (pos > 0 && presses[tg.idx] != null && presses[tg.idx] === presses[prev.idx]) return 'macro'; // second letter of one press
+    if (pos > 0 && presses[position.idx] != null && presses[position.idx] === presses[prev.idx]) return 'macro'; // second letter of one press
     if (iki > pauseMs) return 'pause';
     return null;
   }
@@ -102,9 +102,12 @@
   }
 
   // Bigrams whose IKIs are consistently near-zero: possible keyboard macros.
+  // Design choice: at least MACRO.minN intervals, MACRO.minFrac of them under
+  // MACRO.fastMs.
+  var MACRO = { fastMs: 15, minN: 10, minFrac: 0.8 };
   function macroCandidates(results, opts) {
     opts = opts || {};
-    var fastMs = FT.valueOr(opts.fastMs, 15), minN = FT.valueOr(opts.minN, 10), minFrac = FT.valueOr(opts.minFrac, 0.8);
+    var fastMs = FT.valueOr(opts.fastMs, MACRO.fastMs), minN = FT.valueOr(opts.minN, MACRO.minN), minFrac = FT.valueOr(opts.minFrac, MACRO.minFrac);
     var stats = {};
     results.forEach(function (res) {
       res.records.forEach(function (r) {
@@ -121,12 +124,14 @@
       .sort(function (a, b) { return b.confidence - a.confidence; });
   }
 
-  // Share of clean keystrokes slower than twice the ratio expected for them
-  // (expectedFn(record) -> expected ratio, e.g. from the sequence model).
+  // Share of clean keystrokes slower than HESITATION_FACTOR times the ratio
+  // expected for them (expectedFn(record) -> expected ratio, e.g. from the
+  // sequence model). Design choice: twice.
+  var HESITATION_FACTOR = 2;
   function hesitationRate(records, expectedFn) {
     var clean = records.filter(function (r) { return r.clean; });
     if (!clean.length) return null;
-    return clean.filter(function (r) { return r.ratio > 2 * expectedFn(r); }).length / clean.length;
+    return clean.filter(function (r) { return r.ratio > HESITATION_FACTOR * expectedFn(r); }).length / clean.length;
   }
 
   // Rhythm: coefficient of variation of clean within-word intervals.
@@ -139,13 +144,15 @@
 
   // The 30 most frequent within-word English letter pairs (from the bundled
   // wordfreq list, frozen so the yardstick never changes). Like every timing
-  // statistic, it uses clean intervals only, so simultaneous pairs are out. Within-word timing
-  // on high-frequency bigrams is stable on retest (Van Waes et al. 2021).
+  // statistic, it uses clean intervals only, so simultaneous pairs are out.
+  // Within-word timing on high-frequency bigrams is stable on retest (Van Waes
+  // et al. 2021). Design choice: at least MIN_PAIRS intervals (and
+  // MIN_WORD_STARTS word starts for the word-start penalty).
   var COMMON_PAIRS = ['th', 'he', 'in', 'an', 'er', 're', 'on', 'at', 'nd', 'ou', 'or', 'to', 'en', 'it', 'ng',
     'es', 'st', 'is', 'te', 'ar', 'ti', 'al', 'ha', 'ed', 've', 'of', 'nt', 'se', 'me', 'hi'];
   var COMMON = {};
   COMMON_PAIRS.forEach(function (p) { COMMON[p] = true; });
-  var MIN_PAIRS = 20;
+  var MIN_PAIRS = 20, MIN_WORD_STARTS = 10;
 
   // Median clean within-word interval on the common pairs (ms) and the number
   // of intervals it rests on; ms is null below MIN_PAIRS intervals.
@@ -155,16 +162,15 @@
     }).map(function (r) { return r.iki; });
     return { ms: ikis.length >= MIN_PAIRS ? FT.stats.median(ikis) : null, n: ikis.length };
   }
-  function commonPairMs(records) { return commonPairStats(records).ms; }
 
   // Extra time before the first letter of a word: median clean word-initial
   // interval minus median clean within-word interval (ms), or null.
   function wordStartMs(records) {
     var init = [], within = [];
     records.forEach(function (r) { if (r.clean) (r.wordInitial ? init : within).push(r.iki); });
-    return init.length >= 10 && within.length >= MIN_PAIRS ? FT.stats.median(init) - FT.stats.median(within) : null;
+    return init.length >= MIN_WORD_STARTS && within.length >= MIN_PAIRS ? FT.stats.median(init) - FT.stats.median(within) : null;
   }
 
-  FT.timing = { SIMULTANEOUS_MS: SIMULTANEOUS_MS, wordStartMs: wordStartMs, extract: extract, macroCandidates: macroCandidates,
-    hesitationRate: hesitationRate, rhythmCv: rhythmCv, COMMON_PAIRS: COMMON_PAIRS, commonPairMs: commonPairMs, commonPairStats: commonPairStats };
+  FT.timing = { wordStartMs: wordStartMs, extract: extract, macroCandidates: macroCandidates,
+    hesitationRate: hesitationRate, rhythmCv: rhythmCv, COMMON_PAIRS: COMMON_PAIRS, commonPairStats: commonPairStats };
 })(globalThis.FT);
