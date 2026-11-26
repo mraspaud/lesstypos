@@ -109,6 +109,14 @@ test('a progress chart picks the point nearest the pointer', () => {
   assert.ok(g.trendPath.startsWith('M'));
 });
 
+test('a progress chart can carry a second series on the same axis', () => {
+  const day = 864e5, t0 = Date.UTC(2026, 0, 1), at = (d, y) => ({ t: t0 + d * day, y });
+  const g = FT.chart.progressGeometry({ points: [at(0, 50), at(3, 52)], second: { points: [at(0, 30), at(3, 34)] } }, 480);
+  assert.ok(g.yTicks[0].value <= 30, String(g.yTicks[0].value));
+  assert.ok(g.secondPath.startsWith('M'));
+  assert.equal(FT.chart.progressGeometry({ points: [at(0, 50), at(3, 52)] }, 480).secondPath, null);
+});
+
 test('a tooltip sits right of its point unless it would overflow, and stays inside the box', () => {
   assert.equal(FT.chart.tipBeside(100, 12, 80, 400), 112);
   assert.equal(FT.chart.tipBeside(350, 12, 80, 400), 258);

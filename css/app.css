@@ -219,6 +219,7 @@ details.tableview summary { cursor: pointer; color: var(--muted); }
 .progress-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 24px; }
 .progress-chart { min-width: 0; }
 .progress-chart .trend { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.progress-chart .trend.second { stroke-dasharray: 5 3; }
 .progress-chart .range { stroke-width: 2; stroke-linecap: round; opacity: 0.6; }
 .progress-chart circle.pt { stroke-width: 2; }
 

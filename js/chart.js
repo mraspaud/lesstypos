@@ -129,13 +129,15 @@
     };
   }
 
-  // Progress chart: one series over time, one axis.
-  // cfg: { points: [{ t, y, lo, hi, fill (0..1 or null), tip }], log, yMin, yMax }
+  // Progress chart: one series over time (or two, on the same axis), one axis.
+  // cfg: { points: [{ t, y, lo, hi, fill (0..1 or null), tip }], second:
+  // { points: [{ t, y }] } (optional; the hover follows the first), log, yMin, yMax }
   function progressGeometry(cfg, clientWidth) {
-    var pts = cfg.points;
+    var pts = cfg.points, second = cfg.second ? cfg.second.points : [];
     var width = Math.max(PROGRESS.minWidth, clientWidth || PROGRESS.width), height = PROGRESS.height, m = PROGRESS.margin;
     var ys = [];
     pts.forEach(function (p) { ys.push(p.y); if (p.lo != null) ys.push(p.lo, p.hi); });
+    second.forEach(function (p) { ys.push(p.y); });
     var lo = Math.min.apply(null, ys), hi = Math.max.apply(null, ys);
     if (cfg.yMin != null) lo = Math.min(lo, cfg.yMin);
     if (cfg.yMax != null) hi = Math.max(hi, cfg.yMax);
@@ -150,6 +152,7 @@
       yTicks: tk.map(function (v) { return { value: v, y: y(v) }; }),
       dayTicks: dayTicks(t0, t1).map(function (t) { return { t: t, x: x(t) }; }),
       trendPath: pts.length > 1 ? monotonePath(pts.map(function (p) { return [x(p.t), y(p.y)]; })) : null,
+      secondPath: second.length > 1 ? monotonePath(second.map(function (p) { return [x(p.t), y(p.y)]; })) : null,
       // The point nearest to svg x-coordinate sx.
       pointAt: function (sx) {
         var best = 0;
@@ -279,7 +282,8 @@
 
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   function dayLabel(t) { var d = new Date(t); return d.getDate() + ' ' + MONTHS[d.getMonth()]; }
-  // cfg: progressGeometry's, plus color: CSS var name, fmt: value formatter, label: axis caption.
+  // cfg: progressGeometry's, plus color: CSS var name (second.color for the
+  // second series, drawn dashed with hollow points), fmt: value formatter, label: axis caption.
   function progress(el, cfg) {
     var pts = cfg.points, geo = progressGeometry(cfg, el.clientWidth), x = geo.x, y = geo.y, W = geo.width, H = geo.height;
     var fmt = cfg.fmt || function (v) { return fix(v); };
@@ -289,6 +293,13 @@
     svg += '</g>';
     var color = 'var(' + (cfg.color || '--series-1') + ')';
     if (geo.trendPath) svg += '<path class="trend" style="stroke:' + color + '" d="' + geo.trendPath + '"/>';
+    if (cfg.second) {
+      var color2 = 'var(' + (cfg.second.color || '--series-2') + ')';
+      if (geo.secondPath) svg += '<path class="trend second" style="stroke:' + color2 + '" d="' + geo.secondPath + '"/>';
+      cfg.second.points.forEach(function (p) {
+        svg += '<circle class="pt second" cx="' + x(p.t) + '" cy="' + y(p.y) + '" r="4" style="stroke:' + color2 + ';fill:var(--surface)"/>';
+      });
+    }
     pts.forEach(function (p, i) {
       if (p.lo != null) svg += '<line class="range" style="stroke:' + color + '" x1="' + x(p.t) + '" x2="' + x(p.t) + '" y1="' + y(p.lo) + '" y2="' + y(p.hi) + '"/>';
       var fill = p.fill === undefined ? 1 : p.fill;
