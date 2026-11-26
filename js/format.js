@@ -45,5 +45,22 @@
       '<b>Seen in 1 session</b>: worse so far, waiting for a second session.';
   }
 
-  FT.fmt = { stageLabel: stageLabel, stateLabel: stateLabel, stagePill: stagePill, statePill: statePill, statusLegend: statusLegend, storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
+  // One sentence on the vocabulary decision of an exercise (difficulty.update).
+  function vocabSentence(d, frontier) {
+    if (!d) return '';
+    var n = Math.round(frontier).toLocaleString('en-US') + ' most common words';
+    var lead = { advance: 'Vocabulary grows to the ', hold: 'Vocabulary stays at the ', retreat: 'Vocabulary eases to the ',
+      wait: 'Collecting evidence at the ', manual: 'Vocabulary fixed at the ' }[d.action] || 'Vocabulary: the ';
+    return lead + n + (d.reasons && d.reasons.length ? ': ' + d.reasons.join('; ') : '') + '.';
+  }
+  // Why a sequence is in the focus list, from its judgement (model.evaluate).
+  function focusReason(c, stage) {
+    var against = c.parent ? seq(c.parent) : 'all your typing';
+    var where = c.parent ? ' elsewhere' : '';
+    if (c.weak) return 'more errors: ' + pct(c.errorRate) + ' against ' + pct(c.parentErrorRate) + (c.parent ? ' for ' + against + where : ' overall');
+    if (c.hesitant) return 'slower: ×' + fix(c.latRel, 1) + ' against ' + against + where;
+    return stageLabel(stage || 'improving') + ': ×' + fix(c.latRel, 1) + ' against ' + against + ' now';
+  }
+
+  FT.fmt = { vocabSentence: vocabSentence, focusReason: focusReason, stageLabel: stageLabel, stateLabel: stateLabel, stagePill: stagePill, statePill: statePill, statusLegend: statusLegend, storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
 })(globalThis.FT);

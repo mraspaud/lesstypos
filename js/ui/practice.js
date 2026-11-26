@@ -153,7 +153,8 @@
       '<p class="muted" id="endnote" hidden>Press x again to end today\'s training.</p>' +
       '<p class="muted"><kbd>Esc</kbd> goes home; today\'s training stays ready to resume.</p></section>';
   }
-  function bindProgrammeBar() {
+  // extra: keys of the screen around the bar (e.g. d for Details)
+  function bindProgrammeBar(extra) {
     var act = {
       next: function () { runStep(); },
       skip: function () { app.run.skip(); saveRun(); viewBetween(); },
@@ -174,7 +175,7 @@
       bindKeys();
     }
     function bindKeys() {
-      app.keys = { Enter: act.next, r: act.repeat, Escape: act.home, x: askEnd };
+      app.keys = Object.assign({ Enter: act.next, r: act.repeat, Escape: act.home, x: askEnd }, extra || {});
       if (sk) app.keys.n = act.skip;
     }
     document.getElementById('pnext').onclick = act.next;
@@ -275,25 +276,28 @@
   }
 
   // ---------- summary ----------
+  // The decision first (what next), then speed, accuracy and one sentence each
+  // on vocabulary and the focus list; everything else is under Details (d).
   function viewSummary(s, info) {
     app.current = 'summary';
     renderNav();
     var m = s.metrics, h = app.trainer.history();
     var cur = h[h.length - 1];
     var cmp = FT.progress.compare(h.slice(0, -1), cur);
-    var html = '<section class="stack"><h1>' + esc(EXERCISES[s.type].name) + ' finished</h1>' +
-      '<p class="muted">' + fix(s.durationMs / 60000, 1) + ' minutes, ' + m.words + ' words' +
-      (s.effort ? ', effort ' + s.effort + ' (' + esc(EFFORT[s.effort - 1][1].toLowerCase()) + ')' : '') + '.</p></section>' +
+    var inProg = info.opts && info.opts.programme && app.run;
+    var tg = app.trainer.targets();
+    var html = (inProg ? programmeBar() : '') +
+      '<section class="stack"><h1>' + esc(EXERCISES[s.type].name) + ' finished</h1>' +
+      (inProg ? '' : '<div class="row"><button class="btn primary" type="button" id="again">Practise again <kbd>Enter</kbd></button>' +
+        '<button class="btn" type="button" id="seqs">See the focus list <kbd>q</kbd></button></div>') +
       '<div class="tiles">' +
       '<div class="tile"><b>' + fix(m.wpm) + '</b><span>WPM</span></div>' +
       '<div class="tile"><b>' + pct(m.firstAttemptAccuracy) + '</b><span>accuracy (first try)</span></div>' +
-      '<div class="tile"><b>' + pct(s.random.firstAttemptAccuracy) + '</b><span>on the ' + s.random.words + ' random words</span></div>' +
-      '<div class="tile"><b>' + pct(s.hesitationRate) + '</b><span>hesitations</span></div>' +
-      '<div class="tile"><b>' + fix(s.rhythmCv, 2) + '</b><span>rhythm variation (lower is more even)</span></div>' +
-      '<div class="tile"><b>' + pct(s.rollover, 0) + '</b><span>keys overlapped (rollover)</span></div>' +
-      '</div>';
-    if (cmp) html += '<p class="notice info">' + esc(cmp.message) + '</p>';
-    if (s.textProgress) html += '<p>' + esc(s.textProgress.title) + ': ' + proseProgress(s.textProgress, s.textProgress.pos) + '. Your place is saved.</p>';
+      '</div>' +
+      (s.textProgress ? '<p>' + esc(s.textProgress.title) + ': ' + proseProgress(s.textProgress, s.textProgress.pos) + '. Your place is saved.</p>' : '') +
+      (s.difficulty ? '<p>' + esc(FT.fmt.vocabSentence(s.difficulty, s.frontier)) + '</p>' : '') +
+      '<p>' + focusSentence(s, tg) + '</p>' +
+      '</section>';
     if (s.rounds) {
       html += '<section class="stack"><h3>Rounds</h3><div class="tablewrap"><table><thead><tr><th>Round</th><th>WPM</th><th>Accuracy</th><th>Target</th><th>Result</th></tr></thead><tbody>' +
         s.rounds.map(function (r) {
@@ -301,47 +305,59 @@
             Math.round(r.before) + ' → ' + Math.round(r.after) + '</td><td>' + esc(r.reason) + '</td></tr>';
         }).join('') + '</tbody></table></div><p class="muted">The target rises a little after each round that meets it with at least 95% accuracy and eases otherwise, so it settles where you reach it about half the time. Bursts never change your vocabulary level or the sequence statistics.</p></section>';
     }
+    html += '<details id="details" class="stack"><summary>Details <kbd>d</kbd></summary>' + details(s, m, cmp) + '</details>';
+    setView(html);
+    var drawn = false, det = document.getElementById('details');
+    function draw() {
+      if (drawn || !det.open) return;
+      drawn = true;
+      if (s.timeline && s.timeline.length > 1) FT.chart.timeline(document.getElementById('chart'), s.timeline);
+      if (app.layout && s.keyStats) FT.chart.heatmap(document.getElementById('hmex'), FT.layout.grid(app.layout), s.keyStats);
+    }
+    det.addEventListener('toggle', draw);
+    var toggle = function () { det.open = !det.open; draw(); bindKeys(); };
+    var again = function () { startExercise(info.type, info.opts); };
+    function bindKeys() {
+      if (inProg) bindProgrammeBar({ d: toggle });
+      else app.keys = { Enter: again, q: function () { go('insights/focus'); }, d: toggle };
+    }
+    if (!inProg) {
+      document.getElementById('again').onclick = again;
+      document.getElementById('seqs').onclick = function () { go('insights/focus'); };
+    }
+    bindKeys();
+  }
+  function focusSentence(s, tg) {
+    var changes = s.stageChanges || [];
+    var lead = tg.length ? 'Focus list: ' + tg.length + ' sequence' + (tg.length === 1 ? '' : 's') + ', led by ' + tg.slice(0, 3).map(function (x) { return seq(x.key); }).join(', ') + '.'
+      : 'Nothing in the focus list yet.';
+    if (!changes.length) return lead;
+    return lead + ' ' + changes.slice(0, 3).map(function (c) { return seq(c.key) + ' ' + esc(c.from ? FT.fmt.stageLabel(c.from) + ' → ' : 'now ') + esc(FT.fmt.stageLabel(c.to)); }).join(', ') +
+      (changes.length > 3 ? ' and ' + (changes.length - 3) + ' more' : '') + '.';
+  }
+  function details(s, m, cmp) {
+    var html = '<div class="tiles">' +
+      '<div class="tile"><b>' + pct(s.random.firstAttemptAccuracy) + '</b><span>on the ' + s.random.words + ' random words</span></div>' +
+      '<div class="tile"><b>' + pct(s.hesitationRate) + '</b><span>keystrokes over twice their usual time</span></div>' +
+      '<div class="tile"><b>' + fix(s.rhythmCv, 2) + '</b><span>rhythm variation (lower is more even)</span></div>' +
+      '<div class="tile"><b>' + pct(s.rollover, 0) + '</b><span>keys pressed before the last was released</span></div>' +
+      '</div>' +
+      '<p class="muted">' + fix(s.durationMs / 60000, 1) + ' minutes, ' + m.words + ' words' +
+      (s.effort ? ', effort ' + s.effort + ' (' + esc(EFFORT[s.effort - 1][1].toLowerCase()) + ')' : '') + '. ' +
+      (m.IF ? m.IF + ' corrected keystrokes, ' : '') + m.F + ' backspaces, ' + fix(m.INF) + ' uncorrected errors.</p>';
+    if (cmp) html += '<p class="notice info">' + esc(cmp.message) + '</p>';
     if (s.timeline && s.timeline.length > 1) {
       html += '<section class="stack"><h3>Speed through the exercise</h3>' +
         '<div class="legend"><span><i class="k1"></i>Running average</span><span><i class="k2"></i>Each word</span>' +
-        '<span><i class="kx">×</i>Word with a first-attempt error</span></div>' +
+        '<span><i class="kx">×</i>Word with an error on the first try</span></div>' +
         '<div class="chart" id="chart"></div>' +
         '<details class="tableview"><summary>Show as table</summary><div class="tablewrap"><table><thead><tr><th>#</th><th>Word</th><th>WPM (word)</th><th>WPM (running)</th><th>Error</th></tr></thead><tbody>' +
         s.timeline.map(function (p) {
           return '<tr><td class="num">' + p.i + '</td><td>' + esc(p.word) + '</td><td class="num">' + fix(p.burst) + '</td><td class="num">' + fix(p.running) + '</td><td>' + (p.error ? '×' : '') + '</td></tr>';
         }).join('') + '</tbody></table></div></details></section>';
     }
-    var notes = [];
-    if (s.difficulty) {
-      var d = s.difficulty;
-      var verb = { advance: 'Vocabulary grows', hold: 'Vocabulary stays', retreat: 'Vocabulary eases', wait: 'Collecting evidence', manual: 'Manual vocabulary' }[d.action];
-      notes.push('<li><b>' + esc(verb) + '</b> at the ' + Math.round(s.frontier) + ' most common words: ' + esc(d.reasons.join('; ')) + '.</li>');
-    }
-    s.stageChanges.slice(0, 8).forEach(function (c) {
-      notes.push('<li>' + seq(c.key) + ' ' + (c.from ? FT.fmt.stagePill(c.from) + ' → ' : 'is now ') + FT.fmt.stagePill(c.to) + '</li>');
-    });
-    var corrected = m.IF ? m.IF + ' corrected keystrokes, ' : '';
-    notes.push('<li>' + corrected + m.F + ' backspaces, ' + fix(m.INF) + ' uncorrected errors.</li>');
-    html += '<section class="stack"><h3>What happened</h3><ul class="list">' + notes.join('') + '</ul></section>';
-    var showKeys = app.layout && s.keyStats;
-    if (showKeys) html += '<section class="stack"><h3>Errors by key</h3><div class="heatmap" id="hmex"></div></section>';
-    var tg = app.trainer.targets().slice(0, 6);
-    if (tg.length) html += '<section class="stack"><h3>Focus list</h3><div class="row">' + tg.map(function (x) { return seq(x.key) + ' ' + FT.fmt.stagePill(x.stage); }).join('&nbsp;&nbsp;') + '</div></section>';
-    var inProg = info.opts && info.opts.programme && app.run;
-    if (inProg) html = programmeBar() + html;
-    else html += '<div class="row"><button class="btn primary" type="button" id="again">Practise again <kbd>Enter</kbd></button>' +
-      '<button class="btn" type="button" id="seqs">See sequences <kbd>q</kbd></button></div>';
-    setView(html);
-    if (showKeys) FT.chart.heatmap(document.getElementById('hmex'), FT.layout.grid(app.layout), s.keyStats);
-    if (inProg) {
-      bindProgrammeBar();
-      if (s.timeline && s.timeline.length > 1) FT.chart.timeline(document.getElementById('chart'), s.timeline);
-      return;
-    }
-    if (s.timeline && s.timeline.length > 1) FT.chart.timeline(document.getElementById('chart'), s.timeline);
-    document.getElementById('again').onclick = function () { startExercise(info.type, info.opts); };
-    document.getElementById('seqs').onclick = function () { go('insights/focus'); };
-    app.keys = { Enter: function () { startExercise(info.type, info.opts); }, q: function () { go('insights/focus'); } };
+    if (app.layout && s.keyStats) html += '<section class="stack"><h3>Errors by key</h3><div class="heatmap" id="hmex"></div></section>';
+    return html;
   }
 
   Object.assign(U, { startBenchmark: startBenchmark, viewBenchResult: viewBenchResult, viewHome: viewHome, saveRun: saveRun, startProgramme: startProgramme, runStep: runStep, nextLine: nextLine, programmeBar: programmeBar, bindProgrammeBar: bindProgrammeBar, viewBetween: viewBetween, viewNeedText: viewNeedText, viewProgrammeSummary: viewProgrammeSummary, viewEffort: viewEffort, complete: complete, viewSummary: viewSummary });

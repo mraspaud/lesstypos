@@ -67,7 +67,9 @@ await step('typing an exercise with a corrected error, stopping and rating effor
   const tiles = await page.$$eval('.tile b', (b) => b.map((x) => x.textContent));
   assert.ok(+tiles[0] > 0, 'wpm ' + tiles[0]);
   assert.ok(/9\d\.\d%|100\.0%/.test(tiles[1]), 'accuracy ' + tiles[1]);
-  // the speed chart is drawn and responds to hover
+  // the decision comes first; the speed chart is under Details (d), drawn on opening
+  assert.equal(await page.locator('#details').getAttribute('open'), null);
+  await page.keyboard.press('d');
   await page.locator('#chart svg path.run').waitFor();
   const box = await page.locator('#chart svg').boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -405,6 +407,8 @@ await step('with a layout, the Errors page and summaries show a keyboard heatmap
   await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
   await page.getByText('How much effort did that take?').waitFor();
   await page.keyboard.press('2');
+  await page.getByText(/finished/).waitFor();
+  await page.keyboard.press('d');
   await page.locator('.heatmap svg rect.key').first().waitFor();
 });
 
