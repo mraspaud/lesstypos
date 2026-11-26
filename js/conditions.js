@@ -7,11 +7,17 @@
   var MIN_EACH = 5;              // design choice: exercises needed on each side of a comparison
   var RESAMPLES = 2000;
 
-  function parseTags(text) {
+  var TAG = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
+  function isTag(t) { return typeof t === 'string' && TAG.test(t) && t === t.toLowerCase(); }
+  function unique(tags) {
     var seen = {};
-    return String(text || '').toLowerCase().split(/[\s,;]+/).map(function (w) { return w.replace(/^#+/, ''); })
-      .filter(function (w) { return /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u.test(w) && !seen[w] && (seen[w] = true); });
+    return tags.filter(function (t) { return !seen[t] && (seen[t] = true); });
   }
+  function parseTags(text) {
+    return unique(String(text || '').toLowerCase().split(/[\s,;]+/).map(function (w) { return w.replace(/^#+/, ''); }).filter(isTag));
+  }
+  // The well-formed tags of a stored list, each once (anything else: none).
+  function cleanTags(tags) { return Array.isArray(tags) ? unique(tags.filter(isTag)) : []; }
 
   function lastTags(history) {
     for (var i = history.length - 1; i >= 0; i--) if (history[i].tags && history[i].tags.length) return history[i].tags;
@@ -66,5 +72,5 @@
     }).filter(Boolean);
   }
 
-  FT.conditions = { parseTags: parseTags, lastTags: lastTags, sittingTags: sittingTags, timeOfDay: timeOfDay, compare: compare, MIN_EACH: MIN_EACH };
+  FT.conditions = { isTag: isTag, parseTags: parseTags, cleanTags: cleanTags, lastTags: lastTags, sittingTags: sittingTags, timeOfDay: timeOfDay, compare: compare, MIN_EACH: MIN_EACH };
 })(globalThis.FT);

@@ -118,11 +118,12 @@
     if (!k || !Array.isArray(k.codes) || !Array.isArray(k.ev) || k.ev.length % 2) return false;
     return k.ev.every(function (x, i) { return isInt(x) && (i % 2 || (x >= 0 && x >> 1 < k.codes.length)); });
   }
+  function validTags(tags) { return tags == null || (Array.isArray(tags) && tags.every(FT.conditions.isTag)); }
   var EXERCISE_TYPES = ['warmup', 'relaxed', 'bursts', 'prose', 'targeted', 'benchmark'];
   // Whether a session, encoded or plain, is whole enough to store and replay.
   function validSession(s) {
     if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !Number.isFinite(s.startedAt) || EXERCISE_TYPES.indexOf(s.type) < 0) return false;
-    return Array.isArray(s.words) && s.words.every(validWord) && validKeys(s.keys);
+    return Array.isArray(s.words) && s.words.every(validWord) && validKeys(s.keys) && validTags(s.tags);
   }
 
   FT.codec = { validSession: validSession, roundTime: roundTime, withRoundedTime: withRoundedTime, encodeSession: encodeSession, decodeSession: decodeSession };

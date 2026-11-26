@@ -110,3 +110,11 @@ test('a session needs an id, a start time, a known type and its words to be vali
     assert.equal(FT.codec.validSession(bad), false, JSON.stringify(bad));
   }
 });
+
+test('a session’s tags, when it has any, are a list of tags', () => {
+  const withTags = (tags) => ({ id: 's', startedAt: 1, type: 'relaxed', words: [], tags });
+  assert.equal(FT.codec.validSession(withTags(['home', 'wrist-rest'])), true);
+  for (const bad of ['home', ['home', 5], ['Home'], ['two words'], { home: true }]) {
+    assert.equal(FT.codec.validSession(withTags(bad)), false, JSON.stringify(bad));
+  }
+});

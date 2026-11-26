@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
+const { typeCorrectly } = require('./helpers/typing');
 
 // Functionality: training conditions are tagged once per sitting, and their
 // effect on relaxed speed and accuracy is measured (never acted on).
@@ -55,4 +56,13 @@ test('a history entry carries the tags of its exercise', () => {
   assert.deepEqual(plain(tr.history().at(-1).tags), ['home']);
   raw.tags = ['home'];
   assert.deepEqual(plain(FT.trainer.rebuild([raw], { seed: 3 }).history()[0].tags), ['home']);
+});
+
+test('a history entry keeps only well-formed tags, each once', () => {
+  const tr = FT.trainer.create({ seed: 3 });
+  const { words, t } = typeCorrectly(FT, tr.newExercise({ type: 'relaxed' }).words.slice(0, 20));
+  const raw = tr.record({ type: 'relaxed', startedAt: at(9), durationMs: t, words });
+  const entryTags = (tags) => FT.trainer.rebuild([Object.assign({}, raw, { tags })], { seed: 3 }).history()[0].tags;
+  assert.equal(entryTags('home'), undefined);
+  assert.deepEqual(plain(entryTags(['home', 5, 'home', 'office'])), ['home', 'office']);
 });
