@@ -145,13 +145,14 @@
   function setAddress(name) { address = name; replaceAddress(name); }
   function restoreAddress() { if (address) replaceAddress(address); }
   function staysHere() { return !!(active.spec.holdOnNavigation && active.spec.holdOnNavigation()); }
-  var ownHash = null;
+  // Each address the app sets arrives later as its own hashchange, after
+  // whatever happened in between (e.g. an exercise started right after):
+  // those events are the app's own, not the user's, and are let pass.
+  var ownAddresses = [];
   function go(name) {
     name = resolve(name);
     if (staysHere()) return;
-    // our own address change arrives later as a hashchange: it must not undo
-    // what happened in between (e.g. an exercise started right after)
-    if (location.hash.slice(1) !== name) { ownHash = name; try { location.hash = name; } catch (e) { /* ignore */ } }
+    if (location.hash.slice(1) !== name) { ownAddresses.push(name); try { location.hash = name; } catch (e) { /* ignore */ } }
     show(name);
   }
   function show(name) {
@@ -159,14 +160,17 @@
     if (staysHere()) { restoreAddress(); return; } // e.g. Back while typing
     ROUTES[name]();
   }
-  function followAddress() {
-    var h = location.hash.slice(1);
-    if (h === ownHash) { ownHash = null; return; }
+  // e: the hashchange; its new address is the one it reports, since the
+  // current one may have moved on.
+  function followAddress(e) {
+    var h = hashOf(e && e.newURL != null ? e.newURL : location.href), own = ownAddresses.indexOf(h);
+    if (own >= 0) { ownAddresses.splice(own, 1); return; }
     if (!h || (!ROUTES[h] && !ALIASES[h])) return; // not a page (e.g. an in-page link)
     if (resolve(h) === app.current) return;
     if (h !== resolve(h)) { go(h); return; } // an older page name: show its new place
     show(h);
   }
+  function hashOf(href) { var i = href.indexOf('#'); return i < 0 ? '' : href.slice(i + 1); }
   function showAddressed() { show(resolve(location.hash.slice(1))); }
 
   // ---------- navigation ----------

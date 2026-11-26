@@ -2,7 +2,7 @@
 // key help, the dark theme, and phone screens.
 import assert from 'node:assert/strict';
 import { step, freshPage, closePage, nav, reload, seedExercises, startExercise, typeWords, effortQuestion, setProgramme, startTraining,
-  typeUntilEffort, PHONE, DESKTOP } from './harness.mjs';
+  typeUntilEffort, current, PHONE, DESKTOP } from './harness.mjs';
 
 const onSection = (page, route) => page.locator('[data-go="' + route + '"][aria-current="page"]').waitFor();
 const onTab = (page, route) => page.locator('[data-stab="' + route + '"][aria-current="page"]').waitFor();
@@ -56,6 +56,18 @@ export default async function navigation() {
     await onTab(page, 'insights/progress');
     await page.evaluate(() => { location.hash = 'texts'; });
     await onTab(page, 'settings/texts');
+  });
+
+  // Each address change the app makes arrives later as its own hashchange:
+  // a late one must not pull the user away from what they did since.
+  await step('an exercise started right after two quick navigations stays on view', async () => {
+    await page.keyboard.press('1');
+    await onSection(page, 'home');
+    await page.evaluate(() => { const U = window.FT.ui; U.go('settings/texts'); U.go('settings/data'); U.startExercise('relaxed'); });
+    await page.evaluate(() => new Promise((r) => setTimeout(r, 100)));
+    assert.equal(await current(page), 'typing');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Delete');
   });
 
   await step('home: one primary action, a few alternatives by key, three numbers', async () => {
