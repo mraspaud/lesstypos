@@ -79,6 +79,7 @@
   function sectionOf(route) { return String(route || '').split('/')[0]; }
   function go(name) {
     name = resolve(name);
+    if (U.holdForLeave()) return; // an exercise in progress is paused, never dropped
     // our own address change arrives later as a hashchange: it must not undo
     // what happened in between (e.g. an exercise started right after)
     if (location.hash.slice(1) !== name) { app.ownHash = name; try { location.hash = name; } catch (e) { /* ignore */ } }
@@ -86,16 +87,28 @@
   }
   function show(name) {
     name = resolve(name);
-    if (U.holdForLeave && U.holdForLeave()) return; // an exercise in progress is paused, never dropped
+    if (U.holdForLeave()) { restoreAddress(); return; } // e.g. Back while typing
     leaveScreen();
     stopTyping();
     app.current = name;
+    app.address = name;
     app.screenGen = (app.screenGen || 0) + 1;
     if (location.hash.slice(1) !== name) { try { history.replaceState(null, '', '#' + name); } catch (e) { /* file:// may refuse */ } }
     document.body.classList.remove('typing-mode');
     renderNav();
     VIEWS[name]();
   }
+  // The address of the page the user is on (or typed from).
+  function restoreAddress() {
+    if (app.address && location.hash.slice(1) !== app.address) { try { history.replaceState(null, '', '#' + app.address); } catch (e) { /* file:// may refuse */ } }
+  }
+  // Wraps a callback of async work so it does nothing once the user has
+  // moved to another screen.
+  function onThisScreen(fn) {
+    var gen = app.screenGen;
+    return function () { if (app.screenGen === gen) return fn.apply(this, arguments); };
+  }
+
   // The section heading and its tabs, for the top of a tabbed page.
   function sectionHead(section) {
     var S = SECTIONS[section], cur = app.current;
@@ -270,10 +283,16 @@
     if (LETTERS[e.key]) { e.preventDefault(); go(LETTERS[e.key]); }
   }
 
-  // An exercise that was waiting for its effort rating when the page closed.
+  // An exercise that was waiting for its effort rating when the page closed;
+  // one already saved (its draft was not cleared) is not asked again.
   function resumeDraft(draft) {
-    if (draft.opts && draft.opts.programme) app.run = FT.programme.resume(app.settings.programmeRun, today()) || null;
-    U.viewEffort(draft);
+    return app.store.getSession(draft.raw.id).then(function (saved) {
+      if (saved) { show(resolve(location.hash.slice(1))); return app.store.clearDraft(); }
+      return (draft.ui.textId ? app.store.getText(draft.ui.textId) : Promise.resolve(null)).then(function (text) {
+        if (draft.ui.programme) app.run = FT.programme.resume(app.settings.programmeRun, today()) || null;
+        U.viewEffort(U.infoFromDraft(draft, text));
+      });
+    });
   }
 
   // ---------- boot ----------
@@ -313,7 +332,7 @@
         if (!app.storageOk) app.notice = 'This browser does not allow storage for this page, so progress will be lost when you close it. Use Settings: Data → Export to keep it.';
         return app.store.getDraft().catch(function () { return null; });
       }).then(function (draft) {
-        if (draft) { resumeDraft(draft); return; }
+        if (draft) return resumeDraft(draft);
         show(resolve(location.hash.slice(1)));
       }).catch(function (e) {
         app.$view.innerHTML = '<p class="notice">LessTypos could not start: ' + esc(e && e.message || e) + '</p>';
@@ -323,5 +342,5 @@
   }
 
 
-  Object.assign(U, { macros: macros, applySettings: applySettings, programmeDef: programmeDef, today: today, saveSettings: saveSettings, saveProfile: saveProfile, storageError: storageError, makeTrainer: makeTrainer, go: go, show: show, renderNav: renderNav, renderNotice: renderNotice, announce: announce, setView: setView, sectionHead: sectionHead, onGlobalKey: onGlobalKey, boot: boot });
+  Object.assign(U, { macros: macros, applySettings: applySettings, programmeDef: programmeDef, today: today, saveSettings: saveSettings, saveProfile: saveProfile, storageError: storageError, makeTrainer: makeTrainer, go: go, show: show, renderNav: renderNav, renderNotice: renderNotice, announce: announce, setView: setView, sectionHead: sectionHead, onThisScreen: onThisScreen, onGlobalKey: onGlobalKey, boot: boot });
 })(globalThis.FT);

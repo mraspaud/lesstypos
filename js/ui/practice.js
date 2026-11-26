@@ -136,12 +136,10 @@
     var c = app.run && app.run.current();
     if (!c) { viewProgrammeSummary(); return; }
     if (c.type === 'prose') {
-      var gen = app.screenGen;
-      currentText().then(function (text) {
-        if (app.screenGen !== gen) return; // the user moved on meanwhile
+      currentText().then(U.onThisScreen(function (text) {
         if (text && text.pos < text.words.length) startExercise('prose', { minutes: c.minutes, programme: true, text: text, run: app.run.id() });
         else viewNeedText(c);
-      });
+      }));
       return;
     }
     startExercise(c.type, { minutes: c.minutes, programme: true, run: app.run.id() });
@@ -231,7 +229,7 @@
 
   // ---------- effort ----------
   function viewEffort(info) {
-    app.store.saveDraft(info).catch(storageError); // kept until rated, so a reload cannot lose it
+    app.store.saveDraft(draftOf(info)).catch(storageError); // kept until rated, so a reload cannot lose it
     app.current = 'effort';
     renderNav();
     setView('<section class="effort"><h1>How much effort did that take?</h1>' +
@@ -264,13 +262,27 @@
     });
   }
 
+  // What a reload needs to ask for the rating again: the recorded exercise and
+  // the few screen options that shape what follows.
+  function draftOf(info) {
+    var o = info.opts;
+    return { raw: info.raw, ui: { programme: !!o.programme, run: o.run || null, minutes: o.minutes || null,
+      pinned: o.pinned || null, textId: o.text ? o.text.id : null } };
+  }
+  function infoFromDraft(draft, text) {
+    var ui = draft.ui;
+    var opts = { programme: ui.programme, run: ui.run, minutes: ui.minutes, pinned: ui.pinned };
+    if (text) opts.text = text;
+    return { type: draft.raw.type, raw: draft.raw, opts: opts };
+  }
+
   function complete(info, render) {
-    var res = app.trainer.finish({ type: info.type, startedAt: info.startedAt, durationMs: info.durationMs,
-      words: info.words, keys: info.keys, effort: info.effort, text: info.text, rounds: info.rounds, run: info.opts.run,
-      set: info.opts.bench ? app.bench.set : null, planMs: info.opts.bench ? info.opts.minutes * 60000 : null });
-    var writes = [app.store.saveSession(res.raw).then(saveProfile), app.store.clearDraft()];
-    if (res.raw.text) {
-      var t = info.opts.text;
+    var raw = info.raw;
+    raw.effort = info.effort == null ? null : info.effort;
+    var res = { raw: raw, summary: app.trainer.process(raw) };
+    var writes = [app.store.saveSession(raw).then(saveProfile).then(function () { return app.store.clearDraft(); })];
+    var t = info.opts.text;
+    if (raw.text && t) {
       t.pos = res.raw.text.to;
       res.summary.textProgress = { title: t.title, pos: t.pos, total: t.words.length };
       writes.push(app.store.saveText(t));
@@ -371,5 +383,5 @@
     return html;
   }
 
-  Object.assign(U, { startBenchmark: startBenchmark, viewBenchResult: viewBenchResult, viewHome: viewHome, saveRun: saveRun, startProgramme: startProgramme, runStep: runStep, nextLine: nextLine, programmeBar: programmeBar, bindProgrammeBar: bindProgrammeBar, viewBetween: viewBetween, viewNeedText: viewNeedText, viewProgrammeSummary: viewProgrammeSummary, viewEffort: viewEffort, complete: complete, viewSummary: viewSummary });
+  Object.assign(U, { infoFromDraft: infoFromDraft, startBenchmark: startBenchmark, viewBenchResult: viewBenchResult, viewHome: viewHome, saveRun: saveRun, startProgramme: startProgramme, runStep: runStep, nextLine: nextLine, programmeBar: programmeBar, bindProgrammeBar: bindProgrammeBar, viewBetween: viewBetween, viewNeedText: viewNeedText, viewProgrammeSummary: viewProgrammeSummary, viewEffort: viewEffort, complete: complete, viewSummary: viewSummary });
 })(globalThis.FT);

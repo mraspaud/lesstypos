@@ -28,7 +28,10 @@
     function remember(w) { recent.push(w); if (recent.length > 30) recent.shift(); }
 
     // Repeats are avoided against the previous random word only, so targeting
-    // never changes the random sample.
+    // never changes the random sample (product decision). Design choice: a
+    // random word may therefore repeat the word just before it from another
+    // source (about 1 in 1,250 words); choosing by that word would make the
+    // sample depend on targeting again.
     var lastRandom = null;
     function randomWord(R) {
       var a = corpus.words[rankSample(randRng, R)];

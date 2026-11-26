@@ -109,8 +109,10 @@
       });
     }
     // The exercise waiting for its effort rating, if any.
-    function saveDraft(d) { return db.set('draft', FT.codec.encodeSession(d)); }
-    function getDraft() { return db.get('draft').then(function (d) { return d ? FT.codec.decodeSession(d) : null; }); }
+    // draft: { raw: the recorded exercise, ui: what the screens need to resume it }
+    function saveDraft(d) { return db.set('draft', { raw: FT.codec.encodeSession(d.raw), ui: d.ui }); }
+    function getDraft() { return db.get('draft').then(function (d) { return d ? { raw: FT.codec.decodeSession(d.raw), ui: d.ui } : null; }); }
+    function getSession(id) { return db.get('session:' + id).then(function (r) { return r ? FT.codec.decodeSession(r) : null; }); }
     function clearDraft() { return db.del('draft'); }
     // Prose texts: { id, title, words: [...], pos, addedAt }.
     function saveText(t) { return db.set('text:' + t.id, t); }
@@ -178,7 +180,7 @@
     }
 
     return { load: load, saveSettings: saveSettings, saveProfile: saveProfile, saveSession: saveSession,
-      listSessions: listSessions, exportAll: exportAll, saveDraft: saveDraft, getDraft: getDraft, clearDraft: clearDraft, compactSessions: compactSessions, sizes: sizes,
+      listSessions: listSessions, exportAll: exportAll, saveDraft: saveDraft, getDraft: getDraft, clearDraft: clearDraft, getSession: getSession, compactSessions: compactSessions, sizes: sizes,
       saveText: saveText, getText: getText, deleteText: deleteText, listTexts: listTexts, importAll: importAll, reset: reset, kind: db.kind };
   }
 

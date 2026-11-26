@@ -192,19 +192,16 @@
     };
     document.getElementById('imp').onclick = function () { doImport(document.getElementById('paste').value); };
     document.getElementById('rebuild').onclick = function () {
-      reloadFromStore(true).then(function () { document.getElementById('resetmsg').textContent = 'Statistics rebuilt from ' + app.trainer.history().length + ' exercises.'; });
+      reloadFromStore(true).then(U.onThisScreen(function () { document.getElementById('resetmsg').textContent = 'Statistics rebuilt from ' + app.trainer.history().length + ' exercises.'; }));
     };
     app.$view.querySelectorAll('[data-reset]').forEach(function (b) {
       b.onclick = function () {
         if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Click again to confirm'; return; }
-        var what = b.dataset.reset, gen = app.screenGen;
+        var what = b.dataset.reset;
         app.store.reset(what).then(function () {
           if (what === 'settings' || what === 'all') { app.settings = FT.settings.clean({}); applySettings(); }
           return reloadFromStore(false);
-        }).then(function () {
-          if (app.screenGen !== gen) return;
-          viewData(); document.getElementById('resetmsg').textContent = 'Done.';
-        });
+        }).then(U.onThisScreen(function () { viewData(); document.getElementById('resetmsg').textContent = 'Done.'; }));
       };
     });
   }

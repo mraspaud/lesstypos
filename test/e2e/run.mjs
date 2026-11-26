@@ -766,13 +766,15 @@ await step('leaving mid-exercise pauses it instead of discarding', async () => {
   await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
   await page.locator('.w').first().waitFor();
   await typeWords(4);
+  const address = await page.evaluate(() => location.hash);
   await page.locator('[data-go="insights"]').click();          // the nav
   await page.locator('#stopbar').getByText('Paused.').waitFor();
+  assert.equal(await page.evaluate(() => location.hash), address); // the address does not move either
   assert.ok(await page.locator('#window').isVisible());
   await page.locator('a.brand').click();                       // the brand link
-  await page.waitForFunction(() => location.hash === '#home');
-  await page.evaluate(() => new Promise((r) => setTimeout(r, 0))); // let the address change be handled
+  await page.evaluate(() => new Promise((r) => setTimeout(r, 50))); // let the address change be handled
   assert.ok(await page.locator('#window').isVisible());
+  assert.equal(await page.evaluate(() => location.hash), address);
   await page.keyboard.press('Escape');                         // resume and keep typing
   await typeWords(1);
   await page.keyboard.press('Escape'); await page.keyboard.press('Delete');
@@ -787,7 +789,7 @@ await step('a finished exercise waiting for its rating survives a reload', async
   await typeWords(14);
   await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
   await page.getByText('How much effort did that take?').waitFor();
-  await page.waitForTimeout(300);
+  await page.waitForFunction(() => window.FT.app.store.getDraft().then((d) => !!d));
   await page.reload();
   await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
   await page.getByText('How much effort did that take?').waitFor();
@@ -866,6 +868,41 @@ await step('with no daily-training step enabled, Train says so and points to the
   await page.keyboard.press('Enter');
   await page.locator('[data-stab="settings/training"][aria-current="page"]').waitFor();
   await page.evaluate(() => { window.FT.app.settings.programme = null; });
+});
+
+
+await step('reloading mid-exercise asks first', async () => {
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
+  await page.locator('.w').first().waitFor();
+  await typeWords(3);
+  let asked = null;
+  page.once('dialog', (d) => { asked = d.type(); d.dismiss(); });
+  await page.reload({ timeout: 2000 }).catch(() => {});
+  assert.equal(asked, 'beforeunload');
+  assert.ok(await page.locator('#window').isVisible());
+  await page.keyboard.press('Escape'); await page.keyboard.press('Delete');
+});
+
+await step('pausing in the last burst round keeps the exercise until you choose', async () => {
+  await page.evaluate(() => { const a = window.FT.app; a.burstRun = 60000; a.burstRest = 1000; window.FT.ui.startExercise('bursts', { minutes: 1.5 }); });
+  await page.locator('.w').first().waitFor();
+  await typeWords(12);
+  await page.keyboard.press('Escape');
+  await page.locator('#stopbar').getByText('Paused.').waitFor();
+  assert.ok(await page.locator('#window').isVisible());
+  await page.keyboard.press('Enter');                         // save
+  await page.getByText(/How much effort|finished/).first().waitFor();
+  await page.evaluate(() => { const a = window.FT.app; a.burstRun = 0; a.burstRest = 0; });
+  if (await page.getByText('How much effort did that take?').isVisible()) { await effortReady(); await page.keyboard.press('0'); }
+});
+
+await step('a rebuild finishing after you left does not touch the new screen', async () => {
+  await page.evaluate(() => window.FT.ui.go('settings/data'));
+  await page.locator('#rebuild').click();
+  await page.keyboard.press('1');
+  await page.locator('[data-go="home"][aria-current="page"]').waitFor();
+  await page.waitForTimeout(500);
+  assert.deepEqual(errors, []);
 });
 
 await step('phone width has no horizontal scroll', async () => {

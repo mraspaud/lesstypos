@@ -51,9 +51,7 @@
     });
   }
   function viewTexts() {
-    var gen = app.screenGen;
-    app.store.listTexts().then(function (list) {
-      if (app.screenGen !== gen) return; // the user moved on meanwhile
+    app.store.listTexts().then(U.onThisScreen(function (list) {
       var html = '<section class="stack">' + U.sectionHead('settings') + '<p class="muted">Prose exercises continue the current text from where you stopped. Texts stay in this browser and are included in backups.</p></section>';
       if (list.length) {
         html += '<div class="tablewrap"><table><thead><tr><th>Title</th><th>Words</th><th>Progress</th><th></th></tr></thead><tbody>' +
@@ -72,11 +70,12 @@
       bindTextForm(function () { viewTexts(); });
       app.$view.querySelectorAll('[data-use]').forEach(function (b) { b.onclick = function () { app.settings.currentText = b.dataset.use; saveSettings().then(viewTexts); }; });
       app.$view.querySelectorAll('[data-type]').forEach(function (b) {
-        b.onclick = function () { app.store.getText(b.dataset.type).then(function (t) { startExercise('prose', { text: t }); }); };
+        b.onclick = function () { app.store.getText(b.dataset.type).then(U.onThisScreen(function (t) { startExercise('prose', { text: t }); })); };
       });
       app.$view.querySelectorAll('[data-restart]').forEach(function (b) {
         b.onclick = function () {
-          app.store.getText(b.dataset.restart).then(function (t) { t.pos = 0; return app.store.saveText(t).then(function () { startExercise('prose', { text: t }); }); });
+          app.store.getText(b.dataset.restart).then(function (t) { t.pos = 0; return app.store.saveText(t).then(function () { return t; }); })
+            .then(U.onThisScreen(function (t) { startExercise('prose', { text: t }); }));
         };
       });
       app.$view.querySelectorAll('[data-del]').forEach(function (b) {
@@ -85,7 +84,7 @@
           app.store.deleteText(b.dataset.del).then(viewTexts);
         };
       });
-    });
+    }));
   }
 
   Object.assign(U, { proseProgress: proseProgress, currentText: currentText, textForm: textForm, bindTextForm: bindTextForm, viewTexts: viewTexts });

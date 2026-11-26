@@ -72,6 +72,8 @@
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (ty) placeCaret(); });
   }
   window.addEventListener('resize', function () { if (ty) placeCaret(); });
+  // Reloading or closing the tab mid-exercise asks first (nothing is dropped without asking).
+  window.addEventListener('beforeunload', function (e) { if (ty && ty.first != null) { e.preventDefault(); e.returnValue = ''; } });
   function focusCapture() { if (ty) ty.capture.focus({ preventScroll: true }); }
   function hint(html) { var el = document.getElementById('hint'); if (el) el.innerHTML = html; }
   function clock(ms) {
@@ -182,7 +184,8 @@
   // with the adaptive target (FT.bursts).
   // Closes the current burst round at `end` (keystroke clock); returns true
   // when that finished the exercise.
-  function endRound(end, now) {
+  // keepOpen: at a pause, the last round does not end the exercise yet.
+  function endRound(end, now, keepOpen) {
     var b = ty.burst;
     now = now == null ? performance.now() : now;
     var words = ty.session.state().words.filter(function (w) { return w.committed; });
@@ -191,7 +194,10 @@
     var res = FT.bursts.step(b.target, full, b.ref);
     b.last = { stats: full, res: res };
     b.target = res.after;
-    if (b.rounds.length >= b.total) { finishExercise(); return true; }
+    if (b.rounds.length >= b.total) {
+      if (keepOpen) { b.phase = 'done'; return false; }
+      finishExercise(); return true;
+    }
     b.phase = 'rest'; b.restEnd = now + burstRest();
     return false;
   }
@@ -296,7 +302,7 @@
     ty.stopped = true;
     ty.pausedAt = performance.now();
     // a burst round in progress ends at the pause (its window never holds a pause)
-    if (ty.burst && ty.burst.phase === 'run' && endRound(ty.pausedAt)) return;
+    if (ty.burst && ty.burst.phase === 'run') endRound(ty.pausedAt, null, true);
     var bar = document.getElementById('stopbar');
     bar.hidden = false;
     bar.innerHTML = '<span>Paused.</span><button class="btn primary" type="button" id="fin">Finish and save <kbd>Enter</kbd></button>' +
@@ -310,6 +316,7 @@
   }
   function resume() {
     if (!ty || !ty.stopped) return;
+    if (ty.burst && ty.burst.phase === 'done') { finishExercise(); return; }
     var gap = performance.now() - ty.pausedAt;
     ty.pauses.push([ty.pausedAt, ty.pausedAt + gap]);
     ty.t0 += gap;
@@ -367,6 +374,9 @@
       app.notice = null;
       return;
     }
+    info.raw = app.trainer.record({ type: info.type, startedAt: info.startedAt, durationMs: info.durationMs,
+      words: info.words, keys: info.keys, text: info.text, rounds: info.rounds, run: info.opts.run,
+      set: info.opts.bench ? app.bench.set : null, planMs: info.opts.bench ? info.opts.minutes * 60000 : null });
     if (info.opts.bench) complete(info); else viewEffort(info);
   }
 
