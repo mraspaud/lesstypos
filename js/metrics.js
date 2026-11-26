@@ -32,7 +32,7 @@
       finalAccuracy: all ? C / Math.max(C + INF, 1) : null,
       wpm: minutes > 0 && words.length ? C / 5 / minutes : null,
       rawWpm: minutes > 0 && words.length ? (typed - F) / 5 / minutes : null,
-      durationMs: opts ? opts.durationMs : 0,
+      durationMs: (opts && opts.durationMs) || 0,
     };
   }
 

@@ -68,3 +68,9 @@ test('swapped letters are counted per letter pair, not as substitutions', () => 
   assert.deepEqual(plain(sw[0].examples.map((e) => e.context)), ['g[eo]', 'p[eo]ple']);
   assert.equal(s.matrix({ minOpp: 1 }).length, 0);
 });
+
+test('loading stored statistics leaves the stored object untouched', () => {
+  const stored = { opp: {}, pairs: {}, totalSubs: 0, totalOpp: 0 };
+  FT.subs.create(stored);
+  assert.deepEqual(Object.keys(stored).sort(), ['opp', 'pairs', 'totalOpp', 'totalSubs']);
+});

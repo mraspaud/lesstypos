@@ -134,3 +134,12 @@ test('a backspace reports whether it changed anything', () => {
   assert.equal(s2.input({ kind: 'back', t: 1 }), true); // into the wrong "cot"
   assert.equal(s2.input({ kind: 'back', t: 2 }), true);
 });
+
+test('backspace removes a whole character, even outside the basic plane', () => {
+  const FT = load();
+  const s = FT.session.create(['a😀']);
+  s.input({ kind: 'text', data: 'a', t: 1 });
+  s.input({ kind: 'text', data: '😀', t: 2 });
+  s.input({ kind: 'back', t: 3 });
+  assert.equal(s.current().typed, 'a');
+});

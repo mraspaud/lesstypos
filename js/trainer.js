@@ -74,7 +74,7 @@
         var out = [];
         while (out.length < n) {
           var w = corpus.words[Math.floor(rng() * Math.min(BENCH_RANKS, corpus.size))];
-          if (w === last) continue;
+          if (w === last && corpus.size > 1) continue;
           out.push({ word: w, source: 'benchmark' }); last = w;
         }
         return out;
@@ -241,7 +241,8 @@
   // are not derived from typing (a fixed vocabulary level) carry over from
   // opts.previous.
   function rebuild(raws, opts) {
-    var t = create(Object.assign({}, opts, { profile: null, previous: null }));
+    var lang = (raws[0] && raws[0].lang) || (opts && opts.previous && opts.previous.lang) || (opts && opts.lang);
+    var t = create(Object.assign({}, opts, { profile: null, previous: null }, lang ? { lang: lang } : {}));
     raws.slice().sort(function (a, b) { return a.startedAt - b.startedAt; }).forEach(function (r) { t.process(r); });
     var prev = opts && opts.previous && opts.previous.difficulty;
     if (prev && prev.manual) t.difficulty.override(prev.frontier);

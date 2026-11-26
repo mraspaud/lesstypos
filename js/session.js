@@ -54,7 +54,7 @@
           prev.committed = false;
           w = prev;
         }
-        w.typed = w.typed.slice(0, -1);
+        w.typed = Array.from(w.typed).slice(0, -1).join('');
         w.stream.push({ k: 'b', t: ev.t });
         return true;
       }

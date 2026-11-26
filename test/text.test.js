@@ -93,3 +93,9 @@ test('an acute accent typed as an apostrophe counts as one', () => {
   assert.ok(FT.text.sameStr('don´t', "don't"));
   assert.ok(!FT.text.same('`', "'")); // the grave accent is a real ASCII character
 });
+
+test('a gap of 0 ms merges nothing into a multi-letter press', () => {
+  const st = [{ k: 'c', ch: 't', t: 0, g: 1 }, { k: 'c', ch: 'h', t: 0.5, g: 2 }];
+  assert.deepEqual(plain(FT.text.pressIds(st, ['th'], 0)), [0, 1]);
+  assert.deepEqual(plain(FT.text.pressIds(st, ['th'])), [0, 0]);
+});

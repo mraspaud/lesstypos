@@ -81,3 +81,8 @@ test('heatmap shading merges capitals, needs 10 presses, and never stretches tin
   assert.equal(land[1].value, 4);
   assert.equal(land[1].shade, 1);
 });
+
+test('log ticks never loop on non-positive values', () => {
+  assert.ok(Array.isArray(FT.chart.logTicks(0, 100)));
+  assert.ok(Array.isArray(FT.chart.logTicks(-5, 10)));
+});

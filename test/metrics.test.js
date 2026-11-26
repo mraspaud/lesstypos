@@ -52,3 +52,7 @@ test('an empty session yields null metrics rather than NaN', () => {
   assert.equal(m.wpm, null);
   assert.equal(m.firstAttemptAccuracy, null);
 });
+
+test('a summary without a duration reports 0 ms, not undefined', () => {
+  assert.equal(FT.metrics.summarize([], {}).durationMs, 0);
+});

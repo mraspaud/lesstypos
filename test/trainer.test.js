@@ -320,3 +320,15 @@ test('consecutive exercises get different words, also within one daily training'
   const randoms = (ex) => ex.words.filter((w) => w.source === 'random').slice(0, 10).map((w) => w.word).join(' ');
   assert.notEqual(randoms(tr.newExercise({ type: 'relaxed', run })), randoms(tr.newExercise({ type: 'targeted', run })));
 });
+
+test('a benchmark on a one-word corpus does not loop forever', () => {
+  const tr = FT.trainer.create({ seed: 1, corpus: FT.corpus.fromList(['only']) });
+  assert.ok(tr.newExercise({ type: 'benchmark' }).words.length > 0);
+});
+
+test('rebuilding keeps the profile language', () => {
+  const tr = FT.trainer.create({ seed: 1, lang: 'en' });
+  const { raw } = simulate(tr, 30, Date.UTC(2026, 0, 1));
+  assert.equal(FT.trainer.rebuild([raw], { previous: tr.profile() }).profile().lang, 'en');
+  assert.equal(FT.trainer.rebuild([Object.assign({}, raw, { lang: 'fr' })], { corpus: FT.corpus.fromList(['le', 'la']) }).profile().lang, 'fr');
+});

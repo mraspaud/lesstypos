@@ -9,8 +9,7 @@
   var MAX_EX = 20, A = 50, K = 30;
 
   function create(state) {
-    var st = state || { opp: {}, pairs: {}, totalSubs: 0, totalOpp: 0 };
-    st.swaps = st.swaps || {}; st.pairOpp = st.pairOpp || {};
+    var st = Object.assign({ opp: {}, pairs: {}, totalSubs: 0, totalOpp: 0, swaps: {}, pairOpp: {} }, state);
 
     function ingest(words, meta) {
       meta = meta || {};
@@ -56,7 +55,7 @@
 
     // Swapped letter pairs: count and occurrences of the intended pair.
     function swaps(opts) {
-      var minOpp = (opts && opts.minOpp) || 20;
+      var minOpp = opts && opts.minOpp != null ? opts.minOpp : 20;
       return Object.keys(st.swaps).map(function (k) {
         var r = st.swaps[k], opp = st.pairOpp[k] || 0;
         return { expected: r.expected, actual: r.actual, count: r.count, opportunities: opp,
@@ -66,7 +65,7 @@
     }
 
     function matrix(opts) {
-      var minOpp = (opts && opts.minOpp) || 20;
+      var minOpp = opts && opts.minOpp != null ? opts.minOpp : 20;
       var m = st.totalOpp ? st.totalSubs / (st.totalOpp * K) : 0;
       return Object.keys(st.pairs).map(function (k) {
         var r = st.pairs[k], opp = st.opp[r.expected] || 0;

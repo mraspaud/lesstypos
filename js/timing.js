@@ -42,8 +42,8 @@
 
   function extract(words, opts) {
     opts = opts || {};
-    var pauseMs = opts.pauseMs || 5000;
-    var macroGapMs = opts.macroGapMs || FT.text.MACRO_GAP_MS;
+    var pauseMs = opts.pauseMs != null ? opts.pauseMs : 5000;
+    var macroGapMs = opts.macroGapMs != null ? opts.macroGapMs : FT.text.MACRO_GAP_MS;
     var records = [];
     var text = '';
     var prev = null; // previous record
@@ -104,7 +104,7 @@
   // Bigrams whose IKIs are consistently near-zero: possible keyboard macros.
   function macroCandidates(results, opts) {
     opts = opts || {};
-    var fastMs = opts.fastMs || 15, minN = opts.minN || 10, minFrac = opts.minFrac || 0.8;
+    var fastMs = opts.fastMs != null ? opts.fastMs : 15, minN = opts.minN != null ? opts.minN : 10, minFrac = opts.minFrac != null ? opts.minFrac : 0.8;
     var stats = {};
     results.forEach(function (res) {
       res.records.forEach(function (r) {

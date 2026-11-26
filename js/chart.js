@@ -119,6 +119,7 @@
   }
   var LOG_MANTISSA = [1, 1.5, 2, 3, 5, 8];
   function logTicks(lo, hi) {
+    if (!(lo > 0) || !(hi > lo)) return ticks(lo, hi); // a log scale needs positive values
     var all = [];
     for (var e = Math.floor(Math.log10(lo)) - 1; e <= Math.ceil(Math.log10(hi)); e++) {
       LOG_MANTISSA.forEach(function (m) { all.push(+(m * Math.pow(10, e)).toPrecision(6)); });
