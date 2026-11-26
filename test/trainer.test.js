@@ -385,6 +385,26 @@ test('history entries keep the session centre in ms per population', () => {
   assert.equal(Math.round(h.centreMs.initial), 120);
 });
 
+test('history entries keep the mean clean interval per population and what errors cost', () => {
+  const tr = FT.trainer.create({ seed: 30 });
+  const { raw } = simulate(tr, 60, DAY0, { err: true }), h = tr.history()[0];
+  const slips = raw.words.reduce((n, w) => n + (w.target.match(/th/g) || []).length, 0);
+  assert.ok(slips > 0);
+  near(h.meanMs.within, 120, 1e-6);
+  near(h.meanMs.initial, 120, 1e-6);
+  near(h.errorCostMs, 300, 1e-6);                               // n, 150 ms to erase it, 150 ms to retype h
+  near(h.correctionMs, 300 * slips, 1e-6);
+});
+
+test('the index takes the declared multi-letter keys of the latest exercise as one press', () => {
+  const tr = FT.trainer.create({ seed: 36, settings: { macros: ['th'] } });
+  let raw;
+  for (let i = 0; i < 3; i++) raw = simulate(tr, 60, DAY0 + i * HOUR).raw;
+  const predictOn = (macros) => FT.fluency.index(tr.model.evaluate({ day: raw.day }), tr.history(), FT.fluency.reference(tr.corpus, macros), { minN: tr.model.config.minN }).wpm;
+  assert.equal(tr.history()[2].fluencyWpm, predictOn(['th']));
+  assert.ok(predictOn(['th']) > predictOn([]));
+});
+
 test('exercises get the fluency index once 3 relaxed exercises set its scale', () => {
   const tr = FT.trainer.create({ seed: 31 });
   const h = practiseRelaxed(tr, 3, { effort: 3 });

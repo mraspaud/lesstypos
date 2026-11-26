@@ -7,12 +7,19 @@
 // - A keystroke's time depends on the letters before it (Gentner 1983;
 //   Salthouse 1986): its longest context with enough timed keystrokes
 //   (FT.model.timedContext) gives its time ratio to a session's centre.
-// - An error costs extra keystrokes, the slip and its backspace, as in the
-//   keystrokes-per-character measure of Soukoreff & MacKenzie (2003).
 // - The scale, in ms per keystroke at ratio 1 for each population (within
-//   words and word-initial), comes from recent relaxed practice: variant A,
-//   predicted speed, from all of it; variant B, effortless speed, only from
-//   exercises rated effort 1-2.
+//   words and word-initial), is the arithmetic mean of the clean intervals
+//   (FT.timing meanMs), since durations add up arithmetically; applying the
+//   model's ratios (taken against the geometric centre) to it is a design
+//   choice that keeps the model's relative shape.
+// - An error costs the time a correction takes, measured: errors slow typing
+//   around the mistake (Salthouse 1986; post-error slowing, Kalfaoğlu &
+//   Stafford 2014), and faster typists mainly make fewer errors (Dhakal et
+//   al. 2018). Each keystroke adds its context's error rate times the cost of
+//   an error (FT.timing correction, per exercise).
+// - The scale comes from recent relaxed practice: variant A, predicted speed,
+//   from all of it; variant B, effortless speed, only from exercises rated
+//   effort 1-2.
 // Not validated: each benchmark is compared with the prediction made before it
 // (FT.progress.fluencyCheck), and that error is all the index can claim.
 (function (FT) {
@@ -48,12 +55,13 @@
   // minute) and its coverage, the share of keystrokes timed from a context of
   // two characters or more (the rest rests on single letters, or on nothing).
   // evaluation: FT.judgement.evaluate's; scale: { within, initial } in ms;
+  // scale: { within, initial, errorCostMs } in ms (see scale);
   // opts.minN: timed keystrokes a context needs (the model's).
-  // A keystroke takes exp(mu) x scale of its population; one without a timed
-  // context takes the scale and the overall error rate (design choice).
-  // Each error adds two keystrokes of the same time. The later letters of a
-  // declared key come with its first: no time, and no part of the coverage.
-  var SLIP_AND_BACKSPACE = 2, MIN_COVERED_ORDER = 2;
+  // A keystroke takes exp(mu) x scale of its population, plus its error rate
+  // x the cost of an error; one without a timed context takes the scale and
+  // the overall error rate (design choice). The later letters of a declared
+  // key come with its first: no time, and no part of the coverage.
+  var MIN_COVERED_ORDER = 2;
   function predict(evaluation, scale, ref, opts) {
     var minN = FT.valueOr(opts && opts.minN, FT.model.DEFAULTS.minN), totalMs = 0, covered = 0, pressed = 0;
     ref.keystrokes.forEach(function (k) {
@@ -61,26 +69,29 @@
       pressed++;
       var c = FT.model.timedContext(evaluation, k.key, minN);
       var ratio = c ? Math.exp(c.mu) : 1, errorRate = c ? c.errorRate : evaluation.global.rate;
-      totalMs += ratio * (k.initial ? scale.initial : scale.within) * (1 + SLIP_AND_BACKSPACE * errorRate);
+      totalMs += ratio * (k.initial ? scale.initial : scale.within) + errorRate * scale.errorCostMs;
       if (c && c.key.length >= MIN_COVERED_ORDER) covered++;
     });
     return { wpm: ref.keystrokes.length / 5 / (totalMs / 60000), coverage: covered / pressed };
   }
 
-  // The scale: per population, the geometric mean of the session centres
-  // (FT.timing centreMs) of the last SCALE_EXERCISES comparable relaxed
-  // exercises that pass filter; null before MIN_SCALE_EXERCISES of them.
+  // The scale: per population, the mean of the mean clean intervals
+  // (FT.timing meanMs) of the last SCALE_EXERCISES comparable relaxed
+  // exercises that pass filter, and the mean of their costs per error (0 when
+  // none had an error); null before MIN_SCALE_EXERCISES of them.
   // Design choices: 5 and 3. Relaxed practice is the pace the index is about.
   var SCALE_EXERCISES = 5, MIN_SCALE_EXERCISES = 3;
   function scale(history, filter) {
     var picked = history.filter(function (h) {
-      return FT.history.isComparableRelaxed(h) && h.centreMs && h.centreMs.within != null && h.centreMs.initial != null && (!filter || filter(h));
+      return FT.history.isComparableRelaxed(h) && h.meanMs && h.meanMs.within != null && h.meanMs.initial != null && (!filter || filter(h));
     }).slice(-SCALE_EXERCISES);
     if (picked.length < MIN_SCALE_EXERCISES) return null;
-    var geometricMean = function (population) {
-      return Math.exp(FT.stats.meanLog(picked.map(function (h) { return h.centreMs[population]; })));
+    var meanOf = function (values) { return FT.stats.mean(values.filter(function (v) { return v != null; })); };
+    return {
+      within: meanOf(picked.map(function (h) { return h.meanMs.within; })),
+      initial: meanOf(picked.map(function (h) { return h.meanMs.initial; })),
+      errorCostMs: FT.valueOr(meanOf(picked.map(function (h) { return h.errorCostMs; })), 0),
     };
-    return { within: geometricMean('within'), initial: geometricMean('initial') };
   }
   // Variant B's exercises: rated effort 1 or 2 of 5.
   var EFFORTLESS_MAX = 2;

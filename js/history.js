@@ -16,6 +16,7 @@
       firstAttemptAccuracy: m.metrics.firstAttemptAccuracy, randomFirstAttemptAccuracy: m.random.firstAttemptAccuracy,
       hesitationRate: m.hesitationRate, rhythmCv: m.rhythmCv, rollover: m.rollover, wordStartMs: m.wordStartMs,
       commonPairMs: m.commonPairs.ms, commonPairIntervals: m.commonPairs.n, centreMs: m.centreMs,
+      meanMs: m.meanMs, errorCostMs: m.correction.msPerError, correctionMs: m.correction.ms,
       frontier: m.frontier, vocabularyDecision: m.vocabularyDecision || undefined, burstRounds: m.burstRounds || undefined,
       keyPresses: m.keyStats.keys, wrongPressLandings: Object.keys(landings).length ? landings : undefined,
     };
