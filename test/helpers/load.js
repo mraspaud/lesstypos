@@ -13,7 +13,7 @@ function scriptList() {
 }
 
 function load(opts = {}) {
-  const sandbox = { console, Math, Date, JSON, setTimeout, clearTimeout, ...opts.globals };
+  const sandbox = { console, Math, Date, JSON, setTimeout, clearTimeout, TextDecoder, TextEncoder, Blob, Response, DecompressionStream, ...opts.globals };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
   for (const src of scriptList()) {
