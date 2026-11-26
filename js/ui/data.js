@@ -13,7 +13,7 @@
       app.store.reset(what).then(function () {
         if (what === 'settings' || what === 'all') { app.settings = FT.settings.clean({}); U.applySettings(); }
         return U.reloadFromStore(false);
-      }).then(U.onThisScreen(function () { viewData(); message('resetmsg', 'Done.'); }));
+      }).then(U.onThisScreen(function () { U.redraw(); message('resetmsg', 'Done.'); }));
     }, 'danger');
   }
   function message(id, text) { document.getElementById(id).textContent = text; }

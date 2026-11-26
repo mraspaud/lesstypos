@@ -19,16 +19,13 @@
   }
   // Drawn at once from the last known way into the book, redrawn if it changed.
   function viewHome() {
-    openHome(app.reading);
+    U.screen('home', { render: function () { U.paint(homePage(app.reading)); } });
     U.readingChoice().then(U.onThisScreen(function (reading) {
       var shown = function (r) { return r ? r.label + '|' + (r.chapterStart ? r.chapterStart.label : '') : ''; };
       var changed = shown(reading) !== shown(app.reading);
       app.reading = reading;
-      if (changed) openHome(reading);
+      if (changed) U.redraw();
     }));
-  }
-  function openHome(reading) {
-    U.screen('home', { render: function () { U.paint(homePage(reading)); } });
   }
   function homePage(reading) {
     var t = app.trainer, d = t.difficulty.state(), h = t.history();

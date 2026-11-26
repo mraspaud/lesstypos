@@ -124,13 +124,13 @@
     var current = t.id === app.settings.currentText, unfinished = t.pos < t.words.length;
     var fromStart = function (t) { t.pos = 0; };
     var actions =
-      (current ? '' : button('Make current', function () { app.settings.currentText = t.id; U.saveSettings().then(U.onThisScreen(viewTexts)); })) +
+      (current ? '' : button('Make current', function () { app.settings.currentText = t.id; U.saveSettings().then(U.onThisScreen(U.redraw)); })) +
       (unfinished ? button('Type now', function () { app.store.getText(t.id).then(U.onThisScreen(typeText)); }) +
           (t.pos > 0 ? button('Start over', onSecondPress('Click again to start over', function () {
-            storedText(t.id, fromStart).then(U.onThisScreen(viewTexts)).catch(U.storageError);
+            storedText(t.id, fromStart).then(U.onThisScreen(U.redraw)).catch(U.storageError);
           })) : '')
         : button('Start over', function () { storedText(t.id, fromStart).then(U.onThisScreen(typeText)); })) +
-      button('Delete', onSecondPress('Click again to delete', function () { app.store.deleteText(t.id).then(U.onThisScreen(viewTexts)); }), 'danger');
+      button('Delete', onSecondPress('Click again to delete', function () { app.store.deleteText(t.id).then(U.onThisScreen(U.redraw)); }), 'danger');
     return H.row([H.cell(esc(t.title) + (current ? ' ' + pill('current') : '')), H.cell(t.words.length.toLocaleString(), 'num'),
       H.cell('<span data-progress="' + esc(t.id) + '">' + FT.fmt.textProgress(t, t.pos) + '</span>' + chapterChoice(t), 'num'),
       H.cell('<div class="row">' + actions + '</div>')]);
@@ -147,7 +147,7 @@
         }
         html += H.panel('Add a text', textForm());
         U.paint(html);
-        bindTextForm(U.onThisScreen(viewTexts));
+        bindTextForm(U.onThisScreen(U.redraw));
         app.$view.querySelectorAll('select[data-chapter]').forEach(function (sel) {
           sel.onchange = function () {
             storedText(sel.dataset.chapter, function (t) { t.pos = +sel.value; })

@@ -48,8 +48,18 @@
     document.body.classList.toggle('typing-mode', name === 'typing');
     document.body.classList.toggle('quiet-nav', name === 'typing' || name === 'effort');
     renderNav();
-    (spec.keys || []).forEach(U.shortcut);
-    if (spec.render) spec.render();
+    draw();
+  }
+  // Draws the screen on view again (its data changed): its keys and clicks
+  // start afresh, while work it started still completes.
+  function redraw() {
+    active.shortcuts = {};
+    active.actions = [];
+    draw();
+  }
+  function draw() {
+    (active.spec.keys || []).forEach(U.shortcut);
+    if (active.spec.render) active.spec.render();
   }
   function activeScreen() { return active; }
   // Wraps a callback of async work so it does nothing once the user has
@@ -177,7 +187,7 @@
     return rows;
   }
 
-  Object.assign(U, { route: route, screen: screen, activeScreen: activeScreen, onThisScreen: onThisScreen, action: action, paint: paint, fill: fill,
+  Object.assign(U, { route: route, screen: screen, redraw: redraw, activeScreen: activeScreen, onThisScreen: onThisScreen, action: action, paint: paint, fill: fill,
     renderNotice: renderNotice, announce: announce,
     go: go, show: show, followAddress: followAddress, showAddressed: showAddressed, sectionHead: sectionHead,
     stepSection: stepSection, navigateByKey: navigateByKey, navigationHelp: navigationHelp });

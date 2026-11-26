@@ -70,7 +70,7 @@
     var mvd = document.getElementById('moves');
     if (mvd) mvd.addEventListener('toggle', function (e) { moveOpen = e.target.open; });
     app.$view.querySelectorAll('.focuslist [data-key]').forEach(function (li) { li.onclick = function () { seqSel = li.dataset.key; showWhy(seqSel, true); markSel(); }; });
-    app.$view.querySelectorAll('[data-tab]').forEach(function (b) { b.onclick = function () { seqTab = b.dataset.tab; viewSequences(); }; });
+    app.$view.querySelectorAll('[data-tab]').forEach(function (b) { b.onclick = function () { seqTab = b.dataset.tab; U.redraw(); }; });
     app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.onclick = function () { seqSel = r.dataset.key; showWhy(seqSel, true); markSel(); }; });
     app.$view.querySelectorAll('#movement [data-key]').forEach(function (b) { b.onclick = function () { seqSel = b.dataset.key; showWhy(seqSel, true); markSel(); }; });
     if (seqSel && all[seqSel]) showWhy(seqSel);
