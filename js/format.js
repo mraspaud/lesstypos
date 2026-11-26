@@ -73,5 +73,11 @@
     return stageLabel(stage || 'improving') + ': ×' + fix(c.latRel, 1) + ' against ' + against + ' now';
   }
 
-  FT.fmt = { vocabSentence: vocabSentence, textProgress: textProgress, comparison: comparison, focusReason: focusReason, stageLabel: stageLabel, stateLabel: stateLabel, stagePill: stagePill, statePill: statePill, statusLegend: statusLegend, storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
+  // When an exercise started: its day and time, short.
+  function dateTime(t) {
+    var d = new Date(t);
+    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  FT.fmt = { dateTime: dateTime, vocabSentence: vocabSentence, textProgress: textProgress, comparison: comparison, focusReason: focusReason, stageLabel: stageLabel, stateLabel: stateLabel, stagePill: stagePill, statePill: statePill, statusLegend: statusLegend, storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
 })(globalThis.FT);

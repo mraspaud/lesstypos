@@ -251,9 +251,8 @@
       '<section class="stack"><h2>All exercises</h2><p class="muted">Newest first; open a row for its summary. “Random words” is the unbiased sample that targeted practice never influences.</p></section>';
     if (!h.length) html += '<p class="panel">No exercises yet.</p>';
     else html += H.table(['When', 'Exercise', 'Min', 'WPM', 'Accuracy', 'Random words', 'Effort', 'Hesitation', 'Rhythm', 'Vocabulary'], h.map(function (x) {
-      var d = new Date(x.startedAt);
       return H.row([H.cell('<button type="button" class="rowbtn" data-row data-past="' + esc(x.id) + '">' +
-          esc(d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</button>', 'num nowrap'),
+          esc(FT.fmt.dateTime(x.startedAt)) + '</button>', 'num nowrap'),
         H.cell(esc(FT.exercises.name(x.type))), H.cell(fix(x.durationMs / 60000, 1), 'num'),
         H.cell(fix(x.wpm), 'num'), H.cell(pct(x.firstAttemptAccuracy), 'num'), H.cell(pct(x.randomFirstAttemptAccuracy), 'num'),
         H.cell(x.effort || '–', 'num'), H.cell(pct(x.hesitationRate), 'num'), H.cell(fix(x.rhythmCv, 2), 'num'),

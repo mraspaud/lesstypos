@@ -7,8 +7,7 @@
   var esc = FT.fmt.esc, pct = FT.fmt.pct, fix = FT.fmt.fix;
   var TRIALS = FT.exercises.BENCHMARK_TRIALS;
 
-  function goHome() { U.go('home'); }
-  var HOME_KEYS = [{ key: 'Escape', label: 'Home', act: goHome }];
+  var goHome = U.goHome, HOME_KEYS = U.HOME_KEYS;
 
   function benchmarkDue(h) {
     var s = FT.progress.benchmarkStatus(h, Date.now());

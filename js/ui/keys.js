@@ -23,6 +23,25 @@
       b.label + (b.key ? ' ' + shortcut({ key: b.key, label: b.label, act: b.onClick }) : '') + '</button>';
   }
 
+  // A plain button: label (markup), its click; kind: 'primary' or 'danger'.
+  function button(label, onClick, kind, id) { return keyButton({ label: label, onClick: onClick, kind: kind, id: id }); }
+  // A click handler that asks first: the first press arms the button, which
+  // then says askLabel (markup), the second acts. From a key, the button is
+  // found by opts.id; opts.onArm runs once it is armed.
+  function onSecondPress(askLabel, act, opts) {
+    opts = opts || {};
+    return function (el) {
+      var b = el || document.getElementById(opts.id);
+      if (b.classList.contains('armed')) return act();
+      b.classList.add('armed');
+      b.innerHTML = askLabel;
+      if (opts.onArm) opts.onArm();
+    };
+  }
+  function goHome() { U.go('home'); }
+  // The keys of a screen whose only way on is home.
+  var HOME_KEYS = [{ key: 'Escape', label: 'Home', act: goHome }];
+
   // ---------- keyboard help (?) ----------
   function textOf(markup) {
     var el = document.createElement('div');
@@ -117,5 +136,5 @@
     if (U.navigateByKey(e.key)) e.preventDefault();
   }
 
-  Object.assign(U, { shortcut: shortcut, keyButton: keyButton, closeKeyHelp: closeKeyHelp, onGlobalKey: onGlobalKey });
+  Object.assign(U, { shortcut: shortcut, keyButton: keyButton, button: button, onSecondPress: onSecondPress, goHome: goHome, HOME_KEYS: HOME_KEYS, closeKeyHelp: closeKeyHelp, onGlobalKey: onGlobalKey });
 })(globalThis.FT);

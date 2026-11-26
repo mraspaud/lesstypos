@@ -3,18 +3,16 @@
 (function (FT) {
   'use strict';
   if (typeof document === 'undefined') return;
-  var U = FT.ui, app = U.app, H = FT.html;
+  var U = FT.ui, app = U.app, H = FT.html, button = U.button;
 
-  function button(label, onClick, kind, id) { return U.keyButton({ label: label, onClick: onClick, kind: kind, id: id }); }
   // Each reset button asks once more before acting.
   function resetButton(what, label) {
-    return button(label, function (b) {
-      if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Click again to confirm'; return; }
+    return button(label, U.onSecondPress('Click again to confirm', function () {
       return app.store.reset(what).then(function () {
         if (what === 'settings' || what === 'all') { app.settings = FT.settings.clean({}); U.applySettings(); }
         return U.reloadFromStore(false);
       }).then(U.onThisScreen(function () { U.redraw(); message('resetmsg', 'Done.'); }));
-    }, 'danger');
+    }), 'danger');
   }
   function message(id, text) { document.getElementById(id).textContent = text; }
 

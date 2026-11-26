@@ -4,7 +4,7 @@
   'use strict';
   if (typeof document === 'undefined') return;
   var U = FT.ui, app = U.app;
-  var esc = FT.fmt.esc, pill = FT.fmt.pill, H = FT.html;
+  var esc = FT.fmt.esc, pill = FT.fmt.pill, H = FT.html, button = U.button, onSecondPress = U.onSecondPress;
 
   // "Start at" for a text with chapters.
   var LONG_TEXT = 2000; // words: a book, where choosing a chapter matters
@@ -118,14 +118,6 @@
     }
     U.onSubmit(f, save);
   }
-  // A click handler that asks first: the first press arms the button, the second acts.
-  function onSecondPress(askLabel, act) {
-    return function (button) {
-      if (!button.classList.contains('armed')) { button.classList.add('armed'); button.textContent = askLabel; return; }
-      return act();
-    };
-  }
-  function button(label, onClick, kind) { return U.keyButton({ label: label, kind: kind, onClick: onClick }); }
   function storedText(id, change) {
     return app.store.getText(id).then(function (t) { change(t); return app.store.saveText(t).then(function () { return t; }); });
   }

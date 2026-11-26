@@ -6,8 +6,7 @@
   var U = FT.ui, app = U.app, exerciseName = FT.exercises.name;
   var esc = FT.fmt.esc, pct = FT.fmt.pct, fix = FT.fmt.fix, H = FT.html;
 
-  function goHome() { U.go('home'); }
-  var HOME_KEYS = [{ key: 'Escape', label: 'Home', act: goHome }];
+  var goHome = U.goHome, HOME_KEYS = U.HOME_KEYS;
 
   function startProgramme(run) {
     app.run = run || FT.programme.runner(U.programmeDef(), { day: U.today() });
@@ -36,15 +35,11 @@
     return '<p><b>Next: ' + esc(exerciseName(c.type)) + '</b>, ' + esc(String(c.minutes)) + ' min. <span class="muted">' + esc(FT.exercises.instructions(c.type, app.settings).goal) + '</span></p>';
   }
   // Ending today's training asks once (button or x).
-  function askEnd() {
-    var pend = document.getElementById('pend');
-    if (pend.classList.contains('armed')) { endEarly(); return; }
-    pend.classList.add('armed');
-    pend.innerHTML = 'Press again to end <kbd>x</kbd>';
+  var askEnd = U.onSecondPress('Press again to end <kbd>x</kbd>', function () { endEarly(); }, { id: 'pend', onArm: function () {
     U.announce('Press x again to end today\'s training.');
     var note = document.getElementById('endnote');
     if (note) note.hidden = false;
-  }
+  } });
   function programmeBar() {
     var r = app.run, done = r.results().length, total = done + r.upcoming().length;
     return '<section class="panel stack" id="progbar"><h3>Daily training · ' + Math.min(done, total) + ' of ' + total + ' done</h3>' + nextLine() +
