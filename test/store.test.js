@@ -254,3 +254,12 @@ test('a backup whose texts are malformed is refused before anything is replaced'
   }
   assert.equal((await b.listSessions())[0].id, 'keep');
 });
+
+test('a backup text may carry its chapters, which must start within it in order', async () => {
+  const base = { format: 'lesstypos-export', schema: 1, settings: {}, profile: null, sessions: [] };
+  const text = (chapters) => ({ id: 't', title: 'Book', words: ['a', 'b', 'c', 'd'], pos: 0, chapters });
+  await mk().importAll(Object.assign({}, base, { texts: [text([{ title: 'I', start: 0 }, { title: 'II', start: 2 }])] }));
+  for (const bad of [[{ title: 'I', start: 9 }], [{ title: 'I', start: 2 }, { title: 'II', start: 1 }], [{ title: 3, start: 0 }], 'x']) {
+    await assert.rejects(mk().importAll(Object.assign({}, base, { texts: [text(bad)] })), /text/);
+  }
+});

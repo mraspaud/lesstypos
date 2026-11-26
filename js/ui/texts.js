@@ -16,6 +16,16 @@
     pos = Number(pos) || 0;
     return pct(total ? pos / total : 0, 0) + ' (word ' + pos.toLocaleString() + ' of ' + total.toLocaleString() + ')';
   }
+  // "Start at" for a text with chapters.
+  var LONG_TEXT = 2000; // words: a book, where choosing a chapter matters
+  function chapterChoice(t) {
+    if (!t.chapters && t.words.length > LONG_TEXT) return '<div class="muted">No chapters: add it again from its EPUB to choose where to start.</div>';
+    if (!t.chapters || t.chapters.length < 2) return '';
+    var here = FT.books.chapterAt(t, t.pos);
+    return '<div><label class="muted">Start at <select data-chapter="' + esc(t.id) + '">' + t.chapters.map(function (c) {
+      return '<option value="' + c.start + '"' + (c === here ? ' selected' : '') + '>' + esc(c.title) + '</option>';
+    }).join('') + '</select></label></div>';
+  }
   function currentText() {
     return app.store.listTexts().then(function (list) {
       var t = list.filter(function (x) { return x.id === app.settings.currentText; })[0];
@@ -25,25 +35,39 @@
   function textForm() {
     return '<form class="stack" id="tform"><label for="ttitle">Title</label><input type="text" id="ttitle" placeholder="Moby-Dick, chapter 1">' +
       '<label for="tbody">Text</label><textarea id="tbody" class="mono" placeholder="Paste the text here"></textarea>' +
-      '<div class="row"><input type="file" id="tfile" accept=".txt,text/plain"><button class="btn primary" type="submit" id="tsave">Add text</button></div><p class="muted" id="tmsg"></p></form>';
+      '<div class="row"><input type="file" id="tfile" accept=".epub,.txt,application/epub+zip,text/plain" aria-label="Add from a file (EPUB or text)">' +
+      '<button class="btn primary" type="submit" id="tsave">Add text</button></div>' +
+      '<p class="muted">An EPUB gives the cleanest text, with its chapters; a Project Gutenberg text file works too.</p><p class="muted" id="tmsg" role="status"></p></form>';
+  }
+  function describeBook(b) {
+    var n = b.chapters.length;
+    return 'Read: ' + (b.title || 'untitled') + (b.author ? ' by ' + b.author : '') + ', ' + n + ' chapter' + (n === 1 ? '' : 's') +
+      (n > 1 ? ', starting at ' + b.chapters[b.start].title : '') + '.';
   }
   function bindTextForm(after) {
-    var f = document.getElementById('tform');
+    var f = document.getElementById('tform'), fromFile = null;
+    var msg = document.getElementById('tmsg'), titleBox = document.getElementById('ttitle'), body = document.getElementById('tbody');
+    function took(book) {
+      fromFile = book;
+      if (!titleBox.value && book.title) titleBox.value = book.title;
+      msg.textContent = describeBook(book);
+    }
     document.getElementById('tfile').onchange = function (e) {
       var file = e.target.files[0]; if (!file) return;
-      var r = new FileReader();
-      r.onload = function () {
-        document.getElementById('tbody').value = String(r.result);
-        if (!document.getElementById('ttitle').value) document.getElementById('ttitle').value = file.name.replace(/\.txt$/i, '');
-      };
-      r.readAsText(file);
+      if (/\.epub$/i.test(file.name) || file.type === 'application/epub+zip') {
+        file.arrayBuffer().then(function (b) { return FT.books.fromEpub(new Uint8Array(b)); }).then(took)
+          .catch(function (err) { fromFile = null; msg.textContent = 'This EPUB could not be read (' + err.message + ').'; });
+        return;
+      }
+      file.text().then(function (raw) { body.value = raw; took(FT.books.fromText(raw)); });
     };
+    body.addEventListener('input', function () { fromFile = null; });
     f.addEventListener('submit', function (e) {
       e.preventDefault();
-      var words = FT.text.prepare(document.getElementById('tbody').value), msg = document.getElementById('tmsg');
-      if (words.length < 20) { msg.textContent = 'That text is too short: paste at least a paragraph.'; return; }
-      var t = { id: 'x' + Date.now().toString(36), title: document.getElementById('ttitle').value.trim() || words.slice(0, 5).join(' '),
-        words: words, pos: 0, addedAt: Date.now() };
+      var book = fromFile || FT.books.fromText(body.value);
+      var t = FT.books.toText(book, 'x' + Date.now().toString(36));
+      if (t.words.length < 20) { msg.textContent = 'That text is too short: paste at least a paragraph.'; return; }
+      if (titleBox.value.trim()) t.title = titleBox.value.trim();
       app.store.saveText(t).then(function () {
         app.settings.currentText = t.id;
         return saveSettings();
@@ -58,7 +82,7 @@
           list.map(function (t) {
             var cur = t.id === app.settings.currentText;
             return '<tr><td>' + esc(t.title) + (cur ? ' ' + pill('current') : '') + '</td><td class="num">' + t.words.length.toLocaleString() + '</td><td class="num">' +
-              proseProgress(t, t.pos) + '</td><td><div class="row">' +
+              proseProgress(t, t.pos) + chapterChoice(t) + '</td><td><div class="row">' +
               (cur ? '' : '<button class="btn" type="button" data-use="' + esc(t.id) + '">Make current</button>') +
               (t.pos < t.words.length ? '<button class="btn" type="button" data-type="' + esc(t.id) + '">Type now</button>'
                 : '<button class="btn" type="button" data-restart="' + esc(t.id) + '">Start over</button>') +
@@ -71,6 +95,11 @@
       app.$view.querySelectorAll('[data-use]').forEach(function (b) { b.onclick = function () { app.settings.currentText = b.dataset.use; saveSettings().then(viewTexts); }; });
       app.$view.querySelectorAll('[data-type]').forEach(function (b) {
         b.onclick = function () { app.store.getText(b.dataset.type).then(U.onThisScreen(function (t) { startExercise('prose', { text: t }); })); };
+      });
+      app.$view.querySelectorAll('select[data-chapter]').forEach(function (sel) {
+        sel.onchange = function () {
+          app.store.getText(sel.dataset.chapter).then(function (t) { t.pos = +sel.value; return app.store.saveText(t); }).then(U.onThisScreen(viewTexts));
+        };
       });
       app.$view.querySelectorAll('[data-restart]').forEach(function (b) {
         b.onclick = function () {

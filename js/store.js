@@ -15,7 +15,14 @@
   function validText(t) {
     return t && typeof t.id === 'string' && typeof t.title === 'string' && Array.isArray(t.words) &&
       t.words.every(function (w) { return typeof w === 'string'; }) &&
-      Number.isInteger(t.pos) && t.pos >= 0 && t.pos <= t.words.length;
+      Number.isInteger(t.pos) && t.pos >= 0 && t.pos <= t.words.length && validChapters(t.chapters, t.words.length);
+  }
+  function validChapters(chapters, length) {
+    if (chapters === undefined) return true;
+    return Array.isArray(chapters) && chapters.every(function (c, i) {
+      return c && typeof c.title === 'string' && Number.isInteger(c.start) && c.start >= 0 && c.start < length &&
+        (i === 0 || c.start > chapters[i - 1].start);
+    });
   }
   function clone(x) { return x == null ? x : JSON.parse(JSON.stringify(x)); }
 

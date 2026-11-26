@@ -24,6 +24,10 @@
   function stopTyping() {
     if (ty) { clearInterval(ty.timer); if (ty.detach) ty.detach(); ty = null; }
   }
+  function proseChapter(text) {
+    var c = FT.books.chapterAt(text, text.pos);
+    return c ? ' · ' + esc(c.title) : '';
+  }
   function startExercise(type, opts) {
     stopTyping();
     opts = opts || {};
@@ -38,7 +42,7 @@
     setView('<section class="typing">' +
       '<div class="ex-head"><span class="name">' + esc(exDef.name) + (opts.pinned ? ' ' + opts.pinned.map(seq).join(' ') : '') + '</span>' +
       '<span>' + esc(exDef.goal) + '</span>' +
-      (type === 'prose' ? '<span class="muted">' + esc(opts.text.title) + ', ' + proseProgress(opts.text, opts.text.pos) + '</span>' : '') +
+      (type === 'prose' ? '<span class="muted">' + esc(opts.text.title) + proseChapter(opts.text) + ', ' + proseProgress(opts.text, opts.text.pos) + '</span>' : '') +
       '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' ? '' : ' hidden') + '>' + (type === 'bursts' ? 'Round 1 of ' + nRounds : clock(durationMs)) + '</span></div>' +
       (type === 'bursts' ? '<div class="pace" id="pace" aria-hidden="true"><div class="pace-fill" id="pacefill"></div><div class="pace-target" id="pacetarget"></div></div>' +
         '<div class="pace-label muted num" id="pacelabel">Target ' + Math.round(app.trainer.bursts.target()) + ' WPM</div>' : '') +

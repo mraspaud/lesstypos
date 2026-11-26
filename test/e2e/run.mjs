@@ -941,6 +941,38 @@ await step('an instruction card comes before the exercise; Enter starts, letters
   }
 });
 
+
+await step('a book from an EPUB: its stories appear, and you choose where to start', async () => {
+  await page.keyboard.press('t');
+  await page.locator('#tfile').setInputFiles(path.join(root, 'test', 'fixtures', 'books', 'snowdrop.epub'));
+  await page.getByText(/2 chapters|chapters, starting at Snowdrop/).waitFor();
+  await page.locator('#tsave').click();
+  const row = page.locator('tr', { hasText: 'Snowdrop & Other Tales' });
+  const start = row.locator('select[data-chapter]');
+  await start.waitFor();
+  assert.equal(await start.locator('option:checked').textContent(), 'Snowdrop');
+  await start.selectOption({ label: 'The Pink' });
+  await page.waitForFunction(() => window.FT.app.store.listTexts().then((l) => {
+    const t = l.find((x) => x.title === 'Snowdrop & Other Tales');
+    return t && t.pos === t.chapters.find((c) => c.title === 'The Pink').start;
+  }));
+  await page.locator('tr', { hasText: 'Snowdrop & Other Tales' }).getByRole('button', { name: /Type now/ }).click();
+  await page.locator('.w').first().waitFor();
+  assert.equal(await page.locator('.w').first().textContent(), 'There');
+  assert.match(await page.locator('.ex-head').textContent(), /The Pink/);
+  await page.keyboard.press('Escape');
+});
+
+
+await step('a long text added before chapters existed says how to get them', async () => {
+  await page.evaluate(async () => {
+    const words = Array.from({ length: 2500 }, (_, i) => 'word' + (i % 50));
+    await window.FT.app.store.saveText({ id: 'old-plain', title: 'Old plain book', words, pos: 0, addedAt: 1 });
+  });
+  await page.keyboard.press('t');
+  await page.locator('tr', { hasText: 'Old plain book' }).getByText(/add it again from its EPUB/).waitFor();
+});
+
 await step('phone width has no horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   for (const k of ['p', 't', 'q', 'h', 's', 'd']) {
