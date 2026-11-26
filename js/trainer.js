@@ -99,6 +99,7 @@
         planMs: input.planMs || null,
         words: input.words.map(function (w) { return { target: w.target, stream: w.stream.map(FT.codec.withRoundedTime), meta: w.meta || null }; }),
         keys: (input.keys || []).map(FT.codec.withRoundedTime),
+        vocab: { manual: !!difficulty.state().manual, frontier: difficulty.state().frontier },
       };
       if (input.text) raw.text = { id: input.text.id, from: input.text.from, to: input.text.from + input.words.length };
       if (input.rounds) raw.rounds = input.rounds;
@@ -117,6 +118,7 @@
           sessionCount = session;
           lastRun = raw.run || raw.id;
         }
+        if (raw.vocab) applyVocabulary(raw.vocab);
         var m = measure(raw);
         var summary = describe(raw, m);
         learn(raw, session, m, summary);
@@ -124,6 +126,13 @@
         history.push(historyEntry(raw, m, summary));
         return summary;
       });
+    }
+
+    // A fixed vocabulary is part of what happened; replaying it keeps a
+    // rebuild faithful.
+    function applyVocabulary(v) {
+      if (v.manual) difficulty.override(v.frontier);
+      else if (difficulty.state().manual) difficulty.override(null);
     }
 
     function measure(raw) {

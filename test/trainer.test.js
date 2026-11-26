@@ -292,3 +292,18 @@ test('finishing an exercise rounds its timestamps to 0.01 ms without touching th
   assert.equal(stream[0].t, 100.123456);
   assert.equal(keys[0].t, 99.999999);
 });
+
+// Functionality: a fixed vocabulary is part of what happened, so a rebuild
+// from raw exercises reproduces periods when the user fixed it.
+test('rebuilding reproduces a period of fixed vocabulary', () => {
+  const tr = FT.trainer.create({ seed: 6 });
+  const raws = [];
+  tr.difficulty.override(2000);
+  for (let i = 0; i < 3; i++) raws.push(simulate(tr, 80, Date.UTC(2026, 0, 1 + i)).raw);
+  tr.difficulty.override(null);
+  raws.push(simulate(tr, 80, Date.UTC(2026, 0, 5)).raw);
+  const re = FT.trainer.rebuild(raws);
+  assert.deepEqual(plain(re.history().map((h) => h.frontier)), plain(tr.history().map((h) => h.frontier)));
+  assert.equal(re.difficulty.state().frontier, tr.difficulty.state().frontier);
+  assert.equal(re.difficulty.state().manual, false);
+});
