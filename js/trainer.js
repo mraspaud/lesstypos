@@ -139,12 +139,8 @@
     // population, the geometric mean of the trimmed clean intervals).
     function expectedRatio(ev) {
       return function (r) {
-        var full = r.ctx + r.ch;
-        for (var k = Math.min(FT.model.MAX_ORDER, full.length); k >= 1; k--) {
-          var j = ev.get(full.slice(-k));
-          if (j && j.latN >= model.config.minN) return Math.exp(j.mu);
-        }
-        return 1;
+        var c = FT.model.timedContext(ev, r.ctx + r.ch, model.config.minN);
+        return c ? Math.exp(c.mu) : 1;
       };
     }
 

@@ -46,9 +46,20 @@
     };
   }
 
+  // The longest context of a keystroke with at least minN timed keystrokes,
+  // or null. full: the characters before the keystroke, then the keystroke;
+  // shorter suffixes are the backoff (as in the judgement).
+  function timedContext(evaluation, full, minN) {
+    for (var k = Math.min(FT.evidence.MAX_ORDER, full.length); k >= 1; k--) {
+      var c = evaluation.get(full.slice(-k));
+      if (c && c.latN >= minN) return c;
+    }
+    return null;
+  }
+
   // The stored evidence, judged with the code's settings (a profile's old
   // stored settings are ignored); opts: overrides, for tests.
   function fromJSON(j, opts) { return create(opts, j.state); }
 
-  FT.model = { create: create, fromJSON: fromJSON, DEFAULTS: DEFAULTS, MAX_ORDER: FT.evidence.MAX_ORDER };
+  FT.model = { create: create, fromJSON: fromJSON, timedContext: timedContext, DEFAULTS: DEFAULTS, MAX_ORDER: FT.evidence.MAX_ORDER };
 })(globalThis.FT);

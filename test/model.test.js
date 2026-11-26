@@ -314,3 +314,12 @@ test('a compacted block weighs the same in a sequence and in its parent', () => 
   assert.equal(typeof m.state().contexts.b.buckets[0].block, 'number'); // block 0 is merged
   assert.equal(m.explain('ab', { day: 0 }).redundant, false);
 });
+
+// Backoff for timing: the longest context with enough timed keystrokes.
+test('a keystroke is timed from its longest context with enough timed keystrokes', () => {
+  const judged = { e: { latN: 50 }, he: { latN: 9 }, the: { latN: 3 } };
+  const evaluation = { get: (k) => judged[k] };
+  assert.equal(FT.model.timedContext(evaluation, ' the', 8), judged.he);
+  assert.equal(FT.model.timedContext(evaluation, ' the', 10), judged.e);
+  assert.equal(FT.model.timedContext(evaluation, 'x', 8), null);
+});
