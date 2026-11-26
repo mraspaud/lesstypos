@@ -78,6 +78,8 @@
     var res = app.run ? app.run.results() : [];
     var runId = app.run && app.run.id();
     var mins = res.reduce(function (a, r) { return a + (r.ms || 0); }, 0) / 60000;
+    app.run = null;   // today's training is over
+    U.saveRun();
     U.screen('summary', { keys: HOME_KEYS, render: function () {
       var html = '<section class="stack"><h1>Daily training finished</h1><p class="muted">' + fix(mins, 1) + ' minutes of typing across ' +
         res.filter(function (r) { return !r.skipped; }).length + ' exercises.</p></section>' +
@@ -88,8 +90,6 @@
         '<p class="muted">Speeds from different exercises are not comparable: warm-up and bursts use easier words, prose has capitals and punctuation.</p>' +
         U.tagBox(FT.conditions.lastTags(app.trainer.history())) +
         '<div class="row">' + U.keyButton({ label: 'Done', key: 'Enter', id: 'home', kind: 'primary', onClick: goHome }) + '<a href="#insights/progress">See progress</a></div>';
-      app.run = null;
-      U.saveRun();
       U.paint(html);
       var ids = app.trainer.history().filter(function (h) { return runId && h.run === runId; }).map(function (h) { return h.id; });
       U.bindTagBox(ids, document.getElementById('home'), true);
