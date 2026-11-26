@@ -114,14 +114,12 @@
   }
 
   // ---------- addresses ----------
-  function setAddress(name) {
-    app.address = name;
+  var address = null;   // of the route the user is on (or typed from)
+  function replaceAddress(name) {
     if (location.hash.slice(1) !== name) { try { history.replaceState(null, '', '#' + name); } catch (e) { /* file:// may refuse */ } }
   }
-  // Back to the address of the screen the user is on (or typed from).
-  function restoreAddress() {
-    if (app.address && location.hash.slice(1) !== app.address) { try { history.replaceState(null, '', '#' + app.address); } catch (e) { /* file:// may refuse */ } }
-  }
+  function setAddress(name) { address = name; replaceAddress(name); }
+  function restoreAddress() { if (address) replaceAddress(address); }
   function staysHere() { return !!(active.spec.holdOnNavigation && active.spec.holdOnNavigation()); }
   var ownHash = null;
   function go(name) {
