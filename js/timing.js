@@ -31,8 +31,9 @@
     var records = characterRecords(words, analyses, FT.valueOr(opts && opts.pauseMs, PAUSE_MS));
     markSimultaneous(records);
     var intervals = cleanIntervals(records);
-    centreRatios(records, intervals);
-    return { records: records, baseline: { within: FT.stats.median(intervals.within), initial: FT.stats.median(intervals.initial) } };
+    var centre = centreRatios(records, intervals);
+    return { records: records, baseline: { within: FT.stats.median(intervals.within), initial: FT.stats.median(intervals.initial) },
+      centreMs: { within: inMs(centre.within), initial: inMs(centre.initial) } };
   }
 
   function characterRecords(words, analyses, pauseMs) {
@@ -82,13 +83,16 @@
   // the scale the model compares on; the medians in the baseline are for
   // display. The centre leaves out outliers (Van Selst & Jolicoeur 1994, the
   // trimming the model applies per context), so one long pause does not move it.
+  // Returns the centres (mean log ms).
   function centreRatios(records, intervals) {
     var centre = { within: FT.stats.meanLog(FT.stats.vjTrim(intervals.within)), initial: FT.stats.meanLog(FT.stats.vjTrim(intervals.initial)) };
     records.forEach(function (r) {
       var c = r.wordInitial ? centre.initial : centre.within;
       if (r.clean && c != null) { r.logRatio = FT.stats.logOf(r.iki) - c; r.ratio = Math.exp(r.logRatio); }
     });
+    return centre;
   }
+  function inMs(meanLog) { return meanLog == null ? null : Math.exp(meanLog); }
 
   function markSimultaneous(records) {
     for (var i = 1; i < records.length; i++) {

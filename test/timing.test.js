@@ -239,3 +239,20 @@ test('the centre of a population is not pulled by an outlier interval', () => {
   const b = base.records.find((x) => x.ch === 'c'), o = withOutlier.records.find((x) => x.ch === 'c');
   assert.ok(Math.abs(o.ratio / b.ratio - 1) < 0.02, o.ratio + ' vs ' + b.ratio);
 });
+
+// The centre each population's ratios are taken against, in ms: the
+// geometric mean of its trimmed clean intervals.
+test('the session reports each population’s centre in ms', () => {
+  const r = run([['abc', 'abc ', [300, 100, 120, 110]], ['abc', 'abc ', [250, 90, 100, 100]], ['abc', 'abc ', [280, 110, 100, 105]]]);
+  const clean = r.records.filter((x) => x.clean);
+  const geometricMean = (ikis) => Math.exp(FT.stats.meanLog(FT.stats.vjTrim(ikis)));
+  for (const [population, initial] of [['within', false], ['initial', true]]) {
+    const expected = geometricMean(clean.filter((x) => x.wordInitial === initial).map((x) => x.iki));
+    assert.ok(Math.abs(r.centreMs[population] - expected) < 1e-9, population);
+  }
+  assert.ok(r.centreMs.initial > 200 && r.centreMs.within < 130);
+});
+
+test('a population without clean intervals has no centre', () => {
+  assert.equal(run([['abc', 'abc ', 100]]).centreMs.initial, null);
+});
