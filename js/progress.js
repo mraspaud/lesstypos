@@ -18,14 +18,12 @@
     if (higher.length >= MIN) {
       var hb = med(higher);
       if (cur.wpm >= hb - 1) {
-        return { kind: 'lower-effort', baselineWpm: hb, deltaWpm: cur.wpm - hb,
-          message: 'About the same speed as your recent sessions at higher effort, with less effort.' };
+        return { kind: 'lower-effort', effort: cur.effort, baselineWpm: hb, deltaWpm: cur.wpm - hb };
       }
     }
     if (same.length >= MIN) {
       var b = med(same), d = cur.wpm - b;
-      return { kind: 'same-effort', baselineWpm: b, deltaWpm: d,
-        message: (d >= 0 ? '+' : '') + d.toFixed(1) + ' WPM compared with your recent sessions at effort ' + cur.effort + '.' };
+      return { kind: 'same-effort', effort: cur.effort, baselineWpm: b, deltaWpm: d };
     }
     return null;
   }

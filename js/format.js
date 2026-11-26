@@ -53,6 +53,11 @@
       wait: 'Collecting evidence at the ', manual: 'Vocabulary fixed at the ' }[d.action] || 'Vocabulary: the ';
     return lead + n + (d.reasons && d.reasons.length ? ': ' + d.reasons.join('; ') : '') + '.';
   }
+  // One sentence on an exercise's speed against comparable ones (progress.compare).
+  function comparison(c) {
+    if (c.kind === 'lower-effort') return 'About the same speed as your recent sessions at higher effort, with less effort.';
+    return (c.deltaWpm >= 0 ? '+' : '') + c.deltaWpm.toFixed(1) + ' WPM compared with your recent sessions at effort ' + c.effort + '.';
+  }
   // Why a sequence is in the focus list, from its judgement (model.evaluate).
   function focusReason(c, stage) {
     var against = c.parent ? seq(c.parent) : 'all your typing';
@@ -62,5 +67,5 @@
     return stageLabel(stage || 'improving') + ': ×' + fix(c.latRel, 1) + ' against ' + against + ' now';
   }
 
-  FT.fmt = { vocabSentence: vocabSentence, focusReason: focusReason, stageLabel: stageLabel, stateLabel: stateLabel, stagePill: stagePill, statePill: statePill, statusLegend: statusLegend, storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
+  FT.fmt = { vocabSentence: vocabSentence, comparison: comparison, focusReason: focusReason, stageLabel: stageLabel, stateLabel: stateLabel, stagePill: stagePill, statePill: statePill, statusLegend: statusLegend, storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
 })(globalThis.FT);

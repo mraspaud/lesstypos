@@ -409,7 +409,7 @@
       '<p class="muted">' + fix(s.durationMs / 60000, 1) + ' minutes, ' + m.words + ' words' +
       (s.effort ? ', effort ' + s.effort + ' (' + esc(EFFORT[s.effort - 1][1].toLowerCase()) + ')' : '') + '. ' +
       (m.IF ? m.IF + ' corrected keystrokes, ' : '') + m.F + ' backspaces, ' + fix(m.INF) + ' uncorrected errors.</p>';
-    if (cmp) html += '<p class="notice info">' + esc(cmp.message) + '</p>';
+    if (cmp) html += '<p class="notice info">' + esc(FT.fmt.comparison(cmp)) + '</p>';
     if (s.timeline && s.timeline.length > 1) {
       html += '<section class="stack"><h3>Speed through the exercise</h3>' +
         '<div class="legend"><span><i class="k1"></i>Running average</span><span><i class="k2"></i>Each word</span>' +

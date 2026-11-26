@@ -21,7 +21,7 @@ test('the same speed at lower effort is reported as progress', () => {
   const hist = [h(54, 3), h(55, 3), h(53, 3)];
   const c = plain(FT.progress.compare(hist, h(54, 2)));
   assert.equal(c.kind, 'lower-effort');
-  assert.ok(c.message.includes('less effort'));
+  assert.ok(FT.fmt.comparison(c).includes('less effort'));
 });
 
 test('sessions with clearly lower accuracy are not used as a baseline', () => {
