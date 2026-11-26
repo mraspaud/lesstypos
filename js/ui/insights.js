@@ -285,7 +285,7 @@
   // A past exercise's summary, rebuilt from its stored record (nothing is learned).
   function openPast(id) {
     app.store.getSession(id).then(U.onThisScreen(function (raw) {
-      if (!raw) { app.notice = 'The record of this exercise is no longer stored.'; U.renderNotice(); return; }
+      if (!raw) { U.flash('The record of this exercise is no longer stored.'); return; }
       U.viewSummary(app.trainer.summarize(raw), { past: true, opts: {} });
     })).catch(U.storageError);
   }

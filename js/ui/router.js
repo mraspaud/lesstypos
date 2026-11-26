@@ -110,12 +110,20 @@
     el.innerHTML = html;
     bindActions(el);
   }
+  // The notice: app.notice stays (storage trouble) until it is cleared; a
+  // flash shows on the screen on view only, redraws included.
+  var flashed = { text: null, generation: -1 };
+  function flash(text) {
+    flashed = { text: text, generation: active.generation };
+    renderNotice();
+  }
   function renderNotice() {
     var el = document.getElementById('notice');
     if (!el) return;
-    el.hidden = !app.notice;
-    el.textContent = app.notice || '';
-    if (app.notice) announce(app.notice);
+    var text = [app.notice, flashed.generation === active.generation ? flashed.text : null].filter(Boolean).join(' ');
+    el.hidden = !text;
+    el.textContent = text;
+    if (text) announce(text);
   }
   // Polite announcement for assistive technology (one shared live region).
   function announce(text) {
@@ -198,7 +206,7 @@
   }
 
   Object.assign(U, { route: route, screen: screen, redraw: redraw, activeScreen: activeScreen, onThisScreen: onThisScreen, action: action, perform: perform, paint: paint, fill: fill,
-    renderNotice: renderNotice, announce: announce,
+    renderNotice: renderNotice, flash: flash, announce: announce,
     go: go, show: show, followAddress: followAddress, showAddressed: showAddressed, sectionHead: sectionHead,
     stepSection: stepSection, navigateByKey: navigateByKey, navigationHelp: navigationHelp });
 })(globalThis.FT);

@@ -121,6 +121,17 @@ export default async function insights() {
     await page.locator('#alltable').waitFor();
   });
 
+  await step('an exercise whose record is gone says so once, on that page only', async () => {
+    await page.evaluate(() => { window.FT.ui.app.trainer.history().push({ id: 'gone', type: 'relaxed', startedAt: Date.now(), durationMs: 60000, words: 60, wpm: 40, firstAttemptAccuracy: 0.99, frontier: 200 }); });
+    try {
+      await nav(page, 'insights/progress');
+      await page.locator('[data-past="gone"]').click();
+      await page.locator('#notice', { hasText: /no longer stored/ }).waitFor();
+      await nav(page, 'settings/typing');
+      assert.equal(await page.locator('#notice').isHidden(), true);
+    } finally { await page.evaluate(() => { window.FT.ui.app.trainer.history().pop(); }); }
+  });
+
   await step('a click anywhere in a row of the exercise log opens that exercise', async () => {
     await nav(page, 'insights/progress');
     const row = page.locator('#alltable tbody tr').first();

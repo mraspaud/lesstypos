@@ -460,10 +460,9 @@
       else U.viewEffort(info);
     }
     function tooShort() {
-      app.notice = 'That exercise was too short to analyse (fewer than 10 words), so nothing was saved.';
-      if (opts.programme && app.run) { U.viewBetween(); U.renderNotice(); }
+      if (opts.programme && app.run) U.viewBetween();
       else U.go('home');
-      app.notice = null;
+      U.flash('That exercise was too short to analyse (fewer than 10 words), so nothing was saved.');
     }
 
     return { render: render, stop: stop, keyElsewhere: keyElsewhere, holdForLeave: holdForLeave };
