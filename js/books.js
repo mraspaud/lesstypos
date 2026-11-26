@@ -75,7 +75,10 @@
       return named != null ? named : '';
     });
   }
-  function attr(tag, name) { var m = new RegExp('\\s' + name + '\\s*=\\s*("([^"]*)"|\'([^\']*)\')', 'i').exec(tag); return m ? decode(m[2] != null ? m[2] : m[3]) : null; }
+  function attr(tag, name) {
+    var found = new RegExp('\\s' + name + '\\s*=\\s*("([^"]*)"|\'([^\']*)\')', 'i').exec(tag);
+    return found ? decode(found[2] != null ? found[2] : found[3]) : null;
+  }
   function textOf(xml) { return decode(xml.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim(); }
 
   var BLOCK = /^(p|div|h[1-6]|li|blockquote|pre|tr|dt|dd|section|article|table|ul|ol|body)$/;
@@ -132,26 +135,26 @@
     var ncxId = attr((/<spine[^>]*>/i.exec(opf) || [''])[0], 'toc');
     var ncx = ncxId && manifest[ncxId];
     if (ncx && files[ncx.path]) {
-      var ncxXml = new TextDecoder().decode(files[ncx.path]), out = [], re = /<navLabel>\s*<text>([\s\S]*?)<\/text>\s*<\/navLabel>\s*(<content\b[^>]*>)/gi, m;
+      var ncxXml = new TextDecoder().decode(files[ncx.path]), out = [], navPoints = /<navLabel>\s*<text>([\s\S]*?)<\/text>\s*<\/navLabel>\s*(<content\b[^>]*>)/gi, point;
       var xml = (/<navMap\b[\s\S]*?<\/navMap>/i.exec(ncxXml) || [ncxXml])[0];   // the chapters, not the printed page list
-      while ((m = re.exec(xml))) { var src = attr(m[2], 'src'); if (src) out.push({ title: textOf(m[1]), src: resolve(ncx.path, src) }); }
+      while ((point = navPoints.exec(xml))) { var src = attr(point[2], 'src'); if (src) out.push({ title: textOf(point[1]), src: resolve(ncx.path, src) }); }
       return out;
     }
-    var nav = Object.keys(manifest).map(function (k) { return manifest[k]; }).filter(function (it) { return /\bnav\b/.test(it.properties || ''); })[0];
+    var nav = Object.keys(manifest).map(function (id) { return manifest[id]; }).filter(function (item) { return /\bnav\b/.test(item.properties || ''); })[0];
     if (!nav) return [];
-    var html = new TextDecoder().decode(files[nav.path]), list = [], a = /(<a\b[^>]*>)([\s\S]*?)<\/a>/gi, n;
+    var html = new TextDecoder().decode(files[nav.path]), list = [], links = /(<a\b[^>]*>)([\s\S]*?)<\/a>/gi, link;
     var toc = /<nav[^>]*toc[^>]*>([\s\S]*?)<\/nav>/i.exec(html);
-    while ((n = a.exec(toc ? toc[1] : html))) { var href = attr(n[1], 'href'); if (href) list.push({ title: textOf(n[2]), src: resolve(nav.path, href) }); }
+    while ((link = links.exec(toc ? toc[1] : html))) { var href = attr(link[1], 'href'); if (href) list.push({ title: textOf(link[2]), src: resolve(nav.path, href) }); }
     return list;
   }
   function fromEpub(bytes) {
     return FT.zip.read(bytes).then(function (files) {
       var text = function (p) { if (!files[p]) throw new Error('This EPUB is missing ' + p); return new TextDecoder().decode(files[p]); };
       var opfPath = attr((/<rootfile\s[^>]*>/i.exec(text('META-INF/container.xml')) || [''])[0], 'full-path');
-      var opf = text(opfPath), manifest = {}, it, re = /<item\s[^>]*>/gi;
-      while ((it = re.exec(opf))) manifest[attr(it[0], 'id')] = { path: resolve(opfPath, attr(it[0], 'href')), properties: attr(it[0], 'properties') };
-      var spine = (opf.match(/<itemref\s[^>]*>/gi) || []).filter(function (t) { return attr(t, 'linear') !== 'no'; })
-        .map(function (t) { return manifest[attr(t, 'idref')]; }).filter(function (x) { return x && files[x.path]; }).map(function (x) { return x.path; });
+      var opf = text(opfPath), manifest = {}, item, items = /<item\s[^>]*>/gi;
+      while ((item = items.exec(opf))) manifest[attr(item[0], 'id')] = { path: resolve(opfPath, attr(item[0], 'href')), properties: attr(item[0], 'properties') };
+      var spine = (opf.match(/<itemref\s[^>]*>/gi) || []).filter(function (ref) { return attr(ref, 'linear') !== 'no'; })
+        .map(function (ref) { return manifest[attr(ref, 'idref')]; }).filter(function (doc) { return doc && files[doc.path]; }).map(function (doc) { return doc.path; });
       var title = textOf((/<dc:title[^>]*>([\s\S]*?)<\/dc:title>/i.exec(opf) || ['', ''])[1]);
       var authors = (opf.match(/<dc:creator[^>]*>[\s\S]*?<\/dc:creator>/gi) || []).map(textOf);
       // one stream of events, with each document's start as an anchor
@@ -162,13 +165,13 @@
       });
       var at = {};
       events.forEach(function (e, i) { if (e.anchor && at[e.anchor] == null) at[e.anchor] = i; });
-      var entries = tocEntries(files, opfPath, opf, manifest).map(function (t) {
-        var key = t.src.indexOf('#') >= 0 ? t.src : t.src + '#';
-        return { title: t.title, from: at[key] };
-      }).filter(function (t) { return t.from != null; }).sort(function (a, b) { return a.from - b.from; });
-      var chapters = entries.map(function (t, k) {
-        var to = k + 1 < entries.length ? entries[k + 1].from : events.length;
-        return { title: t.title, text: events.slice(t.from, to).filter(function (e) { return e.text; }).map(function (e) { return e.text; }).join('\n\n') };
+      var entries = tocEntries(files, opfPath, opf, manifest).map(function (entry) {
+        var key = entry.src.indexOf('#') >= 0 ? entry.src : entry.src + '#';
+        return { title: entry.title, from: at[key] };
+      }).filter(function (entry) { return entry.from != null; }).sort(function (a, b) { return a.from - b.from; });
+      var chapters = entries.map(function (entry, i) {
+        var to = i + 1 < entries.length ? entries[i + 1].from : events.length;
+        return { title: entry.title, text: events.slice(entry.from, to).filter(function (e) { return e.text; }).map(function (e) { return e.text; }).join('\n\n') };
       });
       if (!chapters.length) chapters = [{ title: title || 'Text', text: events.filter(function (e) { return e.text; }).map(function (e) { return e.text; }).join('\n\n') }];
       return book(title, authors.join(', '), chapters);
@@ -176,7 +179,7 @@
   }
 
   // ---- Project Gutenberg text ----
-  function header(raw, field) { var m = new RegExp('^' + field + ':\\s*(.+)$', 'mi').exec(raw); return m ? m[1].trim() : null; }
+  function header(raw, field) { var line = new RegExp('^' + field + ':\\s*(.+)$', 'mi').exec(raw); return line ? line[1].trim() : null; }
   function bodyOf(raw) {
     var start = /^\*{3}\s*START OF.*$/mi.exec(raw), end = /^\*{3}\s*END OF.*$/mi.exec(raw);
     return raw.slice(start ? start.index + start[0].length : 0, end ? end.index : raw.length);
@@ -194,16 +197,16 @@
   function contentsTitles(paragraphs) {
     var i = paragraphs.findIndex(function (p) { return /^\s*(table of )?contents\s*$/i.test(p); });
     if (i < 0) return { titles: [], at: 0, after: 0 };
-    var titles = [], seen = {}, k = i + 1;
-    for (; k < paragraphs.length; k++) {
-      var lines = paragraphs[k].split('\n').filter(function (l) { return l.trim() && !/^\s*PAGE\s*$/i.test(l); });
-      if (seen[norm(paragraphs[k])]) break;   // the first heading: the body begins
-      var numbered = lines.filter(function (l) { return PAGE_NUMBER.test(l); });
-      var listed = numbered.length ? numbered : lines.every(function (l) { return l.trim().length <= CONTENTS_LINE_MAX; }) ? lines : [];
-      if (!listed.length) { if (titles.length || k > i + 2) break; continue; }
-      listed.forEach(function (l) { var t = l.replace(PAGE_NUMBER, '').trim(); titles.push(t); seen[norm(t)] = true; });
+    var titles = [], seen = {}, p = i + 1;
+    for (; p < paragraphs.length; p++) {
+      var lines = paragraphs[p].split('\n').filter(function (line) { return line.trim() && !/^\s*PAGE\s*$/i.test(line); });
+      if (seen[norm(paragraphs[p])]) break;   // the first heading: the body begins
+      var numbered = lines.filter(function (line) { return PAGE_NUMBER.test(line); });
+      var listed = numbered.length ? numbered : lines.every(function (line) { return line.trim().length <= CONTENTS_LINE_MAX; }) ? lines : [];
+      if (!listed.length) { if (titles.length || p > i + 2) break; continue; }
+      listed.forEach(function (line) { var title = line.replace(PAGE_NUMBER, '').trim(); titles.push(title); seen[norm(title)] = true; });
     }
-    return { titles: titles, at: i, after: k };
+    return { titles: titles, at: i, after: p };
   }
   function isHeading(p) {
     var lines = p.split('\n');
@@ -225,9 +228,9 @@
     var page = titlePage(paragraphs);
     var title = header(raw, 'Title') || page.title, author = header(raw, 'Author') || page.author;
     var contents = contentsTitles(paragraphs), headings = [], from = contents.after;
-    contents.titles.forEach(function (t) {
+    contents.titles.forEach(function (listedTitle) {
       for (var j = from; j < paragraphs.length; j++) {
-        if (isHeading(paragraphs[j]) && norm(paragraphs[j]) === norm(t)) { headings.push(j); from = j + 1; return; }
+        if (isHeading(paragraphs[j]) && norm(paragraphs[j]) === norm(listedTitle)) { headings.push(j); from = j + 1; return; }
       }
     });
     if (!headings.length) {
@@ -243,8 +246,8 @@
     };
     if (!headings.length) return book(title, author, [{ title: title || 'Text', text: prose(0, paragraphs.length) }]);
     var lead = headings[0] > 0 ? [{ title: title || 'Opening', text: prose(0, headings[0]) }] : [];
-    return book(title, author, lead.concat(headings.map(function (h, k) {
-      return { title: headingTitle(paragraphs[h]), text: prose(h + 1, k + 1 < headings.length ? headings[k + 1] : paragraphs.length) };
+    return book(title, author, lead.concat(headings.map(function (h, i) {
+      return { title: headingTitle(paragraphs[h]), text: prose(h + 1, i + 1 < headings.length ? headings[i + 1] : paragraphs.length) };
     })));
   }
 
@@ -273,7 +276,7 @@
   var MATCH_RUN = 3;   // design choice: words that must match in a row to resume after a skip
   // The place after typed words that follow the book from `from`; null if they don't.
   function placeAfter(text, from, words) {
-    for (var k = 0; k < words.length; k++) if (words[k].target !== text.words[from + k]) return null;
+    for (var i = 0; i < words.length; i++) if (words[i].target !== text.words[from + i]) return null;
     return from + words.length;
   }
   // The same, allowing forward skips (prose skipped part of the book until

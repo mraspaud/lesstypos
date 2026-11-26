@@ -22,43 +22,43 @@
   // tab; label, for the control `input`; control(settings, vocabulary state): its markup.
   var FIELDS = [
     { tab: 'typing', label: 'Exercise length', input: 'durationMin',
-      control: function (s) { return selectField('durationMin', FT.settings.DURATIONS.map(function (m) { return [m, m + ' min']; }), s.durationMin); } },
+      control: function (settings) { return selectField('durationMin', FT.settings.DURATIONS.map(function (m) { return [m, m + ' min']; }), settings.durationMin); } },
     { tab: 'typing', label: 'After a wrong key', input: 'errorMode',
-      control: function (s) { return selectField('errorMode', [['continue', 'Keep going (fix with backspace if you like)'], ['stop', 'Stop until it is corrected']], s.errorMode); } },
+      control: function (settings) { return selectField('errorMode', [['continue', 'Keep going (fix with backspace if you like)'], ['stop', 'Stop until it is corrected']], settings.errorMode); } },
     { tab: 'typing', label: 'Error highlighting', input: 'errorStyle',
-      control: function (s) { return selectField('errorStyle', [['clear', 'Clear'], ['subtle', 'Subtle (colour only)']], s.errorStyle); } },
+      control: function (settings) { return selectField('errorStyle', [['clear', 'Clear'], ['subtle', 'Subtle (colour only)']], settings.errorStyle); } },
     { tab: 'typing', label: 'Remaining time', input: 'showTimer',
-      control: function (s) { return selectField('showTimer', [['1', 'Show'], ['0', 'Hide']], s.showTimer ? '1' : '0'); } },
+      control: function (settings) { return selectField('showTimer', [['1', 'Show'], ['0', 'Hide']], settings.showTimer ? '1' : '0'); } },
     { tab: 'typing', label: 'Vocabulary', input: 'vocabMode',
-      control: function (s, d) {
-        return '<div class="row">' + H.select({ id: 'vocabMode' }, [['auto', 'Adapt automatically'], ['manual', 'Fixed']], d.manual ? 'manual' : 'auto') +
-          '<input type="number" id="frontier" min="100" max="' + app.trainer.corpus.size + '" step="50" value="' + Math.round(d.frontier) + '" style="max-width:8rem" aria-label="Number of common words"' + (d.manual ? '' : ' disabled') + '> <span class="muted">most common words</span></div>';
+      control: function (settings, vocabulary) {
+        return '<div class="row">' + H.select({ id: 'vocabMode' }, [['auto', 'Adapt automatically'], ['manual', 'Fixed']], vocabulary.manual ? 'manual' : 'auto') +
+          '<input type="number" id="frontier" min="' + FT.difficulty.TUNING.min + '" max="' + app.trainer.corpus.size + '" step="50" value="' + Math.round(vocabulary.frontier) + '" style="max-width:8rem" aria-label="Number of common words"' + (vocabulary.manual ? '' : ' disabled') + '> <span class="muted">most common words</span></div>';
       } },
     { tab: 'typing', label: 'Instructions', input: 'showInstructions',
-      control: function (s) { return '<div>' + checkbox('showInstructions', s.showInstructions !== false, 'Show the instructions before each exercise (Enter starts)') + '</div>'; } },
+      control: function (settings) { return '<div>' + checkbox('showInstructions', settings.showInstructions !== false, 'Show the instructions before each exercise (Enter starts)') + '</div>'; } },
     { tab: 'typing', label: 'Prose characters', input: 'accents',
-      control: function (s) {
-        return '<div>' + checkbox('accents', s.accents !== false, 'Accept letters without accents (e for é)') +
+      control: function (settings) {
+        return '<div>' + checkbox('accents', settings.accents !== false, 'Accept letters without accents (e for é)') +
           '<p class="help">Curly quotes and long dashes always accept their plain keyboard versions.</p></div>';
       } },
     { tab: 'training', label: 'Exercises', control: function () { return '<div class="stack" id="progedit"></div>'; } },
     { tab: 'keyboard', label: 'Multi-letter keys', input: 'macros',
-      control: function (s) {
-        return '<div><input type="text" id="macros" value="' + esc((s.macros || []).join(' ')) + '" placeholder="th qu">' +
+      control: function (settings) {
+        return '<div><input type="text" id="macros" value="' + esc((settings.macros || []).join(' ')) + '" placeholder="th qu">' +
           '<p class="help">Keys that type several letters at once, separated by spaces. They count fully towards speed and are timed as one movement. Keys in your layout below are included automatically.</p>' +
           '<p class="help" id="layoutMacros"></p>' +
-          checkbox('autoMacros', s.autoMacros, 'Suggest pairs that always arrive almost simultaneously') + '<div id="cands" class="help"></div></div>';
+          checkbox('autoMacros', settings.autoMacros, 'Suggest pairs that always arrive almost simultaneously') + '<div id="cands" class="help"></div></div>';
       } },
     { tab: 'keyboard', label: 'Keyboard layout (optional)', input: 'layoutText',
-      control: function (s) {
-        return '<div><textarea id="layoutText" class="mono" placeholder="' + LAYOUT_EXAMPLE + '">' + esc(s.layoutText || '') + '</textarea>' +
+      control: function (settings) {
+        return '<div><textarea id="layoutText" class="mono" placeholder="' + LAYOUT_EXAMPLE + '">' + esc(settings.layoutText || '') + '</textarea>' +
           '<p class="help">Rows of keys, then the same rows again as finger numbers (0 = left pinky … 3 = left index, 4 = left thumb, 5 = right thumb, 6 = right index … 9 = right pinky). ' +
           'Write a key that types several letters as one token (<span class="seq">th</span>, <span class="seq">qu</span>) and the space bar as <span class="seq">space</span>. ' +
           'The layout is only used to describe sequences (same finger, rolls, scissors); training never depends on it. Multi-letter keys are added to the multi-letter keys above.</p><p class="help" id="layoutStatus"></p></div>';
       } },
-    { tab: 'appearance', label: 'Theme', input: 'theme', control: function (s) { return selectField('theme', THEMES, s.theme); } },
+    { tab: 'appearance', label: 'Theme', input: 'theme', control: function (settings) { return selectField('theme', THEMES, settings.theme); } },
     { tab: 'appearance', label: 'Text size', input: 'fontSize',
-      control: function (s) { return selectField('fontSize', TEXT_SIZES.map(function (px) { return [px, px + ' px']; }), nearestTextSize(s.fontSize)); } },
+      control: function (settings) { return selectField('fontSize', TEXT_SIZES.map(function (px) { return [px, px + ' px']; }), nearestTextSize(settings.fontSize)); } },
   ];
 
   // How a change to each control applies to the settings, which are then
@@ -71,27 +71,27 @@
     return false;
   }
   var CHANGES = {
-    durationMin: function (s, el) { s.durationMin = +el.value; },
-    errorMode: function (s, el) { s.errorMode = el.value; },
-    errorStyle: function (s, el) { s.errorStyle = el.value; },
-    showTimer: function (s, el) { s.showTimer = el.value === '1'; },
+    durationMin: function (settings, el) { settings.durationMin = +el.value; },
+    errorMode: function (settings, el) { settings.errorMode = el.value; },
+    errorStyle: function (settings, el) { settings.errorStyle = el.value; },
+    showTimer: function (settings, el) { settings.showTimer = el.value === '1'; },
     vocabMode: changeVocabulary,
     frontier: changeVocabulary,
-    showInstructions: function (s, el) { s.showInstructions = el.checked; },
-    accents: function (s, el) { s.accents = el.checked; },
-    macros: function (s, el) { s.macros = el.value.split(/[\s,]+/).filter(function (x) { return Array.from(x).length > 1; }); },
-    autoMacros: function (s, el) { s.autoMacros = el.checked; candidates(); },
-    layoutText: function (s, el) { s.layoutText = el.value; U.applySettings(); layoutStatus(); },
-    theme: function (s, el) { s.theme = el.value; },
-    fontSize: function (s, el) { s.fontSize = (+el.value || 26) / 16; },
+    showInstructions: function (settings, el) { settings.showInstructions = el.checked; },
+    accents: function (settings, el) { settings.accents = el.checked; },
+    macros: function (settings, el) { settings.macros = el.value.split(/[\s,]+/).filter(function (x) { return Array.from(x).length > 1; }); },
+    autoMacros: function (settings, el) { settings.autoMacros = el.checked; candidates(); },
+    layoutText: function (settings, el) { settings.layoutText = el.value; U.applySettings(); layoutStatus(); },
+    theme: function (settings, el) { settings.theme = el.value; },
+    fontSize: function (settings, el) { settings.fontSize = (+el.value || 26) / 16; },
   };
 
   function viewSettings(tab) {
     U.screen('settings/' + tab, { render: function () {
-      var s = app.settings, d = app.trainer.difficulty.state();
+      var settings = app.settings, vocabulary = app.trainer.difficulty.state();
       U.paint('<section class="stack">' + U.sectionHead('settings') + '</section><form class="form" id="sform">' +
         FIELDS.filter(function (f) { return f.tab === tab; }).map(function (f) {
-          return '<label' + (f.input ? ' for="' + f.input + '"' : '') + '>' + f.label + '</label>' + f.control(s, d);
+          return '<label' + (f.input ? ' for="' + f.input + '"' : '') + '>' + f.label + '</label>' + f.control(settings, vocabulary);
         }).join('') + '</form>');
       layoutStatus();
       renderProgEdit();
@@ -100,7 +100,7 @@
       form.addEventListener('change', function (e) {
         if (e.target.dataset.step != null) { changeStep(e.target); return; }
         var change = CHANGES[e.target.id];
-        if (change && change(s, e.target) === false) return;
+        if (change && change(settings, e.target) === false) return;
         U.saveSettings();
       });
       candidates();
@@ -113,7 +113,7 @@
     if (!el || !fromLayout) return;
     fromLayout.textContent = app.layout && app.layout.macros.length ? 'From your layout: ' + app.layout.macros.join(' ') : '';
     if (!text.trim()) { el.textContent = ''; return; }
-    try { var L = FT.layout.parse(text); el.textContent = 'Layout read: ' + Object.keys(L.keys).length + ' keys' + (L.macros.length ? ', multi-letter: ' + L.macros.join(' ') : '') + '.'; }
+    try { var layout = FT.layout.parse(text); el.textContent = 'Layout read: ' + Object.keys(layout.keys).length + ' keys' + (layout.macros.length ? ', multi-letter: ' + layout.macros.join(' ') : '') + '.'; }
     catch (e) { el.textContent = e.message; }
   }
   function candidates() {

@@ -52,16 +52,16 @@
   function encodeWord(w, clock) {
     if (!onlyKeys(w, ['target', 'stream', 'meta']) || !Array.isArray(w.stream) || !w.stream.every(plainEntry)) return w;
     var saved = { t: clock.t, g: clock.g };
-    var c = '', ts = [], gs = [], auto = [];
+    var typed = '', timeSteps = [], groupSteps = [], auto = [];
     w.stream.forEach(function (e, i) {
-      ts.push(delta(clock, 't', steps(e.t)));
-      if (e.k === 'b') { c += BACK; return; }
-      c += e.ch;
-      gs.push(e.g === undefined ? null : delta(clock, 'g', e.g));
+      timeSteps.push(delta(clock, 't', steps(e.t)));
+      if (e.k === 'b') { typed += BACK; return; }
+      typed += e.ch;
+      groupSteps.push(e.g === undefined ? null : delta(clock, 'g', e.g));
       if (e.auto) auto.push(i);
     });
-    if (Array.from(c).length !== w.stream.length) { clock.t = saved.t; clock.g = saved.g; return w; } // e.g. lone surrogate halves
-    var out = { target: w.target, meta: w.meta, c: c, t: ts, g: gs };
+    if (Array.from(typed).length !== w.stream.length) { clock.t = saved.t; clock.g = saved.g; return w; } // e.g. lone surrogate halves
+    var out = { target: w.target, meta: w.meta, c: typed, t: timeSteps, g: groupSteps };
     if (auto.length) out.a = auto;
     return out;
   }
