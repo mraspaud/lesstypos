@@ -14,7 +14,7 @@
   function list(items) {
     return items.length < 2 ? items.join('') : items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
   }
-  // Keys the keyboard sends late (FT.timing.lateKeys), as shown on the Sequences page.
+  // Keys the keyboard sends late (FT.keyevents.lateKeys), as shown on the Sequences page.
   function lateNote(chars) {
     if (!chars || !chars.length) return '';
     return 'Your keyboard sends ' + list(chars.map(seq)) + ' late: tap-hold keys arrive only once the keyboard has decided between tap and hold. ' +

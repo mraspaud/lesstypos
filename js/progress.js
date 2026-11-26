@@ -14,7 +14,7 @@
     var pool = history.filter(function (h) { return h !== cur && comparable(h, cur); });
     var same = pool.filter(function (h) { return h.effort === cur.effort; }).slice(-N);
     var higher = pool.filter(function (h) { return h.effort > cur.effort; }).slice(-N);
-    var med = function (a) { return FT.timing.median(a.map(function (h) { return h.wpm; })); };
+    var med = function (a) { return FT.stats.median(a.map(function (h) { return h.wpm; })); };
     if (higher.length >= MIN) {
       var hb = med(higher);
       if (cur.wpm >= hb - 1) {
@@ -67,8 +67,8 @@
     var trials = history.filter(function (h) { return h.type === 'benchmark' && h.set === set && fullTrial(h); });
     if (!trials.length) return null;
     var wpm = trials.map(function (h) { return h.wpm; });
-    return { set: set, trials: trials.length, wpm: FT.timing.median(wpm),
-      faa: FT.timing.median(trials.map(function (h) { return h.faa; })),
+    return { set: set, trials: trials.length, wpm: FT.stats.median(wpm),
+      faa: FT.stats.median(trials.map(function (h) { return h.faa; })),
       min: Math.min.apply(null, wpm), max: Math.max.apply(null, wpm),
       t: Math.min.apply(null, trials.map(function (h) { return h.t; })) };
   }
@@ -96,7 +96,7 @@
   }
   function med(list, key) {
     var v = list.map(function (h) { return h[key]; }).filter(function (x) { return x != null; });
-    return v.length ? FT.timing.median(v) : null;
+    return v.length ? FT.stats.median(v) : null;
   }
 
   // Comparable progress series (comparable sessions only, one point per day):

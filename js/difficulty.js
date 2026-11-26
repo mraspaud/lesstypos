@@ -14,8 +14,6 @@
     step: 1.1, hesTol: 1.25, hesAbs: 0.02, rhythmTol: 1.15, effortHold: 4, baselineN: 5 };
   var START_FRONTIER = 200;
 
-  function median(a) { return FT.timing.median(a); }
-
   // state: what was learned (stored in the profile); opts: { max } and tuning
   // overrides for tests.
   function create(state, opts) {
@@ -49,8 +47,8 @@
       var acc = p.acc / p.words;
       var hes = p.hesN ? p.hes / p.hesN : null, rhy = p.rhyN ? p.rhy / p.rhyN : null;
       var recent = st.windows.slice(-cfg.baselineN);
-      var hesBase = median(recent.map(function (x) { return x.hes; }).filter(function (x) { return x != null; }));
-      var rhyBase = median(recent.map(function (x) { return x.rhy; }).filter(function (x) { return x != null; }));
+      var hesBase = FT.stats.median(recent.map(function (x) { return x.hes; }).filter(function (x) { return x != null; }));
+      var rhyBase = FT.stats.median(recent.map(function (x) { return x.rhy; }).filter(function (x) { return x != null; }));
       var pct = function (x) { return (100 * x).toFixed(1) + '%'; };
       var action, reasons = [];
       if (acc < cfg.low) {

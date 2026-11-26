@@ -172,7 +172,7 @@ test('a deficit in one session that is absent in the next is never confirmed', (
   assert.equal(m.evaluate({ day: 1 }).get('rn').weak, false);
 });
 
-// Functionality: a key the keyboard sends late (timing.lateKeys) has shifted
+// Functionality: a key the keyboard sends late (FT.keyevents.lateKeys) has shifted
 // timestamps. Its sequences are compared with a parent that ends on the same
 // key, so the shift cancels; the single key is compared with all keys, so it
 // does not: its speed is not judged. Its errors are.

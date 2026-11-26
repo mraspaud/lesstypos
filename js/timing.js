@@ -12,8 +12,9 @@
 //   different skew offset from each other.
 // - Multi-character outputs: a single input event carrying several characters
 //   is one motor event (observed fact). Declared macros typed as separate fast
-//   keystrokes (< FT.presses.MACRO_GAP_MS) are merged too (FT.presses.ids). Undeclared fast pairs are only
-//   reported as candidates (macroCandidates), never merged.
+//   keystrokes (< FT.presses.MACRO_GAP_MS) are merged too (FT.presses.ids).
+//   Undeclared fast pairs are only reported as candidates (macroCandidates),
+//   never merged.
 // - Letters arriving under SIMULTANEOUS_MS apart that are not a declared key
 //   were sent together by the keyboard (e.g. a tap-hold key released by the
 //   next press, or a deferred letter), so neither interval is finger timing:
@@ -22,70 +23,71 @@
 //   in one user's data; no published threshold.
 (function (FT) {
   'use strict';
-  var CTX = 3;
-  var SIMULTANEOUS_MS = 6;
+  var SIMULTANEOUS_MS = 6, CONTEXT_CHARS = 3, PAUSE_MS = 5000;
 
-  // The population's intervals without outliers (Van Selst & Jolicoeur 1994,
-  // the trimming the model applies per context), so one long pause does not
-  // move the centre.
-  function trimmed(a) { return a.length >= 4 ? FT.stats.vjTrim(a) : a; }
-  function meanLog(a) {
-    if (!a.length) return null;
-    return a.reduce(function (s, x) { return s + Math.log(Math.max(x, 1e-3)); }, 0) / a.length;
-  }
-  function median(a) {
-    if (!a.length) return null;
-    var s = a.slice().sort(function (x, y) { return x - y; });
-    var m = s.length >> 1;
-    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-  }
-
+  // Records per target character, cleaned and normalised per population.
   // analyses: FT.align.analyzeWords(words, ...), one per word.
   function extract(words, analyses, opts) {
-    opts = opts || {};
-    var pauseMs = FT.valueOr(opts.pauseMs, 5000);
-    var records = [];
-    var text = '';
-    var prev = null; // previous record
-    for (var wi = 0; wi < words.length; wi++) {
-      var w = words[wi];
-      var an = analyses[wi], presses = an.presses.typed;
-      for (var p = 0; p < an.targets.length; p++) {
-        var tg = an.targets[p];
+    var records = characterRecords(words, analyses, FT.valueOr(opts && opts.pauseMs, PAUSE_MS));
+    markSimultaneous(records);
+    var intervals = cleanIntervals(records);
+    centreRatios(records, intervals);
+    return { records: records, baseline: { within: FT.stats.median(intervals.within), initial: FT.stats.median(intervals.initial) } };
+  }
+
+  function characterRecords(words, analyses, pauseMs) {
+    var records = [], text = '', prev = null;
+    words.forEach(function (w, wi) {
+      var an = analyses[wi];
+      an.targets.forEach(function (tg, p) {
         var rec = {
-          ch: tg.ch, ctx: text.slice(-CTX), word: w.target, wordIndex: wi, pos: p,
+          ch: tg.ch, ctx: text.slice(-CONTEXT_CHARS), word: w.target, wordIndex: wi, pos: p,
           t: tg.t, g: tg.g, err: tg.err, iki: null, wordInitial: p === 0,
           clean: false, reason: null, macro: false, source: w.meta && w.meta.source || null,
         };
         if (prev && prev.t != null && tg.t != null) rec.iki = tg.t - prev.t;
-        var consecutive = prev && tg.idx != null && (
-          p > 0 ? tg.idx === prev.idx + 1 : (tg.idx === 0 && prev.lastOfWord));
-        var typedEntry = tg.idx != null ? w.stream[tg.idx] : null;
-        if (typedEntry && typedEntry.auto) rec.reason = 'auto';
-        else if (!prev) rec.reason = 'first';
-        else if (tg.err > 0) rec.reason = 'error';
-        else if (prev.err > 0 || !consecutive) rec.reason = 'after-error';
-        else if (p > 0 && presses[tg.idx] != null && presses[tg.idx] === presses[prev.idx]) { rec.reason = 'macro'; rec.macro = true; } // second letter of one press
-        else if (rec.iki > pauseMs) rec.reason = 'pause';
+        rec.reason = exclusion(w, an.presses.typed, tg, p, prev, rec.iki, pauseMs);
+        rec.macro = rec.reason === 'macro';
         rec.clean = rec.reason === null;
         records.push(rec);
         text += tg.ch;
         prev = { ch: tg.ch, t: tg.t, g: tg.g, err: tg.err, idx: tg.idx,
           lastOfWord: p === an.targets.length - 1 && tg.idx === w.stream.length - 1 };
-      }
-    }
-    markSimultaneous(records);
+      });
+    });
+    return records;
+  }
+
+  // Why the interval before target character pos is not finger timing, or
+  // null when it is (see the header).
+  function exclusion(w, presses, tg, pos, prev, iki, pauseMs) {
+    var typed = tg.idx != null ? w.stream[tg.idx] : null;
+    if (typed && typed.auto) return 'auto';
+    if (!prev) return 'first';
+    if (tg.err > 0) return 'error';
+    var followsDirectly = tg.idx != null && (pos > 0 ? tg.idx === prev.idx + 1 : (tg.idx === 0 && prev.lastOfWord));
+    if (prev.err > 0 || !followsDirectly) return 'after-error';
+    if (pos > 0 && presses[tg.idx] != null && presses[tg.idx] === presses[prev.idx]) return 'macro'; // second letter of one press
+    if (iki > pauseMs) return 'pause';
+    return null;
+  }
+
+  function cleanIntervals(records) {
     var within = [], initial = [];
     records.forEach(function (r) { if (r.clean) (r.wordInitial ? initial : within).push(r.iki); });
-    var baseline = { within: median(within), initial: median(initial) };
-    // Ratios are centred per population on the log scale (geometric mean = 1),
-    // the scale the model compares on; the medians above are for display.
-    var centre = { within: meanLog(trimmed(within)), initial: meanLog(trimmed(initial)) };
+    return { within: within, initial: initial };
+  }
+
+  // Ratios are centred per population on the log scale (geometric mean = 1),
+  // the scale the model compares on; the medians in the baseline are for
+  // display. The centre leaves out outliers (Van Selst & Jolicoeur 1994, the
+  // trimming the model applies per context), so one long pause does not move it.
+  function centreRatios(records, intervals) {
+    var centre = { within: FT.stats.meanLog(FT.stats.vjTrim(intervals.within)), initial: FT.stats.meanLog(FT.stats.vjTrim(intervals.initial)) };
     records.forEach(function (r) {
       var c = r.wordInitial ? centre.initial : centre.within;
-      if (r.clean && c != null) { r.logRatio = Math.log(Math.max(r.iki, 1e-3)) - c; r.ratio = Math.exp(r.logRatio); }
+      if (r.clean && c != null) { r.logRatio = FT.stats.logOf(r.iki) - c; r.ratio = Math.exp(r.logRatio); }
     });
-    return { records: records, baseline: baseline };
   }
 
   function markSimultaneous(records) {
@@ -117,88 +119,6 @@
       .map(function (k) { return { seq: k, n: stats[k].n, confidence: stats[k].fast / stats[k].n }; })
       .filter(function (c) { return c.n >= minN && c.confidence >= minFrac; })
       .sort(function (a, b) { return b.confidence - a.confidence; });
-  }
-
-  // Key events in time order; equal times keep the logged order (a synthetic
-  // tap logs its keydown and keyup at the same instant).
-  function byTime(ev) { return ev.sort(function (a, b) { return a.t - b.t; }); }
-
-  // Rollover ratio (Dhakal et al. 2018): share of keydowns made while another
-  // (non-modifier) key is still held. keys: [{k:'d'|'u', c: code, t}].
-  var MODS = /^(Shift|Control|Alt|Meta|CapsLock|OS)/;
-  // opts.exclude: key codes left out (keys sent late as synthetic taps, whose
-  // key-up times are the keyboard's, not the finger's; design choice).
-  function rollover(keys, opts) {
-    var held = {}, nHeld = 0, total = 0, rolled = 0, skip = {};
-    ((opts && opts.exclude) || []).forEach(function (c) { skip[c] = true; });
-    var ev = byTime((keys || []).slice());
-    for (var i = 0; i < ev.length; i++) {
-      var e = ev[i];
-      if (MODS.test(e.c) || skip[e.c]) continue;
-      if (e.k === 'd') {
-        total++;
-        if (nHeld > 0) rolled++;
-        if (!held[e.c]) { held[e.c] = true; nHeld++; }
-      } else if (held[e.c]) { delete held[e.c]; nHeld--; }
-    }
-    return total ? rolled / total : null;
-  }
-
-  // Keys the keyboard sends late (see the header of test/latekeys.test.js):
-  // a tap-hold key not settled on press arrives as a synthetic tap at the
-  // firmware's decision time, its keyup within a millisecond of its keydown.
-  // Design choice: >= LATE_MIN_N single-key presses, >= LATE_SHARE of them held
-  // < INSTANT_MS, and at least one key with >= LATE_MIN_N presses whose median
-  // hold is >= HOLD_INFO_MS (otherwise the input carries no hold information). keys: [{k, c, t}]; words carry
-  // streams; opts: { macros, equivalence }, as for FT.align.analyzeWord.
-  var MATCH_MS = 5, INSTANT_MS = 3, LATE_MIN_N = 10, LATE_SHARE = 0.8, HOLD_INFO_MS = 20;
-  // Each press that typed characters, in time order: its (canonical, as the
-  // model sees it) first character and whether it typed only that character.
-  function typedChars(words, opts) {
-    var macros = opts && opts.macros, canon = (opts && opts.equivalence || FT.text.equivalence()).canon, chars = [];
-    (words || []).forEach(function (w) {
-      var ids = FT.presses.ids(w.stream, macros), size = {};
-      ids.forEach(function (p) { if (p != null) size[p] = (size[p] || 0) + 1; });
-      w.stream.forEach(function (e, i) {
-        if (e.k !== 'c' || e.auto || (i > 0 && ids[i] === ids[i - 1])) return; // one entry per press
-        chars.push({ ch: canon(e.ch), t: e.t, single: size[ids[i]] === 1 });
-      });
-    });
-    return chars.sort(function (a, b) { return a.t - b.t; });
-  }
-
-  // Every completed key press (keydown to keyup, modifiers left out), with the
-  // character it produced: the earliest unclaimed one within MATCH_MS.
-  function keyHolds(keys, chars) {
-    var ev = byTime((keys || []).filter(function (e) { return !MODS.test(e.c); }));
-    var j = 0, down = {}, out = [];
-    ev.forEach(function (e) {
-      if (e.k === 'd') {
-        while (j < chars.length && chars[j].t < e.t - MATCH_MS) j++;
-        down[e.c] = { t: e.t, m: j < chars.length && chars[j].t <= e.t + MATCH_MS ? chars[j++] : null };
-      } else if (down[e.c]) {
-        out.push({ code: e.c, hold: e.t - down[e.c].t, ch: down[e.c].m });
-        delete down[e.c];
-      }
-    });
-    return out;
-  }
-
-  function lateKeys(keys, words, opts) {
-    var presses = keyHolds(keys, typedChars(words, opts)), holds = {}, codeOf = {}, times = {};
-    presses.forEach(function (p) {
-      if (!p.ch || !p.ch.single) return;
-      var h = holds[p.ch.ch] || (holds[p.ch.ch] = { n: 0, instant: 0 });
-      h.n++; if (p.hold < INSTANT_MS) h.instant++;
-      (times[p.ch.ch] = times[p.ch.ch] || []).push(p.hold);
-      codeOf[p.ch.ch] = p.code;
-    });
-    // Hold information: at least one well-observed key is held like a finger holds it.
-    var info = Object.keys(holds).some(function (ch) { return holds[ch].n >= LATE_MIN_N && median(times[ch]) >= HOLD_INFO_MS; });
-    // judged: keys with enough presses (and hold information) for a verdict
-    var judged = !info ? [] : Object.keys(holds).filter(function (ch) { return holds[ch].n >= LATE_MIN_N; });
-    var late = judged.filter(function (ch) { return holds[ch].instant / holds[ch].n >= LATE_SHARE; });
-    return { chars: late, judged: judged, codes: late.map(function (ch) { return codeOf[ch]; }), holds: holds };
   }
 
   // Share of clean keystrokes slower than twice the ratio expected for them
@@ -233,7 +153,7 @@
     var ikis = records.filter(function (r) {
       return r.clean && !r.wordInitial && r.ctx && COMMON[r.ctx.slice(-1) + r.ch];
     }).map(function (r) { return r.iki; });
-    return { ms: ikis.length >= MIN_PAIRS ? median(ikis) : null, n: ikis.length };
+    return { ms: ikis.length >= MIN_PAIRS ? FT.stats.median(ikis) : null, n: ikis.length };
   }
   function commonPairMs(records) { return commonPairStats(records).ms; }
 
@@ -242,9 +162,9 @@
   function wordStartMs(records) {
     var init = [], within = [];
     records.forEach(function (r) { if (r.clean) (r.wordInitial ? init : within).push(r.iki); });
-    return init.length >= 10 && within.length >= MIN_PAIRS ? median(init) - median(within) : null;
+    return init.length >= 10 && within.length >= MIN_PAIRS ? FT.stats.median(init) - FT.stats.median(within) : null;
   }
 
-  FT.timing = { lateKeys: lateKeys, SIMULTANEOUS_MS: SIMULTANEOUS_MS, wordStartMs: wordStartMs, extract: extract, macroCandidates: macroCandidates, median: median, rollover: rollover,
+  FT.timing = { SIMULTANEOUS_MS: SIMULTANEOUS_MS, wordStartMs: wordStartMs, extract: extract, macroCandidates: macroCandidates,
     hesitationRate: hesitationRate, rhythmCv: rhythmCv, COMMON_PAIRS: COMMON_PAIRS, commonPairMs: commonPairMs, commonPairStats: commonPairStats };
 })(globalThis.FT);

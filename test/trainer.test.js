@@ -259,7 +259,7 @@ test('late keys found in the key log reach the model and leave the rollover meas
   const { raw, summary } = simulate(tr, 80, Date.UTC(2026, 0, 1), { instant: ['e'] });
   assert.deepEqual(plain(summary.lateKeys), ['e']);
   assert.deepEqual(plain(tr.evaluate().late), ['e']);
-  const without = FT.timing.rollover(raw.keys.filter((k) => k.c !== 'Keye'));
+  const without = FT.keyevents.rollover(raw.keys.filter((k) => k.c !== 'Keye'));
   assert.equal(summary.rollover, without);
   const re = FT.trainer.rebuild([raw]);
   assert.deepEqual(plain(re.evaluate().late), ['e']);

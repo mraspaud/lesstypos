@@ -168,7 +168,7 @@
       }
       var random = analyses.filter(function (an, i) { var meta = words[i].meta; return meta && meta.source === 'random'; });
       return {
-        late: FT.timing.lateKeys(raw.keys, words, options),
+        late: FT.keyevents.lateKeys(raw.keys, words, options),
         options: options, words: words, tm: tm, analyses: analyses, pairs: FT.timing.commonPairStats(tm.records),
         metrics: FT.metrics.summarize(scored, { durationMs: activeMs }),
         random: FT.metrics.summarize(random, { durationMs: 0 }),
@@ -198,7 +198,7 @@
         random: { words: m.random.words, firstAttemptAccuracy: m.random.firstAttemptAccuracy },
         hesitationRate: known && 'hesitationRate' in known ? known.hesitationRate : FT.timing.hesitationRate(m.tm.records, expectedRatio(model.evaluate({ day: raw.day }))),
         rhythmCv: FT.timing.rhythmCv(m.tm.records),
-        rollover: FT.timing.rollover(raw.keys, { exclude: m.late.codes }),
+        rollover: FT.keyevents.rollover(raw.keys, { exclude: m.late.codes }),
         lateKeys: m.late.chars,
         timeline: FT.progress.timeline(m.words, m.analyses),
         keyStats: FT.progress.keyStats(m.words, m.analyses, m.options),

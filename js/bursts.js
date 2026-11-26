@@ -9,7 +9,7 @@
 
   function relaxedMedian(history) {
     var r = history.filter(function (h) { return h.type === 'relaxed' && h.wpm != null && h.words >= 50; }).slice(-5);
-    return r.length ? FT.timing.median(r.map(function (h) { return h.wpm; })) : null;
+    return r.length ? FT.stats.median(r.map(function (h) { return h.wpm; })) : null;
   }
   function initialTarget(history) {
     var m = relaxedMedian(history);

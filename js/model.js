@@ -22,7 +22,7 @@
 // the deficit also shows in at least `minSessions` separate sessions (each with
 // >= minSessionN observations, compared with the parent in the same session).
 // Credible but unreplicated deficits are reported as 'emerging'.
-// Late keys (design choice): a key the keyboard sends late (timing.lateKeys)
+// Late keys (design choice): a key the keyboard sends late (FT.keyevents.lateKeys)
 // has shifted timestamps. Its longer contexts are judged against a parent
 // ending on the same key, so the shift cancels; the single key is judged
 // against all keys, so its latency is not judged (lateKey). Errors are. The

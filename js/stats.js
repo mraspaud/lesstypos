@@ -95,6 +95,19 @@
     return values.filter(function (x) { return x >= lo && x <= hi; });
   }
 
+  function median(a) {
+    if (!a.length) return null;
+    var s = a.slice().sort(function (x, y) { return x - y; });
+    var m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+  // Log of a duration in ms, floored at 1 microsecond (two keystrokes can share a timestamp).
+  function logOf(ms) { return Math.log(Math.max(ms, 1e-3)); }
+  function meanLog(a) {
+    if (!a.length) return null;
+    return a.reduce(function (s, x) { return s + logOf(x); }, 0) / a.length;
+  }
+
   // Evidence weight by age in days: the FSRS forgetting-curve shape
   // R(t,S) = (1 + f t / S)^-d with f = 19/81, d = 0.5 (FSRS-4.5), so R(S) = 0.9.
   // Using it as an evidence weight is a design choice.
@@ -103,5 +116,5 @@
   }
 
   FT.stats = { lgamma: lgamma, betaCdf: betaCdf, normCdf: normCdf, vjTrim: vjTrim,
-    vjCriterion: vjCriterion, recencyWeight: recencyWeight, meanSd: meanSd };
+    vjCriterion: vjCriterion, recencyWeight: recencyWeight, meanSd: meanSd, median: median, meanLog: meanLog, logOf: logOf };
 })(globalThis.FT);
