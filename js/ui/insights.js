@@ -1,0 +1,296 @@
+// Insight pages: sequences (with the "why" panel), substitutions, history.
+(function (FT) {
+  'use strict';
+  if (typeof document === 'undefined') return;
+  var U = FT.ui, app = U.app, EFFORT = U.EFFORT;
+  var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, fix = FT.fmt.fix, H = FT.html;
+
+  // ---------- sequences ----------
+  var seqTab = 'focus', seqSel = null, allOpen = false, moveOpen = false;
+  var FOCUS_TOP = 8;
+  function viewSequences() { U.screen('insights/focus', { render: renderSequences }); }
+  function renderSequences() {
+    var t = app.trainer, ev = t.evaluate(), all = ev.all, ctxs = t.model.state().contexts;
+    var pr = {};
+    t.targets().forEach(function (x) { pr[x.key] = x.priority; });
+    var keys = Object.keys(all);
+    var counts = { insufficient: 0 };
+    keys.forEach(function (k) { if (all[k].state === 'insufficient') counts.insufficient++; });
+    var rows = keys.filter(function (k) {
+      var c = all[k], st = ctxs[k].stage && ctxs[k].stage.name;
+      if (seqTab === 'focus') return st === 'weak' || st === 'improving' || c.weak || c.hesitant || c.state === 'emerging';
+      if (seqTab === 'kept') return st === 'consolidating' || st === 'mastered';
+      return c.state !== 'insufficient' && c.state !== 'redundant';
+    });
+    rows.sort(function (a, b) {
+      if (seqTab === 'focus') return (pr[b] || 0) - (pr[a] || 0) || all[b].latRel - all[a].latRel;
+      return all[b].n - all[a].n;
+    });
+    var shown = rows.slice(0, 200);
+    var top = t.targets().slice(0, FOCUS_TOP);
+    var html = '<section class="stack">' + U.sectionHead('insights') +
+      (top.length
+        ? '<p class="muted">What LessTypos is training now, most useful first. These sequences appear inside ordinary words in your exercises.</p>' +
+          '<ol class="focuslist">' + top.map(function (x) {
+            var c = all[x.key] || {};
+            return '<li data-key="' + esc(x.key) + '"' + (seqSel === x.key ? ' class="selected"' : '') + '><button type="button" class="rowbtn" data-row>' + seq(x.key) + '</button> ' +
+              FT.fmt.stagePill(x.stage) + ' <span class="muted">' + FT.fmt.focusReason(c, x.stage) + '</span></li>';
+          }).join('') + '</ol>' +
+          '<details><summary>What the statuses mean</summary><p class="muted">' + FT.fmt.statusLegend() + '</p></details>'
+        : '<p class="panel">Nothing needs extra practice yet. Sequences appear here once the evidence shows they cost errors or time in at least 2 sessions.</p>') +
+      (ev.late.length ? '<p class="muted" id="latenote">' + FT.fmt.lateNote(ev.late) + '</p>' : '') +
+      '</section><section id="why"></section>' +
+      '<details id="allseq" class="stack"' + (allOpen ? ' open' : '') + '><summary>All sequences</summary>' +
+      '<p class="muted">Each sequence is the last one to four characters you typed, spaces included. It is flagged only when it is credibly worse than its shorter version in other words (for example ' + seq('str') + ' against ' + seq('tr') + '), so a single slip never flags anything.</p>' +
+      '<div class="tabs" role="group">' +
+      [['focus', 'Focus list'], ['kept', 'Consolidating and mastered'], ['all', 'All with enough evidence']].map(function (x) {
+        return '<button type="button" id="seqtab-' + x[0] + '" data-tab="' + x[0] + '" aria-pressed="' + (seqTab === x[0]) + '">' + esc(x[1]) + '</button>';
+      }).join('') + '</div>' +
+      '<p class="muted num">' + keys.length + ' sequences observed; ' + counts.insufficient + ' do not have enough observations yet.</p>';
+    if (!shown.length) {
+      html += '<p class="panel">' + (seqTab === 'focus' ? 'Nothing needs extra practice yet. Sequences appear here once the evidence shows they cost errors or time.' : 'No sequences in this group yet.') + '</p>';
+    } else {
+      var head = ['Sequence', 'Status', 'Seen', 'Errors', 'Time vs shorter'].concat(app.layout ? ['Movement'] : [], ['Examples']);
+      html += H.table(head, shown.map(function (k) {
+        var c = all[k], st = ctxs[k].stage;
+        return H.row([H.cell('<button type="button" class="rowbtn" data-row>' + seq(k) + '</button>'),
+          H.cell((st ? FT.fmt.stagePill(st.name) : FT.fmt.statePill(c.state)) + (st && st.regressed ? ' <span class="muted">returned</span>' : '')),
+          H.cell(fix(c.n), 'num'),
+          H.cell(pct(c.errorRate) + ' <span class="muted">vs ' + pct(c.parentErrorRate) + '</span>', 'num'),
+          H.cell('×' + fix(c.latRel, 2), 'num')].concat(app.layout ? [H.cell(esc(movement(k)))] : [],
+          [H.cell(esc(ctxs[k].examples.slice(-3).reverse().join(', ')), 'ex')]),
+          ' class="clickable' + (seqSel === k ? ' selected' : '') + '" data-key="' + esc(k) + '"');
+      }));
+    }
+    html += '</details>';
+    var mv = movementTable(ev);
+    if (mv) html += '<details id="moves" class="stack"' + (moveOpen ? ' open' : '') + '><summary>By movement type</summary>' + mv + '</details>';
+    U.paint(html);
+    document.getElementById('allseq').addEventListener('toggle', function (e) { allOpen = e.target.open; });
+    var mvd = document.getElementById('moves');
+    if (mvd) mvd.addEventListener('toggle', function (e) { moveOpen = e.target.open; });
+    app.$view.querySelectorAll('.focuslist [data-key]').forEach(function (li) { li.onclick = function () { seqSel = li.dataset.key; showWhy(seqSel, true); markSel(); }; });
+    app.$view.querySelectorAll('[data-tab]').forEach(function (b) { b.onclick = function () { seqTab = b.dataset.tab; U.redraw(); }; });
+    app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.onclick = function () { seqSel = r.dataset.key; showWhy(seqSel, true); markSel(); }; });
+    app.$view.querySelectorAll('#movement [data-key]').forEach(function (b) { b.onclick = function () { seqSel = b.dataset.key; showWhy(seqSel, true); markSel(); }; });
+    if (seqSel && all[seqSel]) showWhy(seqSel);
+  }
+  // Letter pairs grouped by movement type on the declared layout (descriptive).
+  var MOVEMENT = { alternate: 'alternation (other hand)', 'roll-in': 'inward roll', 'roll-out': 'outward roll',
+    sfb: 'same finger', repeat: 'same key twice', 'full-scissor': 'full scissor', 'half-scissor': 'half scissor', lsb: 'lateral stretch' };
+  function movementTable(ev) {
+    if (!app.layout) return '';
+    var rows = FT.layout.breakdown(ev, app.layout);
+    if (!rows.length) return '';
+    return '<section class="stack" id="movement"><p class="muted">Every letter pair you have typed, grouped by how your fingers move on your layout. ' +
+      'Typing research finds alternating hands usually fastest (Salthouse 1986), so it is the reference. Descriptive only: training does not use it.</p>' +
+      H.table(['Movement', 'Share of your pairs', 'Pairs', 'Seen', 'Time vs alternation', 'Errors (first try)', 'Slowest pairs'], rows.map(function (r) {
+        return H.row([H.cell(esc(MOVEMENT[r.type] || r.type) + (r.overlapping ? ' <span class="muted">(also in a row above)</span>' : '')), H.cell(pct(r.share), 'num'),
+          H.cell(r.pairs, 'num'), H.cell(fix(r.n), 'num'), H.cell(r.time == null ? '–' : '×' + fix(r.time, 2), 'num'), H.cell(pct(r.errorRate), 'num'),
+          H.cell(r.worst.map(function (k) { return '<button type="button" class="linkish" data-key="' + esc(k) + '">' + seq(k) + '</button>'; }).join(' '))]);
+      })) + '</section>';
+  }
+  function markSel() { app.$view.querySelectorAll('tr[data-key], .focuslist [data-key]').forEach(function (r) { r.classList.toggle('selected', r.dataset.key === seqSel); }); }
+  // Movement type of the last two or three key presses of a sequence, on the
+  // declared layout. Across spaces only when the layout declares a space key.
+  function movement(k) {
+    var L = app.layout;
+    if (!L) return '';
+    var s = L.keys[' '] ? k : k.replace(/^.*\s/, '');
+    var toks = FT.layout.presses(L, s);
+    if (!toks || toks.length < 2 && !(toks.length === 1 && Array.from(toks[0]).length > 1)) return '';
+    var c = FT.layout.classify(L, toks.slice(-3).join('')) || FT.layout.classify(L, toks.slice(-2).join(''));
+    return c ? c.type + (c.tags.length ? ' (' + c.tags.join(', ') + ')' : '') : '';
+  }
+  // focus: move focus to the panel (when the user opened it, not on re-render)
+  function showWhy(k, focus) {
+    var x = app.trainer.explain(k), el = document.getElementById('why');
+    if (!x || !el) return;
+    var lines = [];
+    var parent = x.parent ? seq(x.parent) : 'all your typing';
+    lines.push(['Errors', pct(x.errorRate) + ' of first attempts, against ' + pct(x.parentErrorRate) + ' for ' + parent + ' elsewhere. ' +
+      'Probability that it is genuinely worse: ' + pct(x.pWorse, 0) + '.']);
+    lines.push(['Timing', x.lateKey
+      ? 'Not judged: your keyboard sends ' + seq(k) + ' late (a tap-hold key), so its time against all your typing is shifted by the keyboard, not by you.'
+      : 'Typed in ×' + fix(x.latency.relative, 2) + ' the time of ' + parent + ' elsewhere (' + fix(x.latency.n) + ' timed keystrokes). ' +
+        'Probability that it is genuinely slower: ' + pct(x.latency.pSlower, 0) + '.']);
+    lines.push(['Evidence', fix(x.n) + ' recency-weighted observations across ' + x.sessions + ' exercise' + (x.sessions === 1 ? '' : 's') + '.']);
+    if (x.state === 'emerging') {
+      lines.push(['Confirmation', 'Seen in ' + x.sessionsWithDeficit + ' session so far; it needs ' + x.minSessions +
+        ' separate sessions before it is trained, so one unusual session cannot fill the training list.']);
+    } else if (x.state === 'weak' || x.state === 'hesitant') {
+      lines.push(['Confirmation', 'Worse than ' + parent + ' in ' + x.sessionsWithDeficit + ' separate sessions.']);
+    }
+    lines.push(['Judgement', FT.fmt.statePill(x.state) + (x.redundant ? ': every occurrence also belongs to ' + parent + ', so it is judged there.' : '') +
+      (x.explainedBy ? ': the difficulty is explained by ' + x.explainedBy.map(seq).join(', ') + '.' : '')]);
+    if (x.stage) lines.push(['Training', FT.fmt.stagePill(x.stage.name) + (x.stage.due ? ' next check from session ' + x.stage.due : '') + (x.stage.regressed ? ', returned after a failed check' : '')]);
+    if (app.layout) { var mv = movement(k); if (mv) lines.push(['Movement', esc(mv)]); }
+    lines.push(['Seen in', esc(x.examples.join(', '))]);
+    var practise = function () { U.startExercise('targeted', { pinned: [k], minutes: 3 }); };
+    el.className = 'panel stack';
+    U.fill(el, '<h2>' + seq(k) + ': ' + esc(FT.fmt.stateLabel(x.state)) + (x.stage ? ', ' + esc(FT.fmt.stageLabel(x.stage.name)) : '') + '</h2><dl class="why">' +
+      lines.map(function (l) { return '<dt>' + l[0] + '</dt><dd>' + l[1] + '</dd>'; }).join('') + '</dl>' +
+      '<div class="row">' + U.keyButton({ label: 'Practise ' + seq(k) + ' for 3 minutes', key: 'p', id: 'practise', kind: 'primary', onClick: practise }) + '</div>');
+    var h = el.querySelector('h2');
+    h.setAttribute('tabindex', '-1');
+    if (focus) h.focus();
+  }
+
+  // ---------- errors ----------
+  function viewErrors() { U.screen('insights/errors', { render: renderErrors }); }
+  function renderErrors() {
+    var rows = app.trainer.substitutions({ minOpp: 30 }).filter(function (r) { return r.count >= 2; }).slice(0, 40);
+    var html = '<section class="stack">' + U.sectionHead('insights') + '<h2>Recurring substitutions</h2>' +
+      '<p class="muted">Which key comes out when another was intended. Rates are per opportunity to type the intended character and include errors you corrected. Rare pairs are shrunk toward the overall substitution rate, so a one-off does not top the list.</p></section>';
+    var L = app.layout;
+    if (L) html += '<section class="stack"><h3>Errors by key</h3><p class="muted">All your exercises, on your layout.</p><div class="heatmap" id="hmall"></div></section>';
+    if (L) {
+      // Kinds of slips across all substitutions on the declared layout.
+      var kinds = {}, total = 0;
+      app.trainer.substitutions({ minOpp: 1 }).forEach(function (r) {
+        var rel = FT.layout.relation(L, r.expected, r.actual);
+        if (!rel) return;
+        var k = kinds[rel.kind] || (kinds[rel.kind] = { n: 0 });
+        k.n += r.count; total += r.count;
+      });
+      var KIND = FT.layout.KINDS;
+      var list = Object.keys(kinds).sort(function (a, b) { return kinds[b].n - kinds[a].n; });
+      if (total >= 3) {
+        html += '<section class="stack"><h3>Kinds of slips</h3><p class="muted">How the typed key relates to the intended one on your layout, across ' + fix(total) + ' substitutions. ' +
+          'In studies of skilled typists, neighbouring keys and mirror keys are the most common slips (Grudin 1983).</p><ul class="list">' +
+          list.map(function (k) { return '<li><b class="num">' + pct(kinds[k].n / total, 0) + '</b> ' + esc(KIND[k]) + '</li>'; }).join('') + '</ul></section>';
+      }
+    }
+    if (!rows.length) html += '<p class="panel">No recurring substitutions yet.</p>';
+    else {
+      html += H.table(['Intended', 'Typed'].concat(L ? ['Kind'] : [], ['Rate', 'Times', 'Opportunities', 'Recent examples']), rows.map(function (r, i) {
+        var rel = L && FT.layout.relation(L, r.expected, r.actual);
+        return H.row([H.cell('<button type="button" class="rowbtn" data-row>' + seq(r.expected) + '</button>'), H.cell(seq(r.actual))].concat(
+          L ? [H.cell(esc(rel ? rel.label : ''))] : [],
+          [H.cell(pct(r.rate, 2), 'num'), H.cell(fix(r.count), 'num'), H.cell(r.opportunities, 'num'), H.cell(esc(recentContexts(r)), 'ex')]), ' class="clickable" data-i="' + i + '"');
+      })) + '<section id="subex"></section>';
+    }
+    var swaps = app.trainer.swaps({ minOpp: 10 }).filter(function (r) { return r.count >= 2; }).slice(0, 20);
+    if (swaps.length) {
+      html += '<section class="stack" id="swaps"><h3>Swapped letters</h3><p class="muted">Two neighbouring letters typed in the wrong order (a transposition, one of the error classes of Salthouse 1986). Each swap counts as one error. Rates are per occurrence of the intended pair.</p>' +
+        H.table(['Intended', 'Typed', 'Rate', 'Times', 'Opportunities', 'Recent examples'], swaps.map(function (r) {
+          return H.row([H.cell(seq(r.expected)), H.cell(seq(r.actual)), H.cell(pct(r.observedRate, 2), 'num'), H.cell(fix(r.count), 'num'),
+            H.cell(r.opportunities, 'num'), H.cell(esc(recentContexts(r)), 'ex')]);
+        })) + '</section>';
+    }
+    U.paint(html);
+    if (L) FT.chart.heatmap(document.getElementById('hmall'), FT.layout.grid(L), FT.progress.sumKeys(app.trainer.history()));
+    app.$view.querySelectorAll('tr[data-i]').forEach(function (tr) {
+      tr.onclick = function () {
+        var r = rows[+tr.dataset.i], el = document.getElementById('subex');
+        el.className = 'panel stack';
+        el.innerHTML = '<h2>' + seq(r.expected) + ' typed as ' + seq(r.actual) + '</h2>' +
+          H.table(['Word', 'Where', 'Corrected', 'Later letter', 'Exercise'], r.examples.map(function (e) {
+            return H.row([H.cell(esc(e.word)), H.cell(seq(e.context)), H.cell(e.corrected ? 'yes' : 'no'), H.cell(e.premature ? 'yes' : ''), H.cell(esc(e.exercise || ''))]);
+          })) + '<p class="muted">“Later letter” marks a typed letter that occurs later in the same word.</p>';
+        var h = el.querySelector('h2');
+        h.setAttribute('tabindex', '-1');
+        h.focus();
+      };
+    });
+  }
+
+  function recentContexts(r) { return r.examples.slice(0, 3).map(function (e) { return e.context; }).join(', '); }
+
+  // ---------- history ----------
+  // Progress over time: one small chart per measure, each on its own axis,
+  // comparing only comparable sessions (FT.progress.series).
+  function progressCharts(h) {
+    var s = FT.progress.series(h), date = function (t) { return new Date(t).toLocaleDateString(); };
+    var charts = [
+      { title: 'Relaxed speed', note: 'Median WPM per day of relaxed practice. Fill shows rated effort: hollow = not rated, light = little effort, solid = maximum.',
+        label: 'Relaxed WPM', color: '--series-1', min: 1, rows: s.relaxed,
+        point: function (p) { return { t: p.startedAt, y: p.wpm, fill: p.effort == null ? null : (p.effort - 1) / 4,
+          tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.startedAt)) + '<br>' + p.exercises + ' session' + (p.exercises > 1 ? 's' : '') + ', effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1) + ' (' + EFFORT[Math.round(p.effort) - 1][1].toLowerCase() + ')') }; },
+        cols: ['Day', 'WPM', 'Accuracy', 'Effort'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), pct(p.firstAttemptAccuracy), p.effort == null ? '–' : fix(p.effort, 1)]; } },
+      { title: 'Benchmark', note: 'Median of each complete set of 3 one-minute trials; the line shows the range of the trials.',
+        label: 'Benchmark WPM', color: '--series-2', min: 1, rows: s.benchmark,
+        point: function (p) { return { t: p.startedAt, y: p.wpm, lo: p.min, hi: p.max, tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.startedAt)) + '<br>trials ' + fix(p.min) + '–' + fix(p.max) + ', accuracy ' + pct(p.firstAttemptAccuracy) }; },
+        cols: ['Day', 'Median WPM', 'Range', 'Accuracy'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.min) + '–' + fix(p.max), pct(p.firstAttemptAccuracy)]; } },
+      { title: 'Common-pair timing', note: 'Median time between the letters of the 30 most common pairs inside words, in relaxed practice, weighted by how many such pairs each exercise had. Lower is faster. Pairs typed with a multi-letter key (such as th) are not timed. Log scale.',
+        label: 'Common-pair timing in ms', color: '--series-1', min: 1, rows: s.commonPairMs, log: true, fmt: function (v) { return Math.round(v) + ''; },
+        point: function (p) { return { t: p.startedAt, y: p.commonPairMs, tip: '<b>' + fix(p.commonPairMs) + ' ms</b> · ' + esc(date(p.startedAt)) }; },
+        cols: ['Day', 'ms'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.commonPairMs)]; } },
+      { title: 'Accuracy', note: 'Accuracy (first try) per day of relaxed practice: corrected errors count too.',
+        label: 'Relaxed accuracy (first try)', color: '--series-1', min: 1, yMax: 1, rows: s.relaxed, fmt: function (v) { return pct(v, 1); },
+        point: function (p) { return { t: p.startedAt, y: p.firstAttemptAccuracy, tip: '<b>' + pct(p.firstAttemptAccuracy) + '</b> · ' + esc(date(p.startedAt)) }; },
+        cols: ['Day', 'Accuracy'], cells: function (p) { return [esc(date(p.startedAt)), pct(p.firstAttemptAccuracy)]; } },
+      { title: 'Effort signals (experimental)', note: 'Measured signals that tend to fall as typing becomes automatic: the extra time before the first letter of each word (charted, research: Crump et al. 2019) and how uneven your keystroke timing is (rhythm, in the table and tooltip; Kalfaoglu & Stafford 2014). They are proxies, not a validated measure of effort: compare them with your own ratings.',
+        label: 'Extra time at word starts in ms', color: '--series-2', min: 1, rows: s.relaxed.filter(function (p) { return p.wordStartMs != null; }), fmt: function (v) { return Math.round(v) + ''; },
+        point: function (p) { return { t: p.startedAt, y: p.wordStartMs, tip: '<b>+' + fix(p.wordStartMs) + ' ms</b> at word starts · ' + esc(date(p.startedAt)) + '<br>rhythm variation ' + fix(p.rhythmCv, 2) + ', rated effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1)) }; },
+        cols: ['Day', 'Word starts (ms)', 'Rhythm', 'Rated effort'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wordStartMs), fix(p.rhythmCv, 2), p.effort == null ? '–' : fix(p.effort, 1)]; } },
+    ];
+    // charts without enough data are named once instead of shown empty
+    var waiting = charts.filter(function (c) { return c.rows.length < c.min; }).map(function (c) { return c.title; });
+    var html = '<section class="stack"><h2>Progress</h2>' +
+      (waiting.length ? '<p class="muted">Not enough data yet for: ' + esc(waiting.join(', ')) + '.</p>' : '') +
+      '<div class="progress-grid">' + charts.map(function (c, i) {
+      if (c.rows.length < c.min) return '';
+      return '<section class="progress-chart stack"><h3>' + esc(c.title) + '</h3><p class="muted">' + esc(c.note) + '</p>' +
+        '<div class="chart" id="pc' + i + '"></div>' +
+        H.tableView(H.table(c.cols, c.rows.slice().reverse().map(function (p) { return H.row(c.cells(p).map(function (v) { return H.cell(v, 'num'); })); }))) +
+        '</section>';
+    }).join('') + '</div></section>';
+    return { html: html, draw: function () {
+      charts.forEach(function (c, i) {
+        var el = document.getElementById('pc' + i);
+        if (el) FT.chart.progress(el, { points: c.rows.map(c.point), log: c.log, yMax: c.yMax, color: c.color, fmt: c.fmt, label: c.label });
+      });
+    } };
+  }
+
+  function viewHistory() { U.screen('insights/progress', { render: renderHistory }); }
+  function renderHistory() {
+    var h = app.trainer.history().slice().reverse();
+    var pc = progressCharts(app.trainer.history());
+    var html = '<section class="stack">' + U.sectionHead('insights') + '</section>' + pc.html +
+      conditionsSection(app.trainer.history()) +
+      '<section class="stack"><h2>All exercises</h2><p class="muted">Newest first; open a row for its summary. “Random words” is the unbiased sample that targeted practice never influences.</p></section>';
+    if (!h.length) html += '<p class="panel">No exercises yet.</p>';
+    else html += H.table(['When', 'Exercise', 'Min', 'WPM', 'Accuracy', 'Random words', 'Effort', 'Hesitation', 'Rhythm', 'Vocabulary'], h.map(function (x) {
+      var d = new Date(x.startedAt);
+      return H.row([H.cell('<button type="button" class="rowbtn" data-row data-past="' + esc(x.id) + '">' +
+          esc(d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) + '</button>', 'num nowrap'),
+        H.cell(esc(FT.exercises.name(x.type))), H.cell(fix(x.durationMs / 60000, 1), 'num'),
+        H.cell(fix(x.wpm), 'num'), H.cell(pct(x.firstAttemptAccuracy), 'num'), H.cell(pct(x.randomFirstAttemptAccuracy), 'num'),
+        H.cell(x.effort || '–', 'num'), H.cell(pct(x.hesitationRate), 'num'), H.cell(fix(x.rhythmCv, 2), 'num'),
+        H.cell(Math.round(x.frontier), 'num')], ' class="clickable"');
+    }), { id: 'alltable' });
+    U.paint(html);
+    pc.draw();
+    app.$view.querySelectorAll('#alltable tbody tr').forEach(function (tr) {
+      var id = tr.querySelector('[data-past]').dataset.past;
+      tr.onclick = function () { openPast(id); };   // the date button inside handles the keyboard
+    });
+  }
+  // How relaxed practice differs with and without each condition (measurement only).
+  function conditionsSection(history) {
+    var rows = FT.conditions.compare(history);
+    var signed = function (x, digits, unit) { return (x >= 0 ? '+' : '−') + fix(Math.abs(x), digits) + unit; };
+    var interval = function (d, scale, digits, unit) { return signed(d.difference * scale, digits, unit) + ' <span class="muted">(' + signed(d.low * scale, digits, '') + ' to ' + signed(d.high * scale, digits, unit) + ')</span>'; };
+    return '<section class="stack"><h2>Conditions</h2><p class="muted">Relaxed practice with each tag of yours, or at each time of day, against the rest: the difference, and the range it lies in with 95% confidence (bootstrap; Efron &amp; Tibshirani 1993). ' +
+      'Tags that always come together, or that changed along with your progress, cannot be told apart.</p>' +
+      (rows.length ? H.table(['Condition', 'Exercises with / without', 'WPM', 'Accuracy (first try)'], rows.map(function (r) {
+        return H.row([H.cell(r.automatic ? esc(r.tag) + ' <span class="muted">(time of day)</span>' : '#' + esc(r.tag)), H.cell(r.with.n + ' / ' + r.without.n, 'num'),
+          H.cell(interval(r.wpm, 1, 1, ''), 'num'), H.cell(interval(r.accuracy, 100, 1, ' pts'), 'num')]);
+      }))
+        : '<p class="panel">Not enough data yet: a condition is compared once ' + FT.conditions.MIN_EACH + ' relaxed exercises have it and ' + FT.conditions.MIN_EACH + ' do not. Add tags at the end of a sitting.</p>') +
+      '</section>';
+  }
+  // A past exercise's summary, rebuilt from its stored record (nothing is learned).
+  function openPast(id) {
+    app.store.getSession(id).then(U.onThisScreen(function (raw) {
+      if (!raw) { app.notice = 'The record of this exercise is no longer stored.'; U.renderNotice(); return; }
+      U.viewSummary(app.trainer.summarize(raw), { past: true, opts: {} });
+    })).catch(U.storageError);
+  }
+
+  U.route('insights/focus', viewSequences);
+  U.route('insights/errors', viewErrors);
+  U.route('insights/progress', viewHistory);
+})(globalThis.FT);
