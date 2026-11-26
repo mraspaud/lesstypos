@@ -150,8 +150,8 @@
         rhythmCv: FT.timing.rhythmCv(m.tm.records),
         rollover: FT.keyevents.rollover(raw.keys, { exclude: m.late.codes }),
         lateKeys: m.late.chars,
-        timeline: FT.progress.timeline(m.words, m.analyses),
-        keyStats: FT.progress.keyStats(m.words, m.analyses, m.options),
+        timeline: FT.exerciseStats.timeline(m.words, m.analyses),
+        keyStats: FT.exerciseStats.keyStats(m.words, m.analyses, m.options),
         baseline: m.tm.baseline,
         sources: sources,
       };
