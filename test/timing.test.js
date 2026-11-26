@@ -273,3 +273,21 @@ test('the session reports each population’s arithmetic mean of clean intervals
 test('a population without clean intervals has no mean', () => {
   assert.equal(run([['abc', 'abc ', 100]]).meanMs.initial, null);
 });
+
+// Errors cost time around the mistake (Salthouse 1986; post-error slowing,
+// Kalfaoğlu & Stafford 2014): measured as the error and after-error intervals
+// beyond their population's clean mean, per first-try error.
+test('a corrected slip costs the time its intervals take beyond the clean mean', () => {
+  const r = run([['abc', 'abc ', 100], ['abc', 'ax<bc ', [100, 100, 500, 300, 100, 100]], ['abc', 'abc ', 100]]);
+  assert.equal(r.meanMs.within, 100);
+  assert.deepEqual(plain(r.correction), { ms: 800, errors: 1, msPerError: 800 });  // b: x, then 500 + 300 + 100 ms to c
+});
+
+test('an interval after an error that is a pause (over 5 s) is not part of its cost', () => {
+  const r = run([['abc', 'abc ', 100], ['abc', 'ax<bc ', [100, 100, 6000, 100, 100, 100]], ['abc', 'abc ', 100]]);
+  assert.deepEqual(plain(r.correction), { ms: 0, errors: 1, msPerError: 0 });
+});
+
+test('without errors there is no cost per error', () => {
+  assert.deepEqual(plain(run([['abc', 'abc ', 100], ['abc', 'abc ', 100]]).correction), { ms: 0, errors: 0, msPerError: null });
+});

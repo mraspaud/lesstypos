@@ -30,13 +30,31 @@
   // Records per target character, cleaned and normalised per population.
   // analyses: FT.align.analyzeWords(words, ...), one per word.
   function extract(words, analyses, opts) {
-    var records = characterRecords(words, analyses, FT.valueOr(opts && opts.pauseMs, PAUSE_MS));
+    var pauseMs = FT.valueOr(opts && opts.pauseMs, PAUSE_MS);
+    var records = characterRecords(words, analyses, pauseMs);
     markSimultaneous(records);
     var intervals = cleanIntervals(records);
     var centre = centreRatios(records, intervals);
+    var meanMs = { within: FT.stats.mean(intervals.within), initial: FT.stats.mean(intervals.initial) };
     return { records: records, baseline: { within: FT.stats.median(intervals.within), initial: FT.stats.median(intervals.initial) },
-      centreMs: { within: inMs(centre.within), initial: inMs(centre.initial) },
-      meanMs: { within: FT.stats.mean(intervals.within), initial: FT.stats.mean(intervals.initial) } };
+      centreMs: { within: inMs(centre.within), initial: inMs(centre.initial) }, meanMs: meanMs,
+      correction: correction(records, meanMs, pauseMs) };
+  }
+
+  // The time errors cost: errors slow typing around the mistake (Salthouse
+  // 1986; post-error slowing, Kalfaoğlu & Stafford 2014). Measured (design
+  // choice) as the error and after-error intervals beyond the clean mean of
+  // their population, in ms, over the first-try errors; an interval over the
+  // pause threshold is a pause, not a correction (Dhakal et al. 2018).
+  var CORRECTION_REASONS = { error: true, 'after-error': true };
+  function correction(records, meanMs, pauseMs) {
+    var ms = 0, errors = 0;
+    records.forEach(function (r) {
+      errors += r.err;
+      var clean = r.wordInitial ? meanMs.initial : meanMs.within;
+      if (CORRECTION_REASONS[r.reason] && r.iki != null && r.iki <= pauseMs && clean != null) ms += r.iki - clean;
+    });
+    return { ms: ms, errors: errors, msPerError: errors > 0 ? ms / errors : null };
   }
 
   function characterRecords(words, analyses, pauseMs) {
