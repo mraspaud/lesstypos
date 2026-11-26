@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { load, plain } = require('./helpers/load');
+const { buildZip, buildEpub, DEFLATED } = require('./helpers/zip');
 
 // Functionality: a book (EPUB or Project Gutenberg text) becomes chapters of
 // ordinary text to type: no front matter, captions, page numbers or
@@ -17,6 +18,66 @@ test('a zip archive gives its files, stored or compressed', async () => {
   const files = await FT.zip.read(new Uint8Array(fixture('snowdrop.epub')));
   assert.equal(new TextDecoder().decode(files['mimetype']), 'application/epub+zip');
   assert.match(new TextDecoder().decode(files['META-INF/container.xml']), /rootfile/);
+});
+
+test('a zip archive inflates deflated files', async () => {
+  const files = await FT.zip.read(buildZip({ 'a.txt': 'hello hello hello' }, { method: DEFLATED }));
+  assert.equal(new TextDecoder().decode(files['a.txt']), 'hello hello hello');
+});
+
+test('a zip archive in a form it cannot read is refused with a clear message', async () => {
+  await assert.rejects(FT.zip.read(buildZip({ 'a.txt': 'x' }, { method: 12 })), /compression/i);
+  await assert.rejects(FT.zip.read(buildZip({ 'a.txt': 'x' }, { zip64: true })), /large/i);
+});
+
+const p = (text) => `<p>${text}</p>`;
+const longText = (word) => p(Array.from({ length: 160 }, () => word).join(' '));
+const chapterWords = async (epub) => {
+  const book = await FT.books.fromEpub(epub);
+  return Object.fromEntries(book.chapters.map((c) => [c.title, c.words.join(' ')]));
+};
+
+test('an EPUB 3 book with only a nav table of contents', async () => {
+  const got = await chapterWords(buildEpub({
+    chapters: [{ href: 'one.xhtml', body: longText('one') }, { href: 'two.xhtml', body: longText('two') }],
+    nav: '<li><a href="one.xhtml">One</a></li><li><a href="two.xhtml">Two</a></li>',
+  }));
+  assert.deepEqual(Object.keys(got), ['One', 'Two']);
+  assert.match(got.Two, /^two two/);
+});
+
+test('table of contents links in single quotes, with ../ or encoded paths, and attributes in any order', async () => {
+  const got = await chapterWords(buildEpub({
+    chapters: [{ href: 'text/one.xhtml', body: longText('one') }, { href: 'text/ch%202.xhtml', body: longText('two') }, { href: 'text/three.xhtml', body: longText('three') }],
+    ncx: "<navPoint><navLabel><text>One</text></navLabel><content src='text/one.xhtml'/></navPoint>" +
+      '<navPoint><navLabel><text>Two</text></navLabel><content id="x" src="text/../text/ch%202.xhtml"/></navPoint>' +
+      "<navPoint><navLabel><text>Three</text></navLabel><content src='text/three.xhtml' id='y'/></navPoint>",
+  }));
+  assert.deepEqual(Object.keys(got), ['One', 'Two', 'Three']);
+});
+
+test('a malformed link or a file missing from the EPUB does not stop the import', async () => {
+  const got = await chapterWords(buildEpub({
+    chapters: [{ href: '100%.xhtml', body: longText('one') }, { href: 'gone.xhtml', body: '', missing: true }, { href: 'two.xhtml', body: longText('two') }],
+    nav: '<li><a href="100%.xhtml">One</a></li><li><a href="two.xhtml">Two</a></li>',
+  }));
+  assert.deepEqual(Object.keys(got), ['One', 'Two']);
+});
+
+test('EPUB entities: named ones are decoded, unknown and invalid ones dropped', async () => {
+  const got = await chapterWords(buildEpub({
+    chapters: [{ href: 'one.xhtml', body: p('caf&eacute; &copy; &bogus; &#99999999;ok &amp; done') + longText('one') }],
+    nav: '<li><a href="one.xhtml">One</a></li>',
+  }));
+  assert.match(got.One, /^café ok done one/);   // © and & are marks without letters
+});
+
+test('an anchor inside a word or paragraph leaves the text whole', async () => {
+  const got = await chapterWords(buildEpub({
+    chapters: [{ href: 'one.xhtml', body: p('a won<span id="p5"></span>derful <a id="n1"></a>day') + longText('one') }],
+    nav: '<li><a href="one.xhtml">One</a></li>',
+  }));
+  assert.match(got.One, /^a wonderful day one/);
 });
 
 test('an EPUB gives its title, author and chapters from its table of contents', async () => {

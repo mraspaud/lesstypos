@@ -45,12 +45,26 @@
   }
 
   // ---- markup ----
-  var ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', mdash: '—', ndash: '–', hellip: '…',
-    lsquo: '‘', rsquo: '’', ldquo: '“', rdquo: '”' };
+  // HTML named entities: Latin-1 (U+00A0 to U+00FF, in order) and the common typographic ones.
+  var LATIN1 = ('nbsp iexcl cent pound curren yen brvbar sect uml copy ordf laquo not shy reg macr deg plusmn sup2 sup3 acute micro para middot ' +
+    'cedil sup1 ordm raquo frac14 frac12 frac34 iquest Agrave Aacute Acirc Atilde Auml Aring AElig Ccedil Egrave Eacute Ecirc Euml Igrave Iacute ' +
+    'Icirc Iuml ETH Ntilde Ograve Oacute Ocirc Otilde Ouml times Oslash Ugrave Uacute Ucirc Uuml Yacute THORN szlig agrave aacute acirc atilde auml ' +
+    'aring aelig ccedil egrave eacute ecirc euml igrave iacute icirc iuml eth ntilde ograve oacute ocirc otilde ouml divide oslash ugrave uacute ' +
+    'ucirc uuml yacute thorn yuml').split(' ');
+  var ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", OElig: 'Œ', oelig: 'œ', Scaron: 'Š', scaron: 'š', Yuml: 'Ÿ',
+    ensp: ' ', emsp: ' ', thinsp: ' ', zwnj: '', zwj: '', lrm: '', rlm: '', ndash: '–', mdash: '—', lsquo: '‘', rsquo: '’', sbquo: '‚',
+    ldquo: '“', rdquo: '”', bdquo: '„', dagger: '†', Dagger: '‡', bull: '•', hellip: '…', prime: '′', Prime: '″', lsaquo: '‹', rsaquo: '›', euro: '€', trade: '™' };
+  LATIN1.forEach(function (name, i) { ENTITIES[name] = String.fromCharCode(0xa0 + i); });
+  ENTITIES.nbsp = ' ';
+  var MAX_CODE_POINT = 0x10ffff;
   function decode(s) {
     return s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, function (m, e) {
-      if (e[0] === '#') return String.fromCodePoint(e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : +e.slice(1));
-      return ENTITIES[e.toLowerCase()] != null ? ENTITIES[e.toLowerCase()] : m;
+      if (e[0] === '#') {
+        var code = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : +e.slice(1);
+        return code > 0 && code <= MAX_CODE_POINT ? String.fromCodePoint(code) : '';
+      }
+      var named = ENTITIES[e] != null ? ENTITIES[e] : ENTITIES[e.toLowerCase()];
+      return named != null ? named : '';
     });
   }
   function attr(tag, name) { var m = new RegExp('\\s' + name + '\\s*=\\s*("([^"]*)"|\'([^\']*)\')', 'i').exec(tag); return m ? decode(m[2] != null ? m[2] : m[3]) : null; }
@@ -63,8 +77,13 @@
   var SKIPPED_CLASS = /\b(fig\w*|caption|pagenum|pageno|pgheader|pg-header|pgfooter|pg-footer|pg-boilerplate|footnote|fnanchor|toc|transnote)\b/i;
   // A document as events in reading order: { anchor: id } and { text } per block.
   function readXhtml(xml) {
-    var events = [], stack = [], skipping = 0, heading = 0, buf = '', re = /<(\/?)([a-zA-Z][\w:-]*)([^>]*?)(\/?)>|([^<]+)/g, m;
-    function flush() { var t = buf.replace(/\s+/g, ' ').trim(); if (t && !heading) events.push({ text: decode(t) }); buf = ''; }
+    var events = [], stack = [], skipping = 0, heading = 0, buf = '', inlineAnchors = [], re = /<(\/?)([a-zA-Z][\w:-]*)([^>]*?)(\/?)>|([^<]+)/g, m;
+    function flush() {
+      var t = buf.replace(/\s+/g, ' ').trim();
+      if (t && !heading) events.push({ text: decode(t) });
+      buf = '';
+      inlineAnchors.splice(0).forEach(function (a) { events.push({ anchor: a }); });
+    }
     xml = xml.replace(/<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!DOCTYPE[^>]*>/gi, '');
     while ((m = re.exec(xml))) {
       if (m[5] != null) { if (!skipping) buf += m[5]; continue; }
@@ -79,7 +98,8 @@
         continue;
       }
       var id = attr(tag, 'id');
-      if (id && !skipping) { flush(); events.push({ anchor: id }); }
+      // an anchor inside running text takes effect after its paragraph, which stays whole
+      if (id && !skipping) { if (BLOCK.test(name) || !buf.trim()) { flush(); events.push({ anchor: id }); } else inlineAnchors.push(id); }
       if (name === 'br') { buf += ' '; continue; }
       if (selfClosing) continue;
       var skip = SKIPPED_TAG.test(name) || SKIPPED_CLASS.test(attr(tag, 'class') || '') || /^pg-(header|footer)/.test(id || '');
@@ -93,9 +113,10 @@
   }
 
   // ---- EPUB ----
+  function safeDecode(href) { try { return decodeURIComponent(href); } catch (e) { return href; } }
   function dirOf(p) { return p.indexOf('/') >= 0 ? p.slice(0, p.lastIndexOf('/') + 1) : ''; }
   function resolve(base, href) {
-    var parts = (dirOf(base) + decodeURIComponent(href)).split('/'), out = [];
+    var parts = (dirOf(base) + safeDecode(href)).split('/'), out = [];
     parts.forEach(function (x) { if (x === '..') out.pop(); else if (x !== '.') out.push(x); });
     return out.join('/');
   }
@@ -103,15 +124,15 @@
     var ncxId = attr((/<spine[^>]*>/i.exec(opf) || [''])[0], 'toc');
     var ncx = ncxId && manifest[ncxId];
     if (ncx && files[ncx.path]) {
-      var xml = new TextDecoder().decode(files[ncx.path]), out = [], re = /<navLabel>\s*<text>([\s\S]*?)<\/text>\s*<\/navLabel>\s*<content\s+src\s*=\s*"([^"]*)"/gi, m;
-      while ((m = re.exec(xml))) out.push({ title: textOf(m[1]), src: resolve(ncx.path, m[2]) });
+      var xml = new TextDecoder().decode(files[ncx.path]), out = [], re = /<navLabel>\s*<text>([\s\S]*?)<\/text>\s*<\/navLabel>\s*(<content\b[^>]*>)/gi, m;
+      while ((m = re.exec(xml))) { var src = attr(m[2], 'src'); if (src) out.push({ title: textOf(m[1]), src: resolve(ncx.path, src) }); }
       return out;
     }
     var nav = Object.keys(manifest).map(function (k) { return manifest[k]; }).filter(function (it) { return /\bnav\b/.test(it.properties || ''); })[0];
     if (!nav) return [];
-    var html = new TextDecoder().decode(files[nav.path]), list = [], a = /<a\s[^>]*href\s*=\s*"([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, n;
+    var html = new TextDecoder().decode(files[nav.path]), list = [], a = /(<a\b[^>]*>)([\s\S]*?)<\/a>/gi, n;
     var toc = /<nav[^>]*toc[^>]*>([\s\S]*?)<\/nav>/i.exec(html);
-    while ((n = a.exec(toc ? toc[1] : html))) list.push({ title: textOf(n[2]), src: resolve(nav.path, n[1]) });
+    while ((n = a.exec(toc ? toc[1] : html))) { var href = attr(n[1], 'href'); if (href) list.push({ title: textOf(n[2]), src: resolve(nav.path, href) }); }
     return list;
   }
   function fromEpub(bytes) {
@@ -121,7 +142,7 @@
       var opf = text(opfPath), manifest = {}, it, re = /<item\s[^>]*>/gi;
       while ((it = re.exec(opf))) manifest[attr(it[0], 'id')] = { path: resolve(opfPath, attr(it[0], 'href')), properties: attr(it[0], 'properties') };
       var spine = (opf.match(/<itemref\s[^>]*>/gi) || []).filter(function (t) { return attr(t, 'linear') !== 'no'; })
-        .map(function (t) { return manifest[attr(t, 'idref')]; }).filter(Boolean).map(function (x) { return x.path; });
+        .map(function (t) { return manifest[attr(t, 'idref')]; }).filter(function (x) { return x && files[x.path]; }).map(function (x) { return x.path; });
       var title = textOf((/<dc:title[^>]*>([\s\S]*?)<\/dc:title>/i.exec(opf) || ['', ''])[1]);
       var authors = (opf.match(/<dc:creator[^>]*>[\s\S]*?<\/dc:creator>/gi) || []).map(textOf);
       // one stream of events, with each document's start as an anchor

@@ -3,7 +3,7 @@
 // (DecompressionStream 'deflate-raw', also in Node 22).
 (function (FT) {
   'use strict';
-  var END_OF_DIRECTORY = 0x06054b50, DIRECTORY_ENTRY = 0x02014b50, STORED = 0, DEFLATED = 8;
+  var END_OF_DIRECTORY = 0x06054b50, DIRECTORY_ENTRY = 0x02014b50, STORED = 0, DEFLATED = 8, ZIP64_SIZE = 0xffffffff;
 
   function inflate(bytes) {
     var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
@@ -18,6 +18,9 @@
 
   // bytes: Uint8Array -> Promise of { name: Uint8Array }
   function read(bytes) {
+    try { return entries(bytes); } catch (err) { return Promise.reject(err); }
+  }
+  function entries(bytes) {
     var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength), names = new TextDecoder();
     var end = findEndOfDirectory(view), count = view.getUint16(end + 10, true), at = view.getUint32(end + 16, true);
     var pending = [], files = {};
@@ -29,8 +32,10 @@
       var name = names.decode(bytes.subarray(at + 46, at + 46 + nameLength));
       var start = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
       var data = bytes.subarray(start, start + size);
+      if (size === ZIP64_SIZE) throw new Error('This archive is too large to read here');
       if (method === STORED) files[name] = data;
       else if (method === DEFLATED) pending.push(inflate(data).then(function (k) { return function (out) { files[k] = out; }; }(name)));
+      else throw new Error('This archive uses a compression the browser cannot read (method ' + method + ')');
       at += 46 + nameLength + extra + comment;
     }
     return Promise.all(pending).then(function () { return files; });
