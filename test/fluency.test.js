@@ -30,8 +30,9 @@ function judged(contexts, globalRate = 0) {
   for (const [key, c] of Object.entries(contexts)) all[key] = Object.assign({ key, order: key.length, mu: 0, latN: 100, errorRate: 0 }, c);
   return { get: (k) => all[k], all, global: { rate: globalRate } };
 }
-// A scale: ms per keystroke at ratio 1 in both populations, and ms per error.
-const evenly = (ms, errorCostMs = 0) => ({ within: ms, initial: ms, errorCostMs });
+// A scale: ms per keystroke at ratio 1 in both populations, ms per error and
+// ms of pauses per press.
+const evenly = (ms, errorCostMs = 0, pauseMs = 0) => ({ within: ms, initial: ms, errorCostMs, pauseMs });
 const AB = FT.fluency.referenceOf(['ab', 'ab']);           // keystrokes: a b space a b space
 const LETTERS = { a: {}, b: {}, ' ': {} };
 const withLetters = (contexts) => judged(Object.assign({}, LETTERS, contexts));
@@ -42,7 +43,7 @@ test('typing every context at the centre, without errors, a keystroke takes the 
 });
 
 test('word-initial keystrokes take the word-initial scale', () => {
-  const p = FT.fluency.predict(withLetters({}), { within: 100, initial: 400, errorCostMs: 0 }, AB);
+  const p = FT.fluency.predict(withLetters({}), { within: 100, initial: 400, errorCostMs: 0, pauseMs: 0 }, AB);
   near(p.wpm, wpmOf(6, 2 * 400 + 4 * 100));
 });
 
@@ -59,6 +60,11 @@ test('each error costs the measured time of a correction', () => {
 
 test('doubling the error rate doubles the time errors cost', () => {
   near(FT.fluency.predict(erring(0.2), evenly(200, 1000), AB).wpm, wpmOf(6, 6 * (200 + 0.2 * 1000)));
+});
+
+// Measured speed includes pauses over 5 s, so the prediction does too.
+test('each press takes its share of the pause time', () => {
+  near(FT.fluency.predict(withLetters({}), evenly(200, 0, 50), AB).wpm, wpmOf(6, 6 * 250));
 });
 
 test('a context with too few timed keystrokes falls back to its parent', () => {
@@ -117,19 +123,21 @@ test('a population without clean intervals has no pace', () => {
   assert.equal(FT.fluency.pace([timed(100)], () => 1).initial, null);
 });
 
-// History entries of relaxed practice with their mean clean intervals (ms).
-const relaxed = (within, initial, more = {}) => Object.assign({ type: 'relaxed', words: 100, wpm: 50, effort: 3, meanMs: { within, initial }, errorCostMs: null }, more);
+// History entries of relaxed practice with their pace (ms per keystroke at
+// ratio 1, FT.fluency.pace), corrections, errors and pauses.
+const relaxed = (within, initial, more = {}) => Object.assign({ type: 'relaxed', words: 100, wpm: 50, effort: 3, paceMs: { within, initial },
+  correctionMs: 0, errors: 0, pauseMs: 0, presses: 500 }, more);
 
-test('the scale is the arithmetic mean of the mean intervals of the last 5 relaxed exercises', () => {
+test('the scale is the arithmetic mean of the paces of the last 5 relaxed exercises', () => {
   const history = [relaxed(999, 999), relaxed(100, 200), relaxed(400, 800), relaxed(100, 200), relaxed(400, 800), relaxed(200, 400)];
   const s = FT.fluency.scale(history);
   near(s.within, 240);
   near(s.initial, 480);
 });
 
-test('the cost of an error is the mean of those exercises’ measured costs', () => {
-  const history = [relaxed(100, 100, { errorCostMs: 5000 }), relaxed(100, 100, { errorCostMs: 800 }),
-    relaxed(100, 100, { errorCostMs: 1200 }), relaxed(100, 100, { errorCostMs: null }), relaxed(100, 100), relaxed(100, 100)];
+test('the cost of an error is those exercises’ correction time over their errors', () => {
+  const history = [relaxed(100, 100, { correctionMs: 50000, errors: 1 }), relaxed(100, 100, { correctionMs: 800, errors: 1 }),
+    relaxed(100, 100, { correctionMs: 3200, errors: 3 }), relaxed(100, 100), relaxed(100, 100), relaxed(100, 100)];
   near(FT.fluency.scale(history).errorCostMs, 1000);
 });
 
@@ -137,9 +145,18 @@ test('errors cost nothing in a scale whose exercises had none', () => {
   assert.equal(FT.fluency.scale([relaxed(100, 100), relaxed(100, 100), relaxed(100, 100)]).errorCostMs, 0);
 });
 
+test('correction time without errors costs no error anything', () => {
+  assert.equal(FT.fluency.scale([relaxed(100, 100, { correctionMs: 900 }), relaxed(100, 100), relaxed(100, 100)]).errorCostMs, 0);
+});
+
+test('the pause time of those exercises is spread over their presses', () => {
+  const history = [relaxed(100, 100, { pauseMs: 6000, presses: 400 }), relaxed(100, 100, { pauseMs: 0, presses: 600 }), relaxed(100, 100, { pauseMs: 9000, presses: 1000 })];
+  near(FT.fluency.scale(history).pauseMs, 15000 / 2000);
+});
+
 test('the scale leaves out other exercise types and exercises under 50 words', () => {
   const history = [relaxed(200, 400), relaxed(200, 400), relaxed(200, 400),
-    relaxed(50, 50, { type: 'warmup' }), relaxed(50, 50, { words: 49 }), relaxed(50, 50, { meanMs: undefined })];
+    relaxed(50, 50, { type: 'warmup' }), relaxed(50, 50, { words: 49 }), relaxed(50, 50, { paceMs: undefined })];
   near(FT.fluency.scale(history).within, 200);
 });
 
@@ -156,25 +173,26 @@ test('the effortless scale takes only exercises rated effort 1 or 2', () => {
 // Sanity check, in sample: a model and a scale built from a typist's
 // exercises predict the speed of the very text the typist typed last. Out of
 // sample, only the benchmark check can tell (FT.progress.fluencyCheck).
-// The simulated typist: each pair of letters has its own pace (90-210 ms),
-// which varies from keystroke to keystroke; words start 80 ms later; th is
-// one declared key; about 3% of the other letters slip, and the slip is
-// noticed after 350 ms, erased and retyped 200 ms later, with the next
-// keystroke 250 ms slower (post-error slowing).
+// The simulated typist: each pair of letters has its own pace (by default
+// 90-210 ms), which varies from keystroke to keystroke; words start 80 ms
+// later; th is one declared key; a share of the other letters slip (by
+// default 3%), and the slip is noticed after 350 ms, erased and retyped 200 ms
+// later, with the next keystroke 250 ms slower (post-error slowing); every
+// pauseEvery-th keystroke, if given, comes after a pause of 8 s.
 const DAY = 864e5, DAY0 = Date.UTC(2026, 0, 1), TH = ['th'];
-function simulatedTypist(seed) {
+function simulatedTypist(seed, { slip = 0.03, fastestMs = 90, spreadMs = 120, pauseEvery = 0 } = {}) {
   const rng = FT.rng(seed), noise = () => (rng() + rng() + rng() - 1.5) * 2;   // mean 0, sd 1
-  const pace = (a, b) => 90 + ((a.charCodeAt(0) * 31 + b.charCodeAt(0) * 17) % 121) + (a === ' ' ? 80 : 0);
-  const SLIP = 0.03, NOTICE_MS = 350, RETYPE_MS = 200, SLOWER_MS = 250;
+  const pace = (a, b) => fastestMs + ((a.charCodeAt(0) * 31 + b.charCodeAt(0) * 17) % (spreadMs + 1)) + (a === ' ' ? 80 : 0);
+  const NOTICE_MS = 350, RETYPE_MS = 200, SLOWER_MS = 250, PAUSE_MS = 8000;
   // The presses (test/helpers/typing.js notation) and the gap before each.
   return function type(targets) {
     const text = targets.map((w) => w + ' ').join(''), gaps = [];
     let notation = '', prev = ' ', slowed = 0;
     for (let i = 0; i < text.length; i++) {
-      const gap = pace(prev, text[i]) * Math.exp(0.25 * noise()) + slowed;
+      const gap = pace(prev, text[i]) * Math.exp(0.25 * noise()) + slowed + (pauseEvery && i > 0 && i % pauseEvery === 0 ? PAUSE_MS : 0);
       slowed = 0;
       if (text.startsWith('th', i)) { notation += '[th]'; gaps.push(gap); prev = 'h'; i++; continue; }
-      if (text[i] !== ' ' && rng() < SLIP) {
+      if (text[i] !== ' ' && rng() < slip) {
         notation += (text[i] === 'q' ? 'z' : 'q') + '<' + text[i]; gaps.push(gap, NOTICE_MS, RETYPE_MS); slowed = SLOWER_MS;
       } else { notation += text[i]; gaps.push(gap); }
       prev = text[i];
@@ -187,16 +205,36 @@ function practise(trainer, typeText, day) {
   const { notation, gaps } = typeText(session.state().words.map((w) => w.target));
   const hands = typist(session, { at: gaps[0] }).type(notation, gaps);
   const words = session.state().words.filter((w) => w.committed);
-  return trainer.finish({ type: 'relaxed', startedAt: DAY0 + day * DAY, durationMs: hands.t, words, effort: 2 });
+  return trainer.finish({ type: 'relaxed', startedAt: DAY0 + day * DAY, durationMs: hands.t - gaps[0], words, effort: 2 });
 }
-
-test('in sample, the index predicts the speed of the very text it was built from to within 5%', () => {
-  const tr = FT.trainer.create({ seed: 40, settings: { macros: TH } }), typeText = simulatedTypist(7);
+// Days of practice; the index on the text typed last, and its measure.
+function inSample(seed, typeText, days = 5) {
+  const tr = FT.trainer.create({ seed, settings: { macros: TH } });
   let last;
-  for (let day = 0; day < 5; day++) last = practise(tr, typeText, day);
-  const typed = tr.history().at(-1);
-  assert.ok(typed.firstAttemptAccuracy < 0.99 && typed.errorCostMs > 500, JSON.stringify(typed));   // errors with real costs
+  for (let day = 0; day < days; day++) last = practise(tr, typeText, day);
   const text = FT.fluency.referenceOf(last.raw.words.map((w) => w.target), last.raw.macros);
   const predicted = FT.fluency.index(tr.model.evaluate({ day: last.raw.day }), tr.history(), text, { minN: tr.model.config.minN }).wpm;
-  assert.ok(Math.abs(predicted / typed.wpm - 1) < 0.05, 'predicted ' + predicted + ' WPM, measured ' + typed.wpm);
+  return { predicted, typed: tr.history().at(-1) };
+}
+const within = (share, { predicted, typed }) => assert.ok(Math.abs(predicted / typed.wpm - 1) < share, 'predicted ' + predicted + ' WPM, measured ' + typed.wpm);
+
+test('in sample, the index predicts the speed of the very text it was built from to within 5%', () => {
+  const run = inSample(40, simulatedTypist(7));
+  assert.ok(run.typed.firstAttemptAccuracy < 0.99 && run.typed.correctionMs / run.typed.errors > 500, JSON.stringify(run.typed));   // errors with real costs
+  within(0.05, run);
+});
+
+// The spread between contexts is in the model's ratios only, not in the
+// scale as well. Each session's pace is measured against the model before
+// it, so the model needs some sessions to learn the spread first.
+test('in sample, a typist whose letter pairs range from 60 to 460 ms, without errors, is predicted to within 2%', () => {
+  const run = inSample(41, simulatedTypist(8, { slip: 0, fastestMs: 60, spreadMs: 400 }), 10);
+  assert.equal(run.typed.errors, 0);
+  within(0.02, run);
+});
+
+test('in sample, a typist who pauses for 8 s now and then is predicted to within 2%', () => {
+  const run = inSample(42, simulatedTypist(9, { slip: 0, pauseEvery: 150 }));
+  assert.ok(run.typed.pauseMs > 10000, JSON.stringify(run.typed));
+  within(0.02, run);
 });

@@ -94,7 +94,7 @@
       var moment = fluencyMoment(raw.type), index = moment === 'before' ? fluencyIndex(raw) : null;
       var session = feeds(raw.type, 'sequences') ? clock.advance(raw.run || raw.id) : clock.sessionCount();
       if (raw.vocab) applyVocabulary(raw.vocab);
-      var m = measure(raw);
+      var m = measure(raw, model.evaluate({ day: raw.day }));
       var summary = describe(raw, m);
       withOutcome(summary, learn(raw, session, m, summary), difficulty.state().frontier);
       var entry = historyEntry(raw, m, summary);
@@ -128,10 +128,13 @@
       return { macros: raw.macros, equivalence: FT.text.equivalence({ accents: raw.accents }) };
     }
 
-    function measure(raw) {
+    // judged: the model's judgement before this exercise, for what is timed
+    // against it (the pace and hesitation); left out for a past exercise,
+    // whose judgements are in its history entry.
+    function measure(raw, judged) {
       var options = analysisOptions(raw);
       var words = raw.words, analyses = FT.align.analyzeWords(words, options);
-      var tm = FT.timing.extract(words, analyses);
+      var tm = FT.timing.extract(words, analyses), expected = judged && expectedRatio(judged);
       // Speed bursts: speed over the words finished inside the typing rounds,
       // over the rounds' duration (not the rests, not a partial last round).
       var activeMs = raw.durationMs, scored = analyses;
@@ -144,7 +147,8 @@
       var random = analyses.filter(function (an, i) { var meta = words[i].meta; return meta && meta.source === 'random'; });
       return {
         late: FT.keyevents.lateKeys(raw.keys, words, options),
-        options: options, words: words, tm: tm, analyses: analyses, pairs: FT.timing.commonPairStats(tm.records),
+        options: options, words: words, tm: tm, analyses: analyses, pairs: FT.timing.commonPairStats(tm.records), expected: expected,
+        pace: expected && FT.fluency.pace(tm.records, expected), pause: FT.timing.pauseTime(tm, raw.durationMs),
         metrics: FT.metrics.summarize(scored, { durationMs: activeMs }),
         random: FT.metrics.summarize(random, { durationMs: 0 }),
       };
@@ -167,7 +171,7 @@
         id: raw.id, type: raw.type, startedAt: raw.startedAt, durationMs: raw.durationMs, effort: raw.effort,
         metrics: m.metrics,
         random: { words: m.random.words, firstAttemptAccuracy: m.random.firstAttemptAccuracy },
-        hesitationRate: known && 'hesitationRate' in known ? known.hesitationRate : FT.timing.hesitationRate(m.tm.records, expectedRatio(model.evaluate({ day: raw.day }))),
+        hesitationRate: known && 'hesitationRate' in known ? known.hesitationRate : FT.timing.hesitationRate(m.tm.records, m.expected),
         rhythmCv: FT.timing.rhythmCv(m.tm.records),
         rollover: FT.keyevents.rollover(raw.keys, { exclude: m.late.codes }),
         lateKeys: m.late.chars,
@@ -206,8 +210,8 @@
 
     function historyEntry(raw, m, summary) {
       return FT.history.entry(raw, {
-        metrics: m.metrics, random: m.random, commonPairs: m.pairs, wordStartMs: FT.timing.wordStartMs(m.tm.records), centreMs: m.tm.centreMs,
-        meanMs: m.tm.meanMs, correction: m.tm.correction,
+        metrics: m.metrics, random: m.random, commonPairs: m.pairs, wordStartMs: FT.timing.wordStartMs(m.tm.records),
+        pace: m.pace, correction: m.tm.correction, pause: m.pause,
         hesitationRate: summary.hesitationRate, rhythmCv: summary.rhythmCv, rollover: summary.rollover, keyStats: summary.keyStats,
         frontier: summary.frontier, vocabularyDecision: summary.difficulty, burstRounds: summary.rounds,
       });

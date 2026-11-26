@@ -240,23 +240,6 @@ test('the centre of a population is not pulled by an outlier interval', () => {
   assert.ok(Math.abs(o.ratio / b.ratio - 1) < 0.02, o.ratio + ' vs ' + b.ratio);
 });
 
-// The centre each population's ratios are taken against, in ms: the
-// geometric mean of its trimmed clean intervals.
-test('the session reports each population’s centre in ms', () => {
-  const r = run([['abc', 'abc ', [300, 100, 120, 110]], ['abc', 'abc ', [250, 90, 100, 100]], ['abc', 'abc ', [280, 110, 100, 105]]]);
-  const clean = r.records.filter((x) => x.clean);
-  const geometricMean = (ikis) => Math.exp(FT.stats.meanLog(FT.stats.vjTrim(ikis)));
-  for (const [population, initial] of [['within', false], ['initial', true]]) {
-    const expected = geometricMean(clean.filter((x) => x.wordInitial === initial).map((x) => x.iki));
-    assert.ok(Math.abs(r.centreMs[population] - expected) < 1e-9, population);
-  }
-  assert.ok(r.centreMs.initial > 200 && r.centreMs.within < 130);
-});
-
-test('a population without clean intervals has no centre', () => {
-  assert.equal(run([['abc', 'abc ', 100]]).centreMs.initial, null);
-});
-
 // Time adds up arithmetically, so the fluency index scales on the arithmetic
 // mean of the clean intervals (all of them: slow ones take real time too).
 test('the session reports each population’s arithmetic mean of clean intervals in ms', () => {
@@ -267,7 +250,6 @@ test('the session reports each population’s arithmetic mean of clean intervals
     const ikis = clean.filter((x) => x.wordInitial === initial).map((x) => x.iki);
     assert.ok(Math.abs(r.meanMs[population] - mean(ikis)) < 1e-9, population);
   }
-  assert.ok(r.meanMs.within > r.centreMs.within);
 });
 
 test('a population without clean intervals has no mean', () => {
@@ -280,16 +262,23 @@ test('a population without clean intervals has no mean', () => {
 test('a corrected slip costs the time its intervals take beyond the clean mean', () => {
   const r = run([['abc', 'abc ', 100], ['abc', 'ax<bc ', [100, 100, 500, 300, 100, 100]], ['abc', 'abc ', 100]]);
   assert.equal(r.meanMs.within, 100);
-  assert.deepEqual(plain(r.correction), { ms: 800, errors: 1, msPerError: 800 });  // b: x, then 500 + 300 + 100 ms to c
+  assert.deepEqual(plain(r.correction), { ms: 800, errors: 1 });  // b: x, then 500 + 300 + 100 ms to c
 });
 
 test('an interval after an error that is a pause (over 5 s) is not part of its cost', () => {
   const r = run([['abc', 'abc ', 100], ['abc', 'ax<bc ', [100, 100, 6000, 100, 100, 100]], ['abc', 'abc ', 100]]);
-  assert.deepEqual(plain(r.correction), { ms: 0, errors: 1, msPerError: 0 });
+  assert.deepEqual(plain(r.correction), { ms: 0, errors: 1 });
 });
 
-test('without errors there is no cost per error', () => {
-  assert.deepEqual(plain(run([['abc', 'abc ', 100], ['abc', 'abc ', 100]]).correction), { ms: 0, errors: 0, msPerError: null });
+test('without errors, corrections take no time', () => {
+  assert.deepEqual(plain(run([['abc', 'abc ', 100], ['abc', 'abc ', 100]]).correction), { ms: 0, errors: 0 });
+});
+
+// Design choice: a correction typed faster than the clean pace saves no time.
+test('corrections faster than the clean pace take no time, never less', () => {
+  const r = run([['abc', 'abc ', 300], ['abc', 'ax<bc ', [300, 100, 50, 50, 50, 300]], ['abc', 'abc ', 300]]);
+  assert.equal(r.meanMs.within, 300);
+  assert.deepEqual(plain(r.correction), { ms: 0, errors: 1 });
 });
 
 // Functionality: the time pauses take. An interval over 5 s is a pause, not

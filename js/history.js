@@ -15,19 +15,21 @@
       words: m.metrics.words, wpm: m.metrics.wpm,
       firstAttemptAccuracy: m.metrics.firstAttemptAccuracy, randomFirstAttemptAccuracy: m.random.firstAttemptAccuracy,
       hesitationRate: m.hesitationRate, rhythmCv: m.rhythmCv, rollover: m.rollover, wordStartMs: m.wordStartMs,
-      commonPairMs: m.commonPairs.ms, commonPairIntervals: m.commonPairs.n, centreMs: m.centreMs,
-      meanMs: m.meanMs, errorCostMs: m.correction.msPerError, correctionMs: m.correction.ms,
+      commonPairMs: m.commonPairs.ms, commonPairIntervals: m.commonPairs.n,
+      paceMs: m.pace, correctionMs: m.correction.ms, errors: m.correction.errors, pauseMs: m.pause.ms, presses: m.pause.presses,
       frontier: m.frontier, vocabularyDecision: m.vocabularyDecision || undefined, burstRounds: m.burstRounds || undefined,
       keyPresses: m.keyStats.keys, wrongPressLandings: Object.keys(landings).length ? landings : undefined,
     };
   }
 
   // The experimental fluency index (FT.fluency.index), when it has a scale:
-  // fluencyWpm (A, predicted speed), effortlessWpm (B, effortless speed) and
-  // fluencyCoverage.
+  // fluencyWpm (A, predicted speed), effortlessWpm (B, effortless speed),
+  // fluencyCoverage, and fluencyKeys, the multi-letter keys the reference was
+  // typed with (none: left out).
   function withFluency(h, index) {
     if (!index) return h;
     h.fluencyWpm = index.wpm; h.effortlessWpm = index.effortlessWpm; h.fluencyCoverage = index.coverage;
+    if (index.keys.length) h.fluencyKeys = index.keys;
     return h;
   }
 

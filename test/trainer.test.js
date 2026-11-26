@@ -378,22 +378,40 @@ const practiseRelaxed = (tr, count, opts = {}, from = 0) => {
   return tr.history();
 };
 
-test('history entries keep the session centre in ms per population', () => {
-  const tr = FT.trainer.create({ seed: 30 });
-  const h = practiseRelaxed(tr, 1)[0];
-  assert.equal(Math.round(h.centreMs.within), 120);
-  assert.equal(Math.round(h.centreMs.initial), 120);
-});
-
-test('history entries keep the mean clean interval per population and what errors cost', () => {
+test('history entries keep the pace per population, the time corrections took and the errors', () => {
   const tr = FT.trainer.create({ seed: 30 });
   const { raw } = simulate(tr, 60, DAY0, { err: true }), h = tr.history()[0];
   const slips = raw.words.reduce((n, w) => n + (w.target.match(/th/g) || []).length, 0);
   assert.ok(slips > 0);
-  near(h.meanMs.within, 120, 1e-6);
-  near(h.meanMs.initial, 120, 1e-6);
-  near(h.errorCostMs, 300, 1e-6);                               // n, 150 ms to erase it, 150 ms to retype h
-  near(h.correctionMs, 300 * slips, 1e-6);
+  near(h.paceMs.within, 120, 1e-6);
+  near(h.paceMs.initial, 120, 1e-6);
+  near(h.correctionMs, 300 * slips, 1e-6);                      // each: n, 150 ms to erase it, 150 ms to retype h
+  assert.equal(h.errors, slips);
+});
+
+test('history entries keep the time pauses over 5 s took and the presses', () => {
+  const tr = FT.trainer.create({ seed: 30 });
+  const { raw } = simulate(tr, 60, DAY0), h = tr.history()[0];
+  const presses = raw.words.reduce((n, w) => n + w.target.length + 1, 0);
+  assert.equal(h.presses, presses);
+  const paused = Object.assign({}, raw, { id: 'paused', durationMs: raw.durationMs + 8000 });
+  paused.words = raw.words.map((w, i) => (i < 30 ? w : Object.assign({}, w, { stream: w.stream.map((k) => Object.assign({}, k, { t: k.t + 8000 })) })));
+  tr.process(paused);
+  near(tr.history()[1].pauseMs - h.pauseMs, 8000, 1e-6);         // 8,120 ms where 120 is the clean pace
+});
+
+// Model on the pace before the session: the spread between contexts is in
+// the model's ratios, and the pace takes it out (FT.fluency.pace).
+test('the pace is measured against the model as it stood before the exercise', () => {
+  const tr = FT.trainer.create({ seed: 37 });
+  simulate(tr, 60, DAY0);
+  const { raw } = simulate(tr, 60, DAY0 + HOUR), h = tr.history()[1];
+  const fresh = FT.trainer.create({ seed: 37 });
+  simulate(fresh, 60, DAY0);
+  const evaluation = fresh.model.evaluate({ day: raw.day });
+  const records = FT.timing.extract(raw.words, FT.align.analyzeWords(raw.words, { macros: raw.macros })).records;
+  const expected = FT.fluency.pace(records, (r) => { const c = FT.model.timedContext(evaluation, r.ctx + r.ch, fresh.model.config.minN); return c ? Math.exp(c.mu) : 1; });
+  assert.deepEqual(plain(h.paceMs), plain(expected));
 });
 
 test('the index takes the declared multi-letter keys of the latest exercise as one press', () => {
@@ -446,6 +464,21 @@ test('a benchmark trial’s prediction rests only on the exercises before it', (
   assert.deepEqual([trial.fluencyWpm, trial.effortlessWpm, trial.fluencyCoverage], [before.wpm, before.effortlessWpm, before.coverage]);
 });
 
+test('a benchmark before any relaxed practice gets no fluency index', () => {
+  const tr = FT.trainer.create({ seed: 38 });
+  simulate(tr, 60, DAY0, { type: 'benchmark' });
+  const trial = tr.history()[0];
+  assert.deepEqual([trial.fluencyWpm, trial.effortlessWpm, trial.fluencyCoverage], [undefined, undefined, undefined]);
+});
+
+test('the index records the multi-letter keys it was typed with', () => {
+  const tr = FT.trainer.create({ seed: 36, settings: { macros: ['th'] } });
+  practiseRelaxed(tr, 3);
+  assert.deepEqual(plain(tr.history()[2].fluencyKeys), ['th']);
+  const plainKeys = FT.trainer.create({ seed: 36 });
+  assert.equal(practiseRelaxed(plainKeys, 3)[2].fluencyKeys, undefined);
+});
+
 test('speed bursts get no fluency index: they never feed the sequence model', () => {
   const tr = FT.trainer.create({ seed: 34 });
   practiseRelaxed(tr, 3);
@@ -458,7 +491,7 @@ test('a rebuild reproduces the fluency index', () => {
   const raws = [];
   for (let i = 0; i < 4; i++) raws.push(simulate(tr, 80, DAY0 + i * 864e5, { err: i === 1, effort: 2 }).raw);
   raws.push(simulate(tr, 60, DAY0 + 4 * 864e5, { type: 'benchmark' }).raw);
-  const fields = (h) => h.map((e) => [e.meanMs, e.errorCostMs, e.correctionMs, e.fluencyWpm, e.effortlessWpm, e.fluencyCoverage]);
+  const fields = (h) => h.map((e) => [e.paceMs, e.correctionMs, e.errors, e.pauseMs, e.presses, e.fluencyWpm, e.effortlessWpm, e.fluencyCoverage]);
   const rebuilt = FT.trainer.rebuild(JSON.parse(JSON.stringify(raws)), { seed: 35 });
   assert.ok(tr.history()[4].fluencyWpm > 0);
   assert.deepEqual(plain(fields(rebuilt.history())), plain(fields(tr.history())));

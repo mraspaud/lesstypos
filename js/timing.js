@@ -11,7 +11,8 @@
 //   model compares log ratios, and a median would leave populations with
 //   different skew offset from each other. Each population's arithmetic mean
 //   (meanMs, untrimmed: slow keystrokes take real time too) is reported
-//   beside it, since durations add up arithmetically.
+//   beside it, since durations add up arithmetically: corrections and pauses
+//   are measured beyond it.
 // - Multi-character outputs: a single input event carrying several characters
 //   is one motor event (observed fact). Declared macros typed as separate fast
 //   keystrokes (< FT.presses.MACRO_GAP_MS) are merged too (FT.presses.ids).
@@ -34,18 +35,20 @@
     var records = characterRecords(words, analyses, pauseMs);
     markSimultaneous(records);
     var intervals = cleanIntervals(records);
-    var centre = centreRatios(records, intervals);
+    centreRatios(records, intervals);
     var meanMs = { within: FT.stats.mean(intervals.within), initial: FT.stats.mean(intervals.initial) };
     return { records: records, baseline: { within: FT.stats.median(intervals.within), initial: FT.stats.median(intervals.initial) },
-      centreMs: { within: inMs(centre.within), initial: inMs(centre.initial) }, meanMs: meanMs,
+      meanMs: meanMs,
       correction: correction(records, meanMs, pauseMs) };
   }
 
   // The time errors cost: errors slow typing around the mistake (Salthouse
   // 1986; post-error slowing, Kalfaoğlu & Stafford 2014). Measured (design
   // choice) as the error and after-error intervals beyond the clean mean of
-  // their population, in ms, over the first-try errors; an interval over the
-  // pause threshold is a pause, not a correction (Dhakal et al. 2018).
+  // their population, in ms, beside the number of first-try errors; an
+  // interval over the pause threshold is a pause, not a correction (Dhakal et
+  // al. 2018). Design choice: corrections typed faster than the clean pace
+  // save no time, so the total is never below 0.
   var CORRECTION_REASONS = { error: true, 'after-error': true };
   function correction(records, meanMs, pauseMs) {
     var ms = 0, errors = 0;
@@ -54,7 +57,7 @@
       var clean = r.wordInitial ? meanMs.initial : meanMs.within;
       if (CORRECTION_REASONS[r.reason] && r.iki != null && r.iki <= pauseMs && clean != null) ms += r.iki - clean;
     });
-    return { ms: ms, errors: errors, msPerError: errors > 0 ? ms / errors : null };
+    return { ms: Math.max(0, ms), errors: errors };
   }
 
   // The time pauses take (intervals over the pause threshold, Dhakal et al.
@@ -122,16 +125,13 @@
   // the scale the model compares on; the medians in the baseline are for
   // display. The centre leaves out outliers (Van Selst & Jolicoeur 1994, the
   // trimming the model applies per context), so one long pause does not move it.
-  // Returns the centres (mean log ms).
   function centreRatios(records, intervals) {
     var centre = { within: FT.stats.meanLog(FT.stats.vjTrim(intervals.within)), initial: FT.stats.meanLog(FT.stats.vjTrim(intervals.initial)) };
     records.forEach(function (r) {
       var c = r.wordInitial ? centre.initial : centre.within;
       if (r.clean && c != null) { r.logRatio = FT.stats.logOf(r.iki) - c; r.ratio = Math.exp(r.logRatio); }
     });
-    return centre;
   }
-  function inMs(meanLog) { return meanLog == null ? null : Math.exp(meanLog); }
 
   function markSimultaneous(records) {
     for (var i = 1; i < records.length; i++) {
