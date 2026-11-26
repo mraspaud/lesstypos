@@ -57,3 +57,42 @@ test('the Enter keystroke is part of the timing and sequence records', () => {
   assert.deepEqual(plain(records.map((r) => r.ch).slice(3, 6)), ['.', '\n', 'T']);
   assert.equal(records[5].ctx.slice(-2), '.\n');
 });
+
+// Functionality: a word ended by the other separator (Enter where a space
+// was due, or a space at a paragraph end) is a typo that still ends it, and
+// shows as a wrong separator; in stop mode that separator is refused.
+const PARAGRAPH = ['One', { word: 'two.', sep: '\n' }, 'Three'];
+function typedSession(typed, opts) {
+  const s = FT.session.create(PARAGRAPH, opts);
+  typist(s).type(typed);
+  return s;
+}
+const endings = (s) => plain(s.state().words.map(FT.session.separatorStatus));
+
+test('a word ended by its own separator ends well, and by the other one badly', () => {
+  assert.deepEqual(endings(typedSession('One two.\n')), ['ok', 'ok', null]);
+  assert.deepEqual(endings(typedSession('One\ntwo. Three ')), ['bad', 'bad', 'ok']);
+});
+
+test('a separator the app adds at the end of a text ends the word well', () => {
+  const s = FT.session.create([{ word: 'end.', sep: '\n' }]);
+  typist(s).type('end.');
+  s.input({ kind: 'text', data: ' ', t: 1000, auto: true });
+  assert.equal(FT.session.separatorStatus(s.state().words[0]), 'ok');
+});
+
+test('in stop mode the other separator is refused, and the word stays open', () => {
+  const s = typedSession('One\n', { stopOnError: true });
+  assert.equal(s.state().wordIndex, 0);
+  assert.equal(s.current().typed, 'One');
+  typist(s, { at: 1000 }).type(' two. ');
+  assert.equal(s.state().wordIndex, 1);
+  assert.equal(s.current().typed, 'two.');
+});
+
+test('in stop mode a wrong letter holds what follows until it is corrected', () => {
+  const s = typedSession('Onx two', { stopOnError: true });
+  assert.equal(s.current().typed, 'Onx');
+  typist(s, { at: 1000 }).type('<e ');
+  assert.equal(s.state().wordIndex, 1);
+});

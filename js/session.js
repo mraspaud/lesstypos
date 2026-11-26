@@ -8,6 +8,14 @@
   function isSeparator(ch) { return ch === ' ' || ch === PARAGRAPH; }
   function separatorOf(w) { return (w.meta && w.meta.sep) || ' '; }
   function targetOf(w) { return w.target + separatorOf(w); }
+  // How a committed word was ended: 'ok' by its own separator (or one the
+  // app added at the end of a text), 'bad' by the other one; null while open.
+  function separatorStatus(w) {
+    if (!w.committed) return null;
+    var last = w.stream[w.stream.length - 1];
+    return last.auto || last.ch === separatorOf(w) ? 'ok' : 'bad';
+  }
+  function isOtherSeparator(w, ch) { return isSeparator(ch) && ch !== separatorOf(w); }
   // All the word's letters, or all its key presses (a multi-letter key is one),
   // typed before the separator just typed, right or wrong.
   function complete(w, macros) {
@@ -19,11 +27,14 @@
     return Object.keys(typed).length >= (target.length ? target[target.length - 1] + 1 : 0);
   }
 
-  // opts: { reach, equivalence (FT.text.equivalence) }.
+  // opts: { reach, equivalence (FT.text.equivalence), macros, stopOnError
+  // (after a wrong key, nothing more is taken until it is corrected, and a
+  // word never ends with the other separator) }.
   function create(targets, opts) {
     var reach = (opts && opts.reach) || REACH;
     var equivalence = (opts && opts.equivalence) || FT.text.equivalence();
     var macros = (opts && opts.macros) || [];
+    var stopOnError = !!(opts && opts.stopOnError);
     var words = [];
     function errorWithin(from) {
       for (var i = from; i >= 0 && i > from - reach; i--) {
@@ -77,6 +88,7 @@
         return true;
       }
       if (ev.kind !== 'text') return;
+      if (stopOnError && w && !equivalence.isPrefix(w.typed, targetOf(w))) return;
       var chars = Array.from(ev.data);
       var g = ++group;
       for (var j = 0; j < chars.length; j++) {
@@ -84,6 +96,7 @@
         w = current();
         if (!w) return;
         if (isSeparator(ch) && w.typed.length === 0) continue;
+        if (stopOnError && isOtherSeparator(w, ch)) return;
         if (w.stream.length === 0) w.tStart = ev.t;
         w.typed += ch;
         var entry = { k: 'c', ch: ch, t: ev.t, g: g };
@@ -102,5 +115,5 @@
     };
   }
 
-  FT.session = { create: create, targetOf: targetOf, separatorOf: separatorOf, PARAGRAPH: PARAGRAPH };
+  FT.session = { create: create, targetOf: targetOf, separatorOf: separatorOf, separatorStatus: separatorStatus, PARAGRAPH: PARAGRAPH };
 })(globalThis.FT);

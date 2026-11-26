@@ -195,6 +195,33 @@ export default async function typing() {
     await discard(page);
   });
 
+  await step('Enter where a space was due ends the word with a red space mark', async () => {
+    await startExercise(page, 'prose', { text: { id: 'paras', title: 'Paragraphs', words: ['One', 'two.', 'Three', 'four.', 'Five', 'six.'], breaks: [1, 3], pos: 0 } });
+    await page.keyboard.type('One', { delay: 30 });
+    await page.keyboard.press('Enter');
+    assert.equal(await page.locator('.w').nth(0).locator('.sep.bad').textContent(), '␣');
+    await page.keyboard.type('two.', { delay: 30 });
+    assert.equal(await page.locator('.w').nth(1).locator('.l.ok').count(), 4);
+    await discard(page);
+  });
+
+  await step('in stop mode the wrong separator is refused', async () => {
+    await saveSettings(page, { errorMode: 'stop' });
+    try {
+      await startExercise(page, 'prose', { text: { id: 'paras', title: 'Paragraphs', words: ['One', 'two.', 'Three', 'four.', 'Five', 'six.'], breaks: [1, 3], pos: 0 } });
+      await page.keyboard.type('One', { delay: 30 });
+      await page.keyboard.press('Enter');                        // a space was due
+      await page.keyboard.type(' two. ', { delay: 30 });          // Enter is due after two.
+      await page.keyboard.press('Enter');
+      const shown = await page.$$eval('.w', (els) => els.slice(0, 2).map((e) => e.querySelectorAll('.bad').length));
+      assert.deepEqual(shown, [0, 0]);
+      assert.equal(await page.locator('.w').nth(2).locator('.l.ok, .l.bad').count(), 0);
+      await page.keyboard.type('Three', { delay: 30 });
+      assert.equal(await page.locator('.w').nth(2).locator('.l.ok').count(), 5);
+      await discard(page);
+    } finally { await saveSettings(page, { errorMode: 'continue' }); }
+  });
+
   await step('the first key of an exercise is recorded', async () => {
     await startExercise(page, 'relaxed', { minutes: 1 });
     await typeWords(page, 14);

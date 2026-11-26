@@ -11,6 +11,7 @@
   var TICK_MS = 200, TAB_AGAIN_MS = 3000;
   var EFFORT_GUARD_MS = 1000;                 // keys ignored by the effort question once the timer ends
   var PACE_SCALE = 1.5;                       // the pace bar runs to 1.5 × the target
+  var SPACE_MARK = '␣';
   var START_HINT = 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.';
 
   function burstRoundMs() { return U.testing.burstRoundMs || FT.exercises.BURST_ROUND_MS; }
@@ -75,7 +76,8 @@
       briefing = app.settings.showInstructions !== false;
       free = type === 'prose' && !!opts.free;   // free reading: no time limit, the clock counts up
       U.paint(typingPage(type, opts, FT.exercises.instructions(type, app.settings), { rounds: rounds, durationMs: durationMs, briefing: briefing, free: free }));
-      session = FT.session.create(ex.words.slice(0, WORDS_SHOWN), { equivalence: U.equivalence(), macros: U.macros() });
+      session = FT.session.create(ex.words.slice(0, WORDS_SHOWN), { equivalence: U.equivalence(), macros: U.macros(),
+        stopOnError: app.settings.errorMode === 'stop' });
       pending = ex.words.slice(WORDS_SHOWN);
       inner = document.getElementById('inner'); caret = document.getElementById('caret');
       win = document.getElementById('window'); capture = document.getElementById('capture');
@@ -161,13 +163,16 @@
         html += letter(pos.status === 'ok' ? ' ok' : pos.status === 'bad' ? ' bad' : '', target[p]);
       }
       shown.extras.forEach(function (ch) { html += letter(' extra', ch); });
-      if (FT.session.separatorOf(w) === FT.session.PARAGRAPH) html += letter(' sep' + paragraphEndStatus(w), '¶');
+      html += separatorMark(w, letter);
       el.innerHTML = html;
       el.dataset.cursor = shown.cursor;
     }
-    function paragraphEndStatus(w) {
-      if (!w.committed) return '';
-      return w.typed.slice(-1) === FT.session.PARAGRAPH ? ' ok' : ' bad';
+    // A paragraph end always shows its mark; a space shows one only when the
+    // word was ended by Enter instead.
+    function separatorMark(w, letter) {
+      var status = FT.session.separatorStatus(w), paragraph = FT.session.separatorOf(w) === FT.session.PARAGRAPH;
+      if (paragraph) return letter(' sep' + (status ? ' ' + status : ''), '¶');
+      return status === 'bad' ? letter(' sep bad', SPACE_MARK) : '';
     }
     // Caret and line scrolling from on-screen rectangles, relative to the typing
     // window (independent of offsetParent quirks and of the host page's CSS).
@@ -304,10 +309,6 @@
     function resting() { return burst && burst.phase === 'rest'; }
 
     // ---------- input ----------
-    function correctSoFar() {
-      var w = session.current();
-      return U.equivalence().isPrefix(w.typed, FT.session.targetOf(w));
-    }
     function closeBriefing() {
       briefing = false;
       var el = document.getElementById('briefing');
@@ -321,7 +322,6 @@
       if (briefing) return; // read the card first: Enter starts
       if (paused) { hint('Paused: <kbd>Esc</kbd> resumes, <kbd>Enter</kbd> saves, <kbd>Del</kbd> discards.'); return; } // typing never discards
       if (resting()) return;
-      if (app.settings.errorMode === 'stop' && !correctSoFar()) return;
       beginIfNeeded(t);
       if (hinted) { hint(''); hinted = false; }
       var before = session.state().wordIndex;
