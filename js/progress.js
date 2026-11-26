@@ -46,7 +46,7 @@
       if (t0 === null) t0 = first;
       var start = prevEnd === null ? first : prevEnd;
       var chars = Array.from(w.target).length + 1 - (prevEnd === null ? 1 : 0);
-      correct += an.counts.C;
+      correct += an.counts.C - (prevEnd === null ? 1 : 0); // the first keystroke starts the clock
       var dur = end - start, el = end - t0;
       out.push({
         i: out.length + 1, word: w.target, t: end - t0,

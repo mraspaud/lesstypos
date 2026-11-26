@@ -91,7 +91,9 @@
       return { type: 'prose', words: take(batch), more: take, targets: [], text: { id: text.id, from: text.pos || 0 } };
     }
 
-    function finish(input) {
+    // The raw record of an exercise (its identity fixed here); processing it
+    // is a separate step, so the record can wait for its effort rating.
+    function record(input) {
       var raw = {
         id: input.id || uid(), schema: FT.SCHEMA, type: input.type, lang: lang,
         startedAt: input.startedAt, day: dayOf(input.startedAt), durationMs: input.durationMs,
@@ -107,6 +109,10 @@
       };
       if (input.text) raw.text = { id: input.text.id, from: input.text.from, to: input.text.from + input.words.length };
       if (input.rounds) raw.rounds = input.rounds;
+      return raw;
+    }
+    function finish(input) {
+      var raw = record(input);
       return { raw: raw, summary: process(raw) };
     }
 
@@ -221,7 +227,7 @@
     }
 
     return {
-      newExercise: newExercise, finish: finish, process: process, targets: targets,
+      newExercise: newExercise, record: record, finish: finish, process: process, targets: targets,
       explain: function (key) { return model.explain(key, { day: dayOf(now()) }); },
       evaluate: function () { return model.evaluate({ day: dayOf(now()) }); },
       substitutions: function (o) { return subs.matrix(o); },
@@ -241,11 +247,12 @@
   // are not derived from typing (a fixed vocabulary level) carry over from
   // opts.previous.
   function rebuild(raws, opts) {
-    var lang = (raws[0] && raws[0].lang) || (opts && opts.previous && opts.previous.lang) || (opts && opts.lang);
+    var sorted = raws.slice().sort(function (a, b) { return a.startedAt - b.startedAt; });
+    var lang = (sorted[0] && sorted[0].lang) || (opts && opts.previous && opts.previous.lang) || (opts && opts.lang);
     var t = create(Object.assign({}, opts, { profile: null, previous: null }, lang ? { lang: lang } : {}));
-    raws.slice().sort(function (a, b) { return a.startedAt - b.startedAt; }).forEach(function (r) { t.process(r); });
+    sorted.forEach(function (r) { t.process(r); });
     var prev = opts && opts.previous && opts.previous.difficulty;
-    if (prev && prev.manual) t.difficulty.override(prev.frontier);
+    if (prev) t.difficulty.override(prev.manual ? prev.frontier : null);
     return t;
   }
 

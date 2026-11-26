@@ -185,3 +185,8 @@ test('an exercise too short to count gets no comparison', () => {
   const cur = { type: 'relaxed', wpm: 90, faa: 1, effort: 3, words: 3 };
   assert.equal(FT.progress.compare(h, cur), null);
 });
+
+test('the running speed starts after the first keystroke too', () => {
+  const tl = FT.progress.timeline(typedWords([['abcd', 'abcd ', 100]]));
+  assert.equal(Math.round(tl[0].running), Math.round(tl[0].burst));
+});

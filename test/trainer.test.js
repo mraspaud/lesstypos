@@ -332,3 +332,32 @@ test('rebuilding keeps the profile language', () => {
   assert.equal(FT.trainer.rebuild([raw], { previous: tr.profile() }).profile().lang, 'en');
   assert.equal(FT.trainer.rebuild([Object.assign({}, raw, { lang: 'fr' })], { corpus: FT.corpus.fromList(['le', 'la']) }).profile().lang, 'fr');
 });
+
+test('rebuilding restores the stored vocabulary choice, fixed or released', () => {
+  const tr = FT.trainer.create({ seed: 9 });
+  tr.difficulty.override(1500);
+  const { raw } = simulate(tr, 60, Date.UTC(2026, 0, 1));
+  tr.difficulty.override(null);
+  assert.equal(FT.trainer.rebuild([raw], { previous: tr.profile() }).difficulty.state().manual, false);
+});
+
+test('a rebuild takes its language from the earliest exercise', () => {
+  const tr = FT.trainer.create({ seed: 1 });
+  const a = simulate(tr, 30, Date.UTC(2026, 0, 2)).raw, b = simulate(tr, 30, Date.UTC(2026, 0, 1)).raw;
+  const fr = Object.assign({}, b, { lang: 'fr' });
+  const re = FT.trainer.rebuild([a, fr], { previous: { lang: 'sv' }, corpus: FT.corpus.fromList(['le', 'la']) });
+  assert.equal(re.profile().lang, 'fr');
+});
+
+// Functionality: an exercise is recorded (with its identity) when it ends and
+// processed when rated, so saving it again cannot make a second copy.
+test('recording then processing equals finishing, with the identity fixed at recording', () => {
+  const a = FT.trainer.create({ seed: 11 }), b = FT.trainer.create({ seed: 11 });
+  const input = { type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: 1000, words: [], keys: [] };
+  const raw = a.record(Object.assign({ id: 'fixed' }, input));
+  assert.equal(raw.id, 'fixed');
+  raw.effort = 2;
+  const viaRecord = a.process(raw);
+  const viaFinish = b.finish(Object.assign({ id: 'fixed', effort: 2 }, input)).summary;
+  assert.deepEqual(plain(viaRecord), plain(viaFinish));
+});

@@ -82,12 +82,15 @@
       return { type: st.type, minutes: cleanMinutes(st.minutes, fallback), enabled: st.enabled !== false };
     }) };
   }
-  // A saved run is kept only when it is whole and made of known steps.
+  // A saved run is kept only when it is whole and made of known steps; it is
+  // returned cleaned like a definition.
   function cleanRun(run) {
-    if (!run || typeof run !== 'object' || typeof run.id !== 'string' || !Number.isInteger(run.index) || !Array.isArray(run.results)) return null;
+    if (!run || typeof run !== 'object' || typeof run.id !== 'string' || !Number.isInteger(run.day) || !Array.isArray(run.results)) return null;
     var def = clean(run.def);
     if (!def || def.steps.length !== run.def.steps.length) return null;
-    return run;
+    if (!Number.isInteger(run.index) || run.index < -1 || run.index >= def.steps.length) return null;
+    if (!run.results.every(function (r) { return r && STEP_TYPES.indexOf(r.type) >= 0; })) return null;
+    return Object.assign({}, run, { def: def });
   }
 
   FT.programme = { DEFAULT: DEFAULT, STEP_TYPES: STEP_TYPES, runner: runner, resume: resume, totalMinutes: totalMinutes, clean: clean, cleanRun: cleanRun };

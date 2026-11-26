@@ -12,6 +12,11 @@
     1: function (d) { return d; }, // schema 2 encodes sessions; plain sessions still decode
   };
 
+  function validText(t) {
+    return t && typeof t.id === 'string' && typeof t.title === 'string' && Array.isArray(t.words) &&
+      t.words.every(function (w) { return typeof w === 'string'; }) &&
+      Number.isInteger(t.pos) && t.pos >= 0 && t.pos <= t.words.length;
+  }
   function clone(x) { return x == null ? x : JSON.parse(JSON.stringify(x)); }
 
   function memoryAdapter() {
@@ -138,11 +143,9 @@
           throw new Error('This file is not a LessTypos export');
         }
         if (data.schema > FT.SCHEMA) throw new Error('This export comes from a newer version (schema ' + data.schema + ')');
-        if (!data.sessions.every(FT.codec.validSession)) throw new Error('This export contains a damaged exercise; nothing was changed');
-        (data.texts || []).forEach(function (t) {
-          if (!t || !t.id || !Array.isArray(t.words)) throw new Error('This export contains a text without words');
-        });
+        if (!(data.texts || []).every(validText)) throw new Error('This export contains a damaged text; nothing was changed');
         var d = migrate(clone(data));
+        if (!d.sessions.every(FT.codec.validSession)) throw new Error('This export contains a damaged exercise; nothing was changed');
         if (mode === 'replace') {
           return reset('all').then(function () {
             return Promise.all(d.sessions.map(saveSession).concat((d.texts || []).map(saveText),

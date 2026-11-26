@@ -103,7 +103,7 @@
   function isInt(x) { return Number.isInteger(x); }
   function validWord(w) {
     if (!w || typeof w.target !== 'string') return false;
-    if (w.c === undefined) return plainWord(w);
+    if (w.c === undefined) return Array.isArray(w.stream) && w.stream.every(streamEntry);
     if (typeof w.c !== 'string' || !Array.isArray(w.t) || !Array.isArray(w.g)) return false;
     var chars = Array.from(w.c), letters = chars.filter(function (ch) { return ch !== BACK; }).length;
     return w.t.length === chars.length && w.t.every(isInt) && w.g.length === letters &&
@@ -114,17 +114,17 @@
   function streamEntry(e) {
     return e && Number.isFinite(e.t) && (e.k === 'b' || (e.k === 'c' && typeof e.ch === 'string'));
   }
-  function plainWord(w) { return w && typeof w.target === 'string' && Array.isArray(w.stream) && w.stream.every(streamEntry); }
   function validKeys(k) {
     if (k === undefined) return true;
     if (Array.isArray(k)) return k.every(keyEvent);
     if (!k || !Array.isArray(k.codes) || !Array.isArray(k.ev) || k.ev.length % 2) return false;
     return k.ev.every(function (x, i) { return isInt(x) && (i % 2 || (x >= 0 && x >> 1 < k.codes.length)); });
   }
+  var EXERCISE_TYPES = ['warmup', 'relaxed', 'bursts', 'prose', 'targeted', 'benchmark'];
   // Whether a session, encoded or plain, is whole enough to store and replay.
   function validSession(s) {
-    if (!s || typeof s !== 'object') return false;
-    return (s.words === undefined || (Array.isArray(s.words) && s.words.every(validWord))) && validKeys(s.keys);
+    if (!s || typeof s !== 'object' || typeof s.id !== 'string' || !Number.isFinite(s.startedAt) || EXERCISE_TYPES.indexOf(s.type) < 0) return false;
+    return Array.isArray(s.words) && s.words.every(validWord) && validKeys(s.keys);
   }
 
   FT.codec = { validSession: validSession, roundTime: roundTime, withRoundedTime: withRoundedTime, encodeSession: encodeSession, decodeSession: decodeSession };

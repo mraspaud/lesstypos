@@ -13,6 +13,7 @@
   // ---------- texts ----------
   function proseProgress(t, pos) {
     var total = t.words ? t.words.length : t.total;
+    pos = Number(pos) || 0;
     return pct(total ? pos / total : 0, 0) + ' (word ' + pos.toLocaleString() + ' of ' + total.toLocaleString() + ')';
   }
   function currentText() {

@@ -88,7 +88,7 @@ test('lone surrogate halves, non-finite times and prototype-named key codes surv
 test('words with extra fields or no stream, and sessions without words, stay intact', () => {
   const s = session([{ target: 'a', stream: [{ k: 'c', ch: 'a', t: 1, g: 0 }], meta: null, tEnd: 9 }, { target: 'b', meta: null }], []);
   assert.deepEqual(roundTrip(s), plain(s));
-  const bare = { id: 'z', startedAt: 1 };
+  const bare = { id: 'z', startedAt: 1, type: 'relaxed' };
   assert.deepEqual(roundTrip(bare), bare);
 });
 
@@ -99,5 +99,14 @@ test('a damaged encoded session is recognised', () => {
   assert.equal(FT.codec.validSession(cut), false);
   const badKeys = plain(enc); badKeys.keys.ev.push(9);
   assert.equal(FT.codec.validSession(badKeys), false);
-  assert.equal(FT.codec.validSession({ id: 'plain', words: [] }), true);
+  assert.equal(FT.codec.validSession({ id: 'plain', startedAt: 1, type: 'relaxed', words: [] }), true);
+});
+
+test('a session needs an id, a start time, a known type and its words to be valid', () => {
+  const ok = { id: 's', startedAt: 1, type: 'relaxed', words: [] };
+  assert.equal(FT.codec.validSession(ok), true);
+  for (const bad of [{ startedAt: 1, type: 'relaxed', words: [] }, { id: 's', type: 'relaxed', words: [] },
+    { id: 's', startedAt: 1, type: 'nope', words: [] }, { id: 's', startedAt: 1, type: 'relaxed' }]) {
+    assert.equal(FT.codec.validSession(bad), false, JSON.stringify(bad));
+  }
 });

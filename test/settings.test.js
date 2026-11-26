@@ -52,3 +52,12 @@ test('a saved daily-training run with an unknown step is dropped', () => {
   const good = FT.programme.runner(FT.programme.DEFAULT, { day: 3 }).toJSON();
   assert.deepEqual(clean({ programmeRun: good }).programmeRun, plain(good));
 });
+
+test('a saved run is cleaned like a definition, and refused when its place is out of range', () => {
+  const run = FT.programme.runner(FT.programme.DEFAULT, { day: 3 }).toJSON();
+  run.def.steps[0].minutes = 45;
+  assert.equal(clean({ programmeRun: run }).programmeRun.def.steps[0].minutes, 30);
+  for (const broken of [{ index: 99 }, { index: -2 }, { day: 'x' }, { results: [{ type: 'nope' }] }]) {
+    assert.equal(clean({ programmeRun: Object.assign({}, FT.programme.runner(FT.programme.DEFAULT, { day: 3 }).toJSON(), broken) }).programmeRun, null, JSON.stringify(broken));
+  }
+});

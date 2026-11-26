@@ -15,7 +15,7 @@ test('settings, profile and sessions persist through the adapter', async () => {
   const s = FT.store.create({ adapter });
   await s.saveSettings({ macros: ['th'] });
   await s.saveProfile({ frontier: 300 });
-  await s.saveSession({ id: 's1', startedAt: 1, words: [] });
+  await s.saveSession({ id: 's1', startedAt: 1, type: 'relaxed', words: [] });
   const s2 = FT.store.create({ adapter });
   const d = await s2.load();
   assert.deepEqual(plain(d.settings.macros), ['th']);
@@ -29,7 +29,7 @@ test('export then import into an empty store restores everything', async () => {
   const a = mk();
   await a.saveSettings({ x: 1 });
   await a.saveProfile({ frontier: 250 });
-  await a.saveSession({ id: 's1', startedAt: 1, words: [{ target: 'a', stream: [] }] });
+  await a.saveSession({ id: 's1', startedAt: 1, type: 'relaxed', words: [{ target: 'a', stream: [] }] });
   const dump = JSON.parse(JSON.stringify(await a.exportAll()));
   assert.equal(dump.format, 'lesstypos-export');
   const b = mk();
@@ -52,7 +52,7 @@ test('older exports are migrated step by step', async () => {
   const migrations = { 0: (d) => { d.sessions.forEach((x) => { x.words = x.items; delete x.items; }); return d; } };
   const s = mk({ migrations });
   await s.importAll({ format: 'lesstypos-export', schema: 0, settings: {}, profile: null,
-    sessions: [{ id: 'old', startedAt: 1, schema: 0, items: [{ target: 'x', stream: [] }] }] });
+    sessions: [{ id: 'old', startedAt: 1, type: 'relaxed', schema: 0, items: [{ target: 'x', stream: [] }] }] });
   const ses = await s.listSessions();
   assert.equal(ses[0].words[0].target, 'x');
   assert.equal(ses[0].schema, FT.SCHEMA);
@@ -60,7 +60,7 @@ test('older exports are migrated step by step', async () => {
 
 test('import merges sessions by id rather than duplicating', async () => {
   const s = mk();
-  await s.saveSession({ id: 's1', startedAt: 1, words: [] });
+  await s.saveSession({ id: 's1', startedAt: 1, type: 'relaxed', words: [] });
   const dump = await s.exportAll();
   await s.importAll(JSON.parse(JSON.stringify(dump)), { mode: 'merge' });
   assert.equal((await s.listSessions()).length, 1);
@@ -69,7 +69,7 @@ test('import merges sessions by id rather than duplicating', async () => {
 test('selective reset keeps raw sessions when only derived statistics are reset', async () => {
   const s = mk();
   await s.saveProfile({ frontier: 300 });
-  await s.saveSession({ id: 's1', startedAt: 1, words: [] });
+  await s.saveSession({ id: 's1', startedAt: 1, type: 'relaxed', words: [] });
   await s.reset('profile');
   assert.equal((await s.load()).profile, null);
   assert.equal((await s.listSessions()).length, 1);
@@ -107,7 +107,7 @@ test('merging an import keeps local settings and the furthest reading position',
   await s.saveSettings({ layoutText: 'mine', currentText: 't1' });
   await s.saveText({ id: 't1', title: 'Book', words: ['a', 'b', 'c', 'd'], pos: 3, addedAt: 1 });
   const other = { format: 'lesstypos-export', schema: FT.SCHEMA, settings: { layoutText: '' }, profile: null,
-    sessions: [{ id: 's9', startedAt: 9, words: [] }],
+    sessions: [{ id: 's9', startedAt: 9, type: 'relaxed', words: [] }],
     texts: [{ id: 't1', title: 'Book', words: ['a', 'b', 'c', 'd'], pos: 1, addedAt: 1 }, { id: 't2', title: 'New', words: ['x'], pos: 0, addedAt: 2 }] };
   await s.importAll(other, { mode: 'merge' });
   const d = await s.load();
@@ -234,4 +234,15 @@ test('an exercise awaiting its rating is kept as a draft until cleared', async (
   assert.deepEqual(plain(await FT.store.create({ adapter }).getDraft()), plain(draft));
   await s.clearDraft();
   assert.equal(await s.getDraft(), null);
+});
+
+test('a backup whose texts are malformed is refused before anything is replaced', async () => {
+  const b = mk();
+  await b.saveSession(typedSession('keep'));
+  const base = { format: 'lesstypos-export', schema: 1, settings: {}, profile: null, sessions: [] };
+  for (const t of [{ id: 't', title: 'x', words: ['a', 7], pos: 0 }, { id: 't', title: 'x', words: ['a'], pos: '<img>' },
+    { id: 't', title: 'x', words: ['a', 'b'], pos: 5 }, { id: 't', title: 3, words: ['a'], pos: 0 }]) {
+    await assert.rejects(b.importAll(Object.assign({}, base, { texts: [t] })), /text/);
+  }
+  assert.equal((await b.listSessions())[0].id, 'keep');
 });
