@@ -11,7 +11,7 @@
   - A fresh reviewer that isn't anchored on the implementer's reasoning audits the whole codebase, tests included. It covers bugs and refactoring equally, at small scale (functions, names, duplication) and large scale (module boundaries, responsibilities, data flow): correctness, methods versus the README and plan, design smells, test gaps.
   - Findings are fixed test-first.
   - Only then is the item done.
-- Commit after each green cycle and push to the feature branch. No PR unless asked.
+- Commit after each green cycle and push to `main` (user decision while the project is young). No PR unless asked.
 - Ground methods in published research and cite it in code comments. Mark our own synthesis as "design choice". Never present invented methods as established ones.
 
 ## Commands
