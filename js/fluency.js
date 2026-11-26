@@ -79,7 +79,8 @@
     return { within: geometricMean('within'), initial: geometricMean('initial') };
   }
   // Variant B's exercises: rated effort 1 or 2 of 5.
-  function effortless(h) { return h.effort != null && h.effort <= 2; }
+  var EFFORTLESS_MAX = 2;
+  function effortless(h) { return h.effort != null && h.effort <= EFFORTLESS_MAX; }
 
   // Both variants and the coverage, or null before A has a scale.
   function index(evaluation, history, ref, opts) {
@@ -90,5 +91,5 @@
   }
 
   FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, scale: scale, effortless: effortless, index: index,
-    REFERENCE_WORDS: REFERENCE_WORDS };
+    REFERENCE_WORDS: REFERENCE_WORDS, MIN_SCALE_EXERCISES: MIN_SCALE_EXERCISES, EFFORTLESS_MAX: EFFORTLESS_MAX };
 })(globalThis.FT);

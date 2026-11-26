@@ -91,7 +91,7 @@
     // record a history entry. Deterministic, so replaying raw sessions
     // rebuilds the same profile.
     function process(raw) {
-      var beforeTrial = raw.type === 'benchmark' ? fluencyIndex(raw.day) : null;
+      var predictedBefore = raw.type === 'benchmark' ? fluencyIndex(raw.day) : null;
       var session = feeds(raw.type, 'sequences') ? clock.advance(raw.run || raw.id) : clock.sessionCount();
       if (raw.vocab) applyVocabulary(raw.vocab);
       var m = measure(raw);
@@ -99,13 +99,14 @@
       withOutcome(summary, learn(raw, session, m, summary), difficulty.state().frontier);
       var entry = historyEntry(raw, m, summary);
       history.push(entry);
-      FT.history.withFluency(entry, beforeTrial || (feeds(raw.type, 'sequences') ? fluencyIndex(raw.day) : null));
+      FT.history.withFluency(entry, raw.type === 'benchmark' ? predictedBefore : feeds(raw.type, 'sequences') ? fluencyIndex(raw.day) : null);
       return summary;
     }
 
-    // The experimental fluency index from the model and history as they stand
-    // (FT.fluency): after an exercise that feeds the model, before a benchmark
-    // trial, so it never rests on the trial it is checked against.
+    // The experimental fluency index (FT.fluency) from the model and the
+    // history as they stand: after an exercise that feeds the model (its own
+    // centres in the scale), before a benchmark trial, so the index never rests
+    // on the trial it is checked against.
     function fluencyIndex(day) {
       return FT.fluency.index(model.evaluate({ day: day }), history, FT.fluency.reference(corpus), { minN: model.config.minN });
     }

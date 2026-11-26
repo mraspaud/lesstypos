@@ -154,5 +154,6 @@
     return { keys: keys, land: land };
   }
 
-  FT.progress = { fluencyCheck: fluencyCheck, FLUENCY_MIN_COVERAGE: FLUENCY_MIN_COVERAGE, completeSets: completeSets, previousSet: previousSet, benchmarkStatus: benchmarkStatus, sumKeys: sumKeys, compare: compare, benchmarkResult: benchmarkResult, series: series };
+  FT.progress = { completeSets: completeSets, previousSet: previousSet, benchmarkStatus: benchmarkStatus, sumKeys: sumKeys, compare: compare, benchmarkResult: benchmarkResult, series: series,
+    fluencyCheck: fluencyCheck, FLUENCY_MIN_COVERAGE: FLUENCY_MIN_COVERAGE };
 })(globalThis.FT);

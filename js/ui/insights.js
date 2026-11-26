@@ -198,6 +198,7 @@
   // ---------- history ----------
   // Progress over time: one small chart per measure, each on its own axis,
   // comparing only comparable sessions (FT.progress.series).
+  var EFFORTLESS = FT.fluency.EFFORTLESS_MAX > 1 ? '1–' + FT.fluency.EFFORTLESS_MAX : '1';
   function progressCharts(history) {
     var series = FT.progress.series(history), date = function (t) { return new Date(t).toLocaleDateString(); };
     var charts = [
@@ -213,10 +214,10 @@
       { title: 'Fluency (experimental)',
         note: 'An experimental prediction, not a measurement: the relaxed speed your current sequence statistics predict on a fixed text of ' + FT.fluency.REFERENCE_WORDS.toLocaleString('en') + ' common words. ' +
           'Our own method (design choice), not a validated one: each keystroke takes the time your statistics give it after the letters before it, as in keystroke-level models (Card, Moran & Newell 1980) with context-dependent timing (Gentner 1983; Salthouse 1986), and each error adds a slip and its backspace (Soukoreff & MacKenzie 2003). ' +
-          'Solid: predicted speed, at the pace of your recent relaxed practice. Dashed: effortless speed, at the pace of the practice you rated effort 1–2. ' +
+          'Solid: predicted speed, at the pace of your recent relaxed practice. Dashed: effortless speed, at the pace of the practice you rated effort ' + EFFORTLESS + '. ' +
           'Shown once ' + pct(FT.progress.FLUENCY_MIN_COVERAGE, 0) + ' of the text is timed from sequences of two letters or more (coverage). Trust it only as far as the benchmark check below shows.',
         label: 'Predicted WPM', color: '--series-1', min: 1, rows: series.fluency,
-        point: function (p) { return { t: p.startedAt, y: p.wpm, tip: '<b>' + fix(p.wpm) + ' WPM predicted</b> · ' + esc(date(p.startedAt)) + '<br>effortless ' + (p.effortlessWpm == null ? 'not yet (needs 3 exercises rated 1–2)' : fix(p.effortlessWpm) + ' WPM') + ', coverage ' + pct(p.coverage, 0) }; },
+        point: function (p) { return { t: p.startedAt, y: p.wpm, tip: '<b>' + fix(p.wpm) + ' WPM predicted</b> · ' + esc(date(p.startedAt)) + '<br>effortless ' + (p.effortlessWpm == null ? 'not yet (needs ' + FT.fluency.MIN_SCALE_EXERCISES + ' relaxed exercises rated ' + EFFORTLESS + ')' : fix(p.effortlessWpm) + ' WPM') + ', coverage ' + pct(p.coverage, 0) }; },
         second: { color: '--series-2', points: series.fluency.filter(function (p) { return p.effortlessWpm != null; }).map(function (p) { return { t: p.startedAt, y: p.effortlessWpm }; }) },
         cols: ['Day', 'Predicted WPM', 'Effortless WPM', 'Coverage'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.effortlessWpm), pct(p.coverage, 0)]; },
         after: fluencyCheckSection(FT.progress.fluencyCheck(history), date) },
