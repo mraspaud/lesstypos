@@ -50,7 +50,9 @@ test('target contexts appear in varied carrier words', () => {
   assert.ok(share > 0.2 && share < 0.4, String(share));
   assert.ok(t.every((w) => w.word.includes('str') && w.target === 'str'));
   assert.ok(new Set(t.map((w) => w.word)).size >= 6);
-  for (let i = 1; i < out.length; i++) assert.notEqual(out[i].word, out[i - 1].word);
+  // no word twice in a row, except a random-sample word, which is never redrawn
+  // because of other words (the unbiased sample comes first)
+  for (let i = 1; i < out.length; i++) if (out[i].word === out[i - 1].word) assert.equal(out[i].source, 'random');
 });
 
 test('a cross-word target produces a word pair forming the transition', () => {
@@ -73,12 +75,12 @@ test('due maintenance contexts are tagged as maintenance', () => {
   assert.ok(!out.some((w) => w.source === 'target'));
 });
 
-test('the unbiased sample is identical with or without targeting', () => {
-  const a = FT.generator.create({ corpus: corpus(), seed: 6 }).next(400, { frontier: 100, targets: [] });
-  const b = FT.generator.create({ corpus: corpus(), seed: 6 }).next(400, { frontier: 100, targets: [{ key: 'str', priority: 1, stage: 'weak' }] });
-  const ra = a.filter((w) => w.source === 'random').map((w) => w.word).slice(0, 50);
-  const rb = b.filter((w) => w.source === 'random').map((w) => w.word).slice(0, 50);
-  assert.deepEqual(plain(rb), plain(ra));
+test('the unbiased sample is identical with or without targeting, whatever the seed', () => {
+  const randomWords = (seed, targets) => FT.generator.create({ corpus: corpus(), seed }).next(400, { frontier: 100, targets })
+    .filter((w) => w.source === 'random').map((w) => w.word).slice(0, 50);
+  for (let seed = 1; seed <= 60; seed++) {
+    assert.deepEqual(plain(randomWords(seed, [{ key: 'str', priority: 1, stage: 'weak' }])), plain(randomWords(seed, [])), 'seed ' + seed);
+  }
 });
 
 test('the bundled English list loads with ranks', () => {

@@ -27,10 +27,14 @@
     function last() { return recent.length ? recent[recent.length - 1] : null; }
     function remember(w) { recent.push(w); if (recent.length > 30) recent.shift(); }
 
+    // Repeats are avoided against the previous random word only, so targeting
+    // never changes the random sample.
+    var lastRandom = null;
     function randomWord(R) {
       var a = corpus.words[rankSample(randRng, R)];
       var b = corpus.words[rankSample(randRng, R)];
-      return a === last() ? b : a;
+      lastRandom = a === lastRandom ? b : a;
+      return lastRandom;
     }
     function frontierWord(R) {
       var w;

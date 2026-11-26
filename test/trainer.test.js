@@ -307,3 +307,16 @@ test('rebuilding reproduces a period of fixed vocabulary', () => {
   assert.equal(re.difficulty.state().frontier, tr.difficulty.state().frontier);
   assert.equal(re.difficulty.state().manual, false);
 });
+
+// Functionality: every exercise gets fresh text, so repeating an exercise
+// (or two exercises in one daily training) never shows the same words or
+// the same random sample.
+test('consecutive exercises get different words, also within one daily training', () => {
+  const tr = FT.trainer.create({ seed: 8 });
+  const words = (ex) => ex.words.slice(0, 40).map((w) => w.word).join(' ');
+  assert.notEqual(words(tr.newExercise({ type: 'bursts' })), words(tr.newExercise({ type: 'bursts' })));
+  const run = 'run-1';
+  assert.notEqual(words(tr.newExercise({ type: 'relaxed', run })), words(tr.newExercise({ type: 'relaxed', run })));
+  const randoms = (ex) => ex.words.filter((w) => w.source === 'random').slice(0, 10).map((w) => w.word).join(' ');
+  assert.notEqual(randoms(tr.newExercise({ type: 'relaxed', run })), randoms(tr.newExercise({ type: 'targeted', run })));
+});

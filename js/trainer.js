@@ -41,6 +41,10 @@
     //   warmup    familiar words: frontier 0.5x (look-ahead stays below it);
     //   bursts    familiar words: frontier 0.6x;
     //   prose     the next words of the current text, from its saved position.
+    // Every exercise gets its own stream of words.
+    var exercisesMade = 0;
+    function exerciseSeed() { return seed + 7919 * (++exercisesMade) + 31 * history.length; }
+
     function newExercise(o) {
       var type = o.type, F = difficulty.state().frontier;
       if (type === 'prose') return proseExercise(o);
@@ -57,15 +61,15 @@
         tg = targets(o.run).slice(0, 10);
         if (type === 'targeted') shares = { random: 0.2, target: 0.5, maintenance: 0.15 };
       }
-      var gen = FT.generator.create({ corpus: corpus, seed: seed + sessionCount * 31 + 7, shares: shares });
+      var gen = FT.generator.create({ corpus: corpus, seed: exerciseSeed(), shares: shares });
       var ctx = { frontier: frontier, targets: tg };
       return { type: type, words: gen.next(400, ctx), more: function (n) { return gen.next(n, ctx); }, targets: tg,
         noTargets: type === 'targeted' && !pinned && !tg.length };
     }
     // Benchmark: a fresh, unbiased sample of the 5,000 most common words.
-    var BENCH_RANKS = 5000, benchCalls = 0;
+    var BENCH_RANKS = 5000;
     function benchmarkExercise() {
-      var rng = FT.rng(seed + sessionCount * 131 + history.length * 17 + (++benchCalls) * 7919), last = null;
+      var rng = FT.rng(exerciseSeed()), last = null;
       function take(n) {
         var out = [];
         while (out.length < n) {
