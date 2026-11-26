@@ -56,7 +56,7 @@
     function record(input) {
       var raw = {
         id: input.id || uid(), schema: FT.SCHEMA, type: input.type, lang: lang,
-        startedAt: input.startedAt, day: FT.days.number(input.startedAt), durationMs: input.durationMs,
+        startedAt: input.startedAt, endedAt: input.endedAt || undefined, day: FT.days.number(input.startedAt), durationMs: input.durationMs,
         effort: input.effort == null ? null : input.effort,
         macros: (settings.macros || []).slice(),
         accents: settings.accents !== false,

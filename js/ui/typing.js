@@ -446,7 +446,7 @@
     function finish() {
       if (!live) return;
       var st = session.state();
-      var typed = { type: type, startedAt: startedAt, words: st.words.filter(function (w) { return w.committed; }), keys: keys,
+      var typed = { type: type, startedAt: startedAt, endedAt: Date.now(), words: st.words.filter(function (w) { return w.committed; }), keys: keys,
         firstKeyAt: firstKeyAt, pauses: pauses, opts: opts, text: ex.text || null, rounds: burst ? burst.rounds : null,
         textFinished: exhausted && st.wordIndex >= st.words.length };
       app.typingEndedAt = Date.now(); // keys still in flight must not trigger page shortcuts

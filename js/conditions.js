@@ -23,11 +23,19 @@
     for (var i = history.length - 1; i >= 0; i--) if (history[i].tags && history[i].tags.length) return history[i].tags;
     return [];
   }
+  // When an exercise ended on the wall clock (pauses included); an entry
+  // recorded before that was kept ends at its start plus its typing time.
+  function endOf(h) { return h.endedAt != null ? h.endedAt : h.startedAt + (h.durationMs || 0); }
+  // Benchmark trials are measurement only: they belong to no sitting.
+  function lastOfSitting(history) {
+    for (var i = history.length - 1; i >= 0; i--) if (history[i].type !== 'benchmark') return history[i];
+    return null;
+  }
   // For an exercise starting at `startedAt` after `history`: whether to ask
   // (a new sitting), and the tags to offer or take.
   function sittingTags(history, startedAt) {
-    var prev = history[history.length - 1];
-    var sameSitting = prev && startedAt - (prev.startedAt + (prev.durationMs || 0)) < SITTING_GAP_MS;
+    var prev = lastOfSitting(history);
+    var sameSitting = prev && startedAt - endOf(prev) < SITTING_GAP_MS;
     return { ask: !sameSitting, tags: sameSitting ? (prev.tags || []) : lastTags(history) };
   }
 

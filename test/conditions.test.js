@@ -24,6 +24,20 @@ test('an exercise within an hour of the previous one is in the same sitting and 
   assert.deepEqual(plain(C().sittingTags([], at(11))), { ask: true, tags: [] });
 });
 
+test('a sitting goes on from when the previous exercise ended, its pauses included', () => {
+  const paused = Object.assign(relaxed(at(9), 50, 0.98, ['home']), { endedAt: at(9, 50) });   // 5 minutes typed over 50
+  assert.deepEqual(plain(C().sittingTags([paused], at(10, 40))), { ask: false, tags: ['home'] });
+  const before = relaxed(at(9), 50, 0.98, ['home']);   // recorded before the end was: its start and duration
+  assert.equal(C().sittingTags([before], at(10, 4)).ask, false);
+  assert.equal(C().sittingTags([before], at(10, 6)).ask, true);
+});
+
+test('a benchmark trial neither starts nor ends a sitting', () => {
+  const trial = { type: 'benchmark', startedAt: at(9, 30), durationMs: 60e3, endedAt: at(9, 31) };
+  assert.deepEqual(plain(C().sittingTags([relaxed(at(9), 50, 0.98, ['home']), trial], at(9, 50))), { ask: false, tags: ['home'] });
+  assert.equal(C().sittingTags([relaxed(at(7), 50, 0.98, ['home']), trial], at(9, 50)).ask, true);
+});
+
 test('the time of day is a condition of its own', () => {
   assert.equal(C().timeOfDay(at(8)), 'morning');
   assert.equal(C().timeOfDay(at(14)), 'afternoon');

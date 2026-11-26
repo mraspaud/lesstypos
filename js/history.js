@@ -10,7 +10,7 @@
     var m = measured, landings = m.keyStats.land, tags = FT.conditions.cleanTags(raw.tags);
     return {
       id: raw.id, type: raw.type, run: raw.run || undefined, tags: tags.length ? tags : undefined,
-      startedAt: raw.startedAt, durationMs: raw.durationMs, plannedMs: raw.planMs || undefined,
+      startedAt: raw.startedAt, endedAt: raw.endedAt || undefined, durationMs: raw.durationMs, plannedMs: raw.planMs || undefined,
       benchmarkSet: raw.set || undefined, effort: raw.effort,
       words: m.metrics.words, wpm: m.metrics.wpm,
       firstAttemptAccuracy: m.metrics.firstAttemptAccuracy, randomFirstAttemptAccuracy: m.random.firstAttemptAccuracy,

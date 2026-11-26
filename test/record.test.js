@@ -37,6 +37,12 @@ test('the duration runs from the first key to the last word, without the pauses'
   assert.equal(paused.raw.durationMs, end - 1000 - 1000);
 });
 
+test('the record keeps when the exercise ended on the wall clock, pauses included', () => {
+  freshApp();
+  const info = FT.ui.recordExercise(typed(typedWords(TWELVE), { endedAt: START + 600e3 }));
+  assert.equal(info.raw.endedAt, START + 600e3);
+});
+
 test('fewer than 10 words are not recorded, unless they finished the text', () => {
   freshApp();
   const words = typedWords(TWELVE.slice(0, 9));

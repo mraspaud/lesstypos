@@ -25,13 +25,13 @@
     return sitting.ask ? undefined : sitting.tags;
   }
 
-  // typed: { type, startedAt, words (committed), keys, firstKeyAt, pauses,
-  // opts, text, rounds, textFinished }. Returns the exercise to rate and save,
+  // typed: { type, startedAt, endedAt (wall clock), words (committed), keys,
+  // firstKeyAt, pauses, opts, text, rounds, textFinished }. Returns the exercise to rate and save,
   // or null when it was too short to analyse.
   function recordExercise(typed) {
     if (tooShort(typed)) return null;
     var opts = typed.opts;
-    var raw = app.trainer.record({ type: typed.type, startedAt: typed.startedAt, durationMs: typingMs(typed.words, typed.firstKeyAt, typed.pauses),
+    var raw = app.trainer.record({ type: typed.type, startedAt: typed.startedAt, endedAt: typed.endedAt, durationMs: typingMs(typed.words, typed.firstKeyAt, typed.pauses),
       words: typed.words, keys: typed.keys, text: typed.text, rounds: typed.rounds, run: opts.run, tags: sameSittingTags(typed.startedAt),
       set: opts.bench ? app.bench.set : null, planMs: opts.bench ? opts.minutes * 60000 : null });
     return { type: typed.type, raw: raw, opts: opts };
