@@ -350,21 +350,30 @@
   //   cursor:       number of rendered letters typed.
   function displayWord(word, stream, macros) {
     var target = Array.from(word);
-    var flags = flagStream(stream);
-    var onScreen = stream.filter(function (e, i) { return flags[i] && e.ch !== ' '; });
-    var typedPresses = groupBy(onScreen, FT.text.pressIds(onScreen, macros));
+    var flags = flagStream(stream), ids = FT.text.pressIds(stream, macros);
+    var shown = stream.map(function (e, i) { return i; }).filter(function (i) { return flags[i] && stream[i].ch !== ' '; });
+    var typedPresses = groupBy(shown.map(function (i) { return stream[i]; }), shown.map(function (i) { return ids[i]; }));
     var targetPresses = groupBy(target.map(function (ch) { return { ch: ch }; }), FT.text.targetPresses(word, macros));
     var positions = target.map(function () { return { status: 'untyped', group: null, press: false }; });
-    var extras = [], at = 0;
-    typedPresses.forEach(function (tp, k) {
-      var want = targetPresses[k];
-      if (!want) { tp.forEach(function (e) { extras.push({ before: target.length, ch: e.ch }); }); return; }
-      var ok = tp.length === want.length && tp.every(function (e, j) { return eq(e.ch, want[j].ch); });
-      var multi = tp.length > 1 || want.length > 1;
-      want.forEach(function (_, j) { positions[at + j] = ok ? { status: 'ok', group: null, press: false } : { status: 'bad', group: at, press: multi }; });
+    var extras = [], at = 0, k = 0;
+    var mark = function (p, ok, group, multi) { positions[p] = ok ? { status: 'ok', group: null, press: false } : { status: 'bad', group: group, press: multi }; };
+    targetPresses.forEach(function (want) {
+      var tp = typedPresses[k];
+      if (!tp) return;
+      if (want.length > 1 && tp.length === 1 && eq(tp[0].ch, want[0].ch)) {
+        // the multi-letter key spelled out with single keys: letter by letter
+        for (var j = 0; j < want.length && typedPresses[k] && typedPresses[k].length === 1; j++, k++) mark(at + j, eq(typedPresses[k][0].ch, want[j].ch), at + j, false);
+        for (; j < want.length && typedPresses[k]; j++) mark(at + j, false, at + j, false);   // cut short by a multi-letter press
+      } else {
+        var ok = tp.length === want.length && tp.every(function (e, j) { return eq(e.ch, want[j].ch); });
+        want.forEach(function (_, j) { mark(at + j, ok, at, tp.length > 1 || want.length > 1); });
+        k++;
+      }
       at += want.length;
     });
-    return { positions: positions, extras: extras, cursor: at + extras.length };
+    typedPresses.slice(k).forEach(function (tp) { tp.forEach(function (e) { extras.push({ before: target.length, ch: e.ch }); }); });
+    var typed = positions.filter(function (p) { return p.status !== 'untyped'; }).length;
+    return { positions: positions, extras: extras, cursor: typed + extras.length };
   }
   // Consecutive items with the same id, in order.
   function groupBy(items, ids) {

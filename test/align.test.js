@@ -189,6 +189,18 @@ test('display: a red letter stays where the mistake was made as the word goes on
   assert.deepEqual(red('unm'), [0, 1]);
 });
 
+test('display: a multi-letter key spelled out letter by letter is compared letter by letter', () => {
+  assert.equal(statuses(DW('The', 'The')), 'ok ok ok');
+  assert.equal(statuses(DW('The', 'T')), 'ok untyped untyped');
+  assert.equal(statuses(DW('the', 'tx')), 'ok bad untyped');
+  assert.deepEqual(DW('The', 'The').extras, []);
+});
+
+test('display: letters on either side of an erased one are separate presses', () => {
+  const stream = [{ k: 'c', ch: 't', t: 100, g: 1 }, { k: 'c', ch: 'x', t: 105, g: 2 }, { k: 'b', t: 110 }, { k: 'c', ch: 'h', t: 115, g: 3 }];
+  assert.equal(statuses(plain(FT.align.displayWord('tea', stream, ['th']))), 'ok bad untyped');
+});
+
 test('display: a partly typed word leaves the rest untyped and puts the cursor after the typing', () => {
   const d = DW('cat', 'ca', []);
   assert.equal(statuses(d), 'ok ok untyped');
