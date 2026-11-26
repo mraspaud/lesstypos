@@ -1,6 +1,6 @@
 {
-  "sha256": "4e4ac9d59c6891b6aa3a4ee8449f9d954a05b5d71e44114ca054e9c94e4a5d33",
-  "modelVersion": 12,
+  "sha256": "4550bebabd22ae0dbdce0501d5329e1311bc3cd35fcd76f834483ace493160fe",
+  "modelVersion": 13,
   "exercises": 17,
   "sequences": 2719,
   "frontier": 181.8181818181818,

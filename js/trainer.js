@@ -187,14 +187,14 @@
       };
     }
 
-    function describe(raw, m) {
+    function describe(raw, m, known) {
       var sources = {};
       m.words.forEach(function (w) { var s = (w.meta && w.meta.source) || 'other'; sources[s] = (sources[s] || 0) + 1; });
       return {
         id: raw.id, type: raw.type, startedAt: raw.startedAt, durationMs: raw.durationMs, effort: raw.effort,
         metrics: m.metrics,
         random: { words: m.random.words, firstAttemptAccuracy: m.random.firstAttemptAccuracy },
-        hesitationRate: FT.timing.hesitationRate(m.tm.records, expectedRatio(model.evaluate({ day: raw.day }))),
+        hesitationRate: known && 'hesitationRate' in known ? known.hesitationRate : FT.timing.hesitationRate(m.tm.records, expectedRatio(model.evaluate({ day: raw.day }))),
         rhythmCv: FT.timing.rhythmCv(m.tm.records),
         rollover: FT.timing.rollover(raw.keys, { exclude: m.late.codes }),
         lateKeys: m.late.chars,
@@ -228,11 +228,26 @@
         pairMs: m.pairs.ms, pairN: m.pairs.n, startMs: FT.timing.wordStartMs(m.tm.records),
         keys: summary.keyStats.keys, land: Object.keys(summary.keyStats.land).length ? summary.keyStats.land : undefined,
         words: m.metrics.words,
+        decision: summary.difficulty || undefined, rounds: summary.rounds || undefined,
       };
     }
 
+    // A past exercise's summary again, from its raw record: measured anew,
+    // with that day's decisions and judgements taken from its history entry.
+    // Nothing is learned.
+    function summarize(raw) {
+      return FT.text.withOptions({ accents: raw.accents !== false }, function () {
+        var entry = history.filter(function (h) { return h.id === raw.id; })[0] || {};
+        var summary = describe(raw, measure(raw), { hesitationRate: entry.hes });
+        summary.difficulty = entry.decision || null;
+        summary.frontier = entry.frontier;
+        if (entry.rounds) summary.rounds = entry.rounds;
+        return summary;
+      });
+    }
+
     return {
-      newExercise: newExercise, record: record, finish: finish, process: process, targets: targets,
+      newExercise: newExercise, record: record, finish: finish, process: process, summarize: summarize, targets: targets,
       explain: function (key) { return model.explain(key, { day: dayOf(now()) }); },
       evaluate: function () { return model.evaluate({ day: dayOf(now()) }); },
       substitutions: function (o) { return subs.matrix(o); },

@@ -361,3 +361,37 @@ test('recording then processing equals finishing, with the identity fixed at rec
   const viaFinish = b.finish(Object.assign({ id: 'fixed', effort: 2 }, input)).summary;
   assert.deepEqual(plain(viaRecord), plain(viaFinish));
 });
+
+// Functionality: a past exercise's summary can be shown again, rebuilt from
+// its raw record, without changing anything learned.
+const shownAgain = (s) => plain({ metrics: s.metrics, timeline: s.timeline, keyStats: s.keyStats, hesitationRate: s.hesitationRate,
+  rhythmCv: s.rhythmCv, rollover: s.rollover, difficulty: s.difficulty, frontier: s.frontier, rounds: s.rounds, random: s.random });
+
+test('a past exercise summarised again shows what its summary showed, including that day’s vocabulary decision', () => {
+  const tr = FT.trainer.create({ seed: 4 });
+  const day = Date.UTC(2026, 0, 1);
+  const first = simulate(tr, 160, day);
+  for (let i = 1; i < 4; i++) simulate(tr, 160, day + i * 3600e3, { err: true });   // the profile moves on
+  const again = tr.summarize(first.raw);
+  assert.deepEqual(shownAgain(again), shownAgain(first.summary));
+  assert.ok(again.difficulty);
+});
+
+test('summarising a past exercise changes nothing learned', () => {
+  const tr = FT.trainer.create({ seed: 5 });
+  const { raw } = simulate(tr, 120, Date.UTC(2026, 0, 1), { err: true });
+  const before = JSON.stringify(tr.profile());
+  tr.summarize(JSON.parse(JSON.stringify(raw)));
+  assert.equal(JSON.stringify(tr.profile()), before);
+});
+
+test('a past speed-bursts summary shows its rounds and targets', () => {
+  const tr = FT.trainer.create({ seed: 6 });
+  const s = FT.session.create(tr.newExercise({ type: 'bursts' }).words.slice(0, 40));
+  let t = 0;
+  for (const w of s.state().words.slice(0, 40)) for (const ch of w.target + ' ') s.input({ kind: 'text', data: ch, t: (t += 90) });
+  const done = tr.finish({ type: 'bursts', startedAt: Date.UTC(2026, 0, 1), durationMs: t, words: s.state().words.filter((w) => w.committed),
+    rounds: [{ start: 0, end: t / 2 }, { start: t / 2, end: t }] });
+  assert.equal(done.summary.rounds.length, 2);
+  assert.deepEqual(shownAgain(tr.summarize(done.raw)).rounds, plain(done.summary.rounds));
+});
