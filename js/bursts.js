@@ -5,7 +5,7 @@
 // otherwise, and stays within 0.9x..2x relaxed speed.
 (function (FT) {
   'use strict';
-  var UP = 1.02, DOWN = 0.98, MIN_ACC = 0.95;
+  var UP = 1.02, DOWN = 0.98, MIN_ACC = 0.95, START_ABOVE = 1.1;
 
   function relaxedMedian(history) {
     var r = history.filter(function (h) { return h.type === 'relaxed' && h.wpm != null && h.words >= 50; }).slice(-5);
@@ -13,7 +13,7 @@
   }
   function initialTarget(history) {
     var m = relaxedMedian(history);
-    return m ? m * 1.1 : 40;
+    return m ? m * START_ABOVE : 40;
   }
   function bounds(ref) { return ref ? [0.9 * ref, 2 * ref] : [20, 250]; }
 
@@ -66,5 +66,5 @@
     };
   }
 
-  FT.bursts = { create: create, initialTarget: initialTarget, step: step, roundStats: roundStats, relaxedMedian: relaxedMedian };
+  FT.bursts = { MIN_ACC: MIN_ACC, START_ABOVE: START_ABOVE, create: create, initialTarget: initialTarget, step: step, roundStats: roundStats, relaxedMedian: relaxedMedian };
 })(globalThis.FT);

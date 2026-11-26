@@ -92,5 +92,5 @@
     return { update: update, override: override, state: function () { return st; }, toJSON: function () { return st; } };
   }
 
-  FT.difficulty = { create: create };
+  FT.difficulty = { create: create, TUNING: TUNING };
 })(globalThis.FT);

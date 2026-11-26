@@ -2,7 +2,7 @@
 (function (FT) {
   'use strict';
   if (typeof document === 'undefined') return;
-  var U = FT.ui, app = U.app, EXERCISES = U.EXERCISES;
+  var U = FT.ui, app = U.app;
   var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, fix = FT.fmt.fix;
   // defined in other ui files
   function go() { return U.go.apply(null, arguments); }
@@ -35,7 +35,7 @@
     app.current = 'typing';
     document.body.classList.add('typing-mode');
     renderNav();
-    var exDef = EXERCISES[type];
+    var exDef = U.exerciseText(type, app.settings);
     var ex = app.trainer.newExercise({ type: type, pinned: opts.pinned, text: opts.text, run: opts.run });
     var durationMs = (opts.minutes || app.settings.durationMin) * 60000;
     var nRounds = Math.max(1, Math.floor(durationMs / (2 * burstRun())));

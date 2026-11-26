@@ -79,7 +79,7 @@
 
   // ---------- benchmark ----------
   // A weekly yardstick: 3 trials on unbiased common words, scored by the median.
-  var BENCH_TRIALS = 3;
+  var BENCH_TRIALS = U.BENCH_TRIALS;
   function benchmarkDue(h) {
     var s = FT.progress.benchmarkStatus(h, Date.now());
     if (!s.last) return 'not taken yet';
@@ -154,7 +154,7 @@
   function nextLine() {
     var c = app.run.current();
     if (!c) return '<p>That was the last exercise.</p>';
-    return '<p><b>Next: ' + esc(EXERCISES[c.type].name) + '</b>, ' + esc(String(c.minutes)) + ' min. <span class="muted">' + esc(EXERCISES[c.type].goal) + '</span></p>';
+    return '<p><b>Next: ' + esc(EXERCISES[c.type].name) + '</b>, ' + esc(String(c.minutes)) + ' min. <span class="muted">' + esc(U.exerciseText(c.type, app.settings).goal) + '</span></p>';
   }
   function programmeBar() {
     var r = app.run, done = r.results().length, total = done + r.upcoming().length;
