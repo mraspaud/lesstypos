@@ -197,7 +197,8 @@
       app.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
       applySettings();
       return app.store.listSessions().then(function (sessions) {
-        app.trainer = makeTrainer(rebuild ? null : d.profile, sessions, d.profile);
+        var stale = !d.profile || FT.trainer.needsRebuild(d.profile); // e.g. a backup from an older version
+        app.trainer = makeTrainer(rebuild || stale ? null : d.profile, sessions, d.profile);
         return saveProfile();
       });
     });

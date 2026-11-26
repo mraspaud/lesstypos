@@ -90,14 +90,78 @@
     if (!el) return;
     el.hidden = !app.notice;
     el.textContent = app.notice || '';
+    if (app.notice) announce(app.notice);
+  }
+  // Polite announcement for assistive technology (one shared live region).
+  function announce(text) {
+    var el = document.getElementById('status');
+    if (!el) return;
+    el.textContent = '';
+    setTimeout(function () { el.textContent = text; }, 30);
   }
   // Renders a screen. Its keys (app.keys: { Enter: fn, n: fn, ... }) are set by
   // the screen after rendering; rendering any screen clears the previous ones,
   // so no key handler can outlive its screen.
+  // Focus moves to the element that had it if it is still there (same id),
+  // otherwise to the page heading, so keyboard users never land on <body>.
   function setView(html) {
     app.keys = {};
+    closeKeyHelp();
+    var had = document.activeElement && document.activeElement.id;
     app.$view.innerHTML = '<div id="notice" class="notice" hidden></div>' + html;
+    document.body.classList.toggle('quiet-nav', app.current === 'typing' || app.current === 'effort');
     renderNotice();
+    var back = had && document.getElementById(had);
+    var target = back && app.$view.contains(back) ? back : app.$view.querySelector('h1') || app.$view;
+    if (target.tagName === 'H1' || target === app.$view) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: target.tagName === 'H1' ? false : true });
+  }
+
+  // ---------- lists and tabs ----------
+  // j/k and the down/up arrows move between the rows of a list ([data-row]);
+  // left/right move between tabs ([data-tab]).
+  function moveRow(dir) {
+    var rows = Array.prototype.slice.call(app.$view.querySelectorAll('[data-row]'));
+    if (!rows.length) return false;
+    var i = rows.indexOf(document.activeElement);
+    var next = rows[i < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, i + dir))];
+    next.focus();
+    if (next.scrollIntoView) next.scrollIntoView({ block: 'nearest' });
+    return true;
+  }
+  function moveTab(dir) {
+    var a = document.activeElement;
+    if (!a || !a.dataset || a.dataset.tab == null) return false;
+    var tabs = Array.prototype.slice.call(a.parentNode.querySelectorAll('[data-tab]'));
+    var next = tabs[(tabs.indexOf(a) + dir + tabs.length) % tabs.length];
+    var id = next.dataset.tab;
+    next.click();
+    var again = app.$view.querySelector('[data-tab="' + id + '"]');
+    if (again) again.focus();
+    return true;
+  }
+
+  // ---------- keyboard help (?) ----------
+  // Built from the key hints the screen shows, so it always matches them.
+  function closeKeyHelp() { var el = document.getElementById('keyhelp'); if (el) el.remove(); }
+  function keyHelp() {
+    var rows = [];
+    app.$view.querySelectorAll('kbd').forEach(function (k) {
+      // a hint inside a button, or next to one ("or press Enter")
+      var owner = k.closest('button, a') || (k.parentNode.parentNode && k.parentNode.parentNode.querySelector('button'));
+      if (!owner || owner.closest('#keyhelp')) return;
+      var b = owner.cloneNode(true);
+      b.querySelectorAll('kbd').forEach(function (x) { x.remove(); });
+      rows.push([k.textContent, b.textContent.trim()]);
+    });
+    if (app.$view.querySelector('[data-row]')) rows.push(['j k ↓ ↑', 'Move through the list'], ['Enter', 'Open the selected row']);
+    if (app.$view.querySelector('[data-tab]')) rows.push(['← →', 'Switch tabs (on a tab)']);
+    NAV.forEach(function (n) { rows.push([n[2], n[1]]); });
+    rows.push(['?', 'Show or hide this list'], ['Esc', 'Close this list']);
+    var el = document.createElement('div');
+    el.id = 'keyhelp'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', 'Keyboard shortcuts');
+    el.innerHTML = '<h2>Keyboard shortcuts</h2><dl>' + rows.map(function (r) { return '<dt><kbd>' + esc(r[0]) + '</kbd></dt><dd>' + esc(r[1]) + '</dd>'; }).join('') + '</dl>';
+    document.body.appendChild(el);
   }
 
   // ---------- global keys ----------
@@ -107,6 +171,12 @@
     if (app.current === 'typing' || app.current === 'effort') return;
     var tag = (e.target && e.target.tagName) || '';
     if (/INPUT|TEXTAREA|SELECT/.test(tag) || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (document.getElementById('keyhelp')) {
+      if (e.key === 'Escape' || e.key === '?') { e.preventDefault(); closeKeyHelp(); return; }
+    } else if (e.key === '?') { e.preventDefault(); keyHelp(); return; }
+    if ((e.key === 'j' || e.key === 'ArrowDown') && !typedJustNow() && moveRow(1)) { e.preventDefault(); return; }
+    if ((e.key === 'k' || e.key === 'ArrowUp') && !typedJustNow() && moveRow(-1)) { e.preventDefault(); return; }
+    if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && moveTab(e.key === 'ArrowRight' ? 1 : -1)) { e.preventDefault(); return; }
     var f = app.keys && app.keys[e.key];
     if (f && !(e.key === 'Enter' && /BUTTON|A/.test(tag))) {   // a focused button handles its own Enter
       if (e.key.length === 1 && typedJustNow()) return;
@@ -153,5 +223,5 @@
   }
 
 
-  Object.assign(U, { macros: macros, applySettings: applySettings, programmeDef: programmeDef, today: today, saveSettings: saveSettings, saveProfile: saveProfile, storageError: storageError, makeTrainer: makeTrainer, go: go, show: show, renderNav: renderNav, renderNotice: renderNotice, setView: setView, onGlobalKey: onGlobalKey, boot: boot });
+  Object.assign(U, { macros: macros, applySettings: applySettings, programmeDef: programmeDef, today: today, saveSettings: saveSettings, saveProfile: saveProfile, storageError: storageError, makeTrainer: makeTrainer, go: go, show: show, renderNav: renderNav, renderNotice: renderNotice, announce: announce, setView: setView, onGlobalKey: onGlobalKey, boot: boot });
 })(globalThis.FT);

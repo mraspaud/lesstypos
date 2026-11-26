@@ -44,7 +44,7 @@
         (app.layout ? '<th>Movement</th>' : '') + '<th>Examples</th></tr></thead><tbody>' +
         shown.map(function (k) {
           var c = all[k], st = ctxs[k].stage;
-          return '<tr class="clickable' + (seqSel === k ? ' selected' : '') + '" data-key="' + esc(k) + '"><td>' + seq(k) + '</td>' +
+          return '<tr class="clickable' + (seqSel === k ? ' selected' : '') + '" data-key="' + esc(k) + '"><td><button type="button" class="rowbtn" data-row>' + seq(k) + '</button></td>' +
             '<td>' + pill(st ? st.name : c.state) + (st && st.regressed ? ' <span class="muted">returned</span>' : '') + '</td>' +
             '<td class="num">' + fix(c.n) + '</td>' +
             '<td class="num">' + pct(c.errorRate) + ' <span class="muted">vs ' + pct(c.parentErrorRate) + '</span></td>' +
@@ -114,8 +114,13 @@
     el.className = 'panel stack';
     el.innerHTML = '<h2>Why ' + seq(k) + ' is ' + esc(x.state) + '</h2><dl class="why">' +
       lines.map(function (l) { return '<dt>' + l[0] + '</dt><dd>' + l[1] + '</dd>'; }).join('') + '</dl>' +
-      '<div class="row"><button class="btn primary" type="button" id="practise">Practise ' + seq(k) + ' for 3 minutes</button></div>';
-    document.getElementById('practise').onclick = function () { startExercise('targeted', { pinned: [k], minutes: 3 }); };
+      '<div class="row"><button class="btn primary" type="button" id="practise">Practise ' + seq(k) + ' for 3 minutes <kbd>p</kbd></button></div>';
+    var practise = function () { startExercise('targeted', { pinned: [k], minutes: 3 }); };
+    document.getElementById('practise').onclick = practise;
+    app.keys.p = practise;
+    var h = el.querySelector('h2');
+    h.setAttribute('tabindex', '-1');
+    h.focus();
   }
 
   // ---------- errors ----------
@@ -147,7 +152,7 @@
       html += '<div class="tablewrap"><table><thead><tr><th>Intended</th><th>Typed</th>' + (L ? '<th>Kind</th>' : '') + '<th>Rate</th><th>Times</th><th>Opportunities</th><th>Recent examples</th></tr></thead><tbody>' +
         rows.map(function (r, i) {
           var rel = L && FT.layout.relation(L, r.expected, r.actual);
-          return '<tr class="clickable" data-i="' + i + '"><td>' + seq(r.expected) + '</td><td>' + seq(r.actual) + '</td>' +
+          return '<tr class="clickable" data-i="' + i + '"><td><button type="button" class="rowbtn" data-row>' + seq(r.expected) + '</button></td><td>' + seq(r.actual) + '</td>' +
             (L ? '<td>' + esc(rel ? rel.label : '') + '</td>' : '') +
             '<td class="num">' + pct(r.rate, 2) + '</td><td class="num">' + fix(r.count) + '</td><td class="num">' + r.opportunities + '</td>' +
             '<td class="ex">' + esc(r.examples.slice(0, 3).map(function (e) { return e.context; }).join(', ')) + '</td></tr>';
@@ -172,6 +177,9 @@
           r.examples.map(function (e) {
             return '<tr><td>' + esc(e.word) + '</td><td>' + seq(e.context) + '</td><td>' + (e.corrected ? 'yes' : 'no') + '</td><td>' + (e.premature ? 'yes' : '') + '</td><td>' + esc(e.exercise || '') + '</td></tr>';
           }).join('') + '</tbody></table></div><p class="muted">“Later letter” marks a typed letter that occurs later in the same word.</p>';
+        var h = el.querySelector('h2');
+        h.setAttribute('tabindex', '-1');
+        h.focus();
       };
     });
   }

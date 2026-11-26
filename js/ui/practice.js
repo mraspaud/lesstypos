@@ -149,7 +149,9 @@
       '<div class="row">' + (r.current() ? '<button class="btn primary" type="button" id="pnext">Continue <kbd>Enter</kbd></button>' +
         '<button class="btn" type="button" id="pskip">Skip next <kbd>n</kbd></button>' : '<button class="btn primary" type="button" id="pnext">See the session summary <kbd>Enter</kbd></button>') +
       '<button class="btn" type="button" id="prep">Repeat this one <kbd>r</kbd></button>' +
-      '<button class="btn" type="button" id="pend">End training <kbd>Esc</kbd></button></div></section>';
+      '<button class="btn" type="button" id="pend">End training <kbd>x</kbd></button></div>' +
+      '<p class="muted" id="endnote" hidden>Press x again to end today\'s training.</p>' +
+      '<p class="muted"><kbd>Esc</kbd> goes home; today\'s training stays ready to resume.</p></section>';
   }
   function bindProgrammeBar() {
     var act = {
@@ -157,13 +159,29 @@
       skip: function () { app.run.skip(); saveRun(); viewBetween(); },
       repeat: function () { app.run.repeat(); saveRun(); runStep(); },
       end: function () { app.run.finishEarly(); saveRun(); viewProgrammeSummary(); },
+      home: function () { go('home'); },
     };
+    // ending today's training asks once (button or x)
+    var pend = document.getElementById('pend'), armed = false;
+    function askEnd() {
+      if (armed) { act.end(); return; }
+      armed = true;
+      pend.classList.add('armed');
+      pend.innerHTML = 'Click again to end <kbd>x</kbd>';
+      U.announce('Press x again to end today\'s training.');
+      var note = document.getElementById('endnote');
+      if (note) note.hidden = false;
+      bindKeys();
+    }
+    function bindKeys() {
+      app.keys = { Enter: act.next, r: act.repeat, Escape: act.home, x: askEnd };
+      if (sk) app.keys.n = act.skip;
+    }
     document.getElementById('pnext').onclick = act.next;
     var sk = document.getElementById('pskip'); if (sk) sk.onclick = act.skip;
     document.getElementById('prep').onclick = act.repeat;
-    document.getElementById('pend').onclick = act.end;
-    app.keys = { Enter: act.next, r: act.repeat, Escape: act.end };
-    if (sk) app.keys.n = act.skip;
+    pend.onclick = askEnd;
+    bindKeys();
   }
   function viewBetween() {
     app.current = 'summary';
@@ -210,18 +228,21 @@
       '<div class="scale">' + EFFORT.map(function (e) {
         return '<button type="button" data-effort="' + e[0] + '"><b>' + e[0] + '</b><span>' + esc(e[1]) + '</span><span class="muted">' + esc(e[2]) + '</span></button>';
       }).join('') + '</div>' +
+      '<p class="muted" id="effortkeys">Press 1–5, or 0 or Enter to skip.</p>' +
       '<div class="row"><button class="btn" type="button" data-effort="">Skip <kbd>Enter</kbd></button></div></section>');
     var done = false;
     function pick(v, render) {
       if (done) return;
       done = true;
       app.leaveEffort = null;
+      app.typingEndedAt = 0; // answering is deliberate: keys from the exercise are no longer in flight
       document.removeEventListener('keydown', onKey, true);
       info.effort = v;
       complete(info, render !== false);
     }
     app.leaveEffort = function () { pick(null, false); };
     function onKey(e) {
+      if (Date.now() < (app.effortGuardUntil || 0)) { e.preventDefault(); return; } // still in flight from typing
       if (/^[1-5]$/.test(e.key)) { e.preventDefault(); pick(+e.key); }
       else if (e.key === 'Enter' || e.key === '0') { e.preventDefault(); pick(null); }
     }

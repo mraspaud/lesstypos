@@ -42,7 +42,7 @@
       (type === 'bursts' ? '<div class="pace" id="pace" aria-hidden="true"><div class="pace-fill" id="pacefill"></div><div class="pace-target" id="pacetarget"></div></div>' +
         '<div class="pace-label muted num" id="pacelabel">Target ' + Math.round(app.trainer.bursts.target()) + ' WPM</div>' : '') +
       '<div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div></div>' +
-      '<div class="focus-hint" id="hint">Start typing when ready. <kbd>Esc</kbd> stops, <kbd>Tab</kbd> restarts.</div>' +
+      '<div class="focus-hint" id="hint">Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.</div>' +
       '<div id="stopbar" class="stopbar" hidden></div>' +
       '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"></textarea>' +
       '</section>');
@@ -50,18 +50,18 @@
     var fed = 120;
     ty = { type: type, ex: ex, session: session, fed: fed, durationMs: durationMs, keys: [], first: null, startedAt: null,
       els: [], inner: document.getElementById('inner'), caret: document.getElementById('caret'),
-      win: document.getElementById('window'), capture: document.getElementById('capture'), stopped: false, opts: opts, offset: 0 };
+      win: document.getElementById('window'), capture: document.getElementById('capture'), stopped: false, opts: opts, offset: 0, pauses: [] };
     if (type === 'bursts') ty.burst = { total: nRounds, rounds: [], phase: 'ready', target: app.trainer.bursts.target(), ref: app.trainer.bursts.reference() };
     renderWords(0);
     ty.detach = FT.input.attach(ty.capture, {
       onText: onText, onBack: onBack, onBackWord: onBackWord,
       onKey: function (k) { if (ty && ty.first != null && !ty.stopped) ty.keys.push(k); },
-      onEscape: onEscape, onTab: function () { startExercise(type, opts); },
+      onEscape: onEscape, onTab: onTab,
       onEnter: function () { if (ty && ty.stopped) finishExercise(); },
     });
     ty.win.addEventListener('click', focusCapture);
     ty.capture.addEventListener('blur', function () { if (ty) { ty.win.classList.add('blurred'); hint('Click here or press any key to continue typing.'); } });
-    ty.capture.addEventListener('focus', function () { if (ty) { ty.win.classList.remove('blurred'); hint(ty.first == null ? 'Start typing when ready. <kbd>Esc</kbd> stops, <kbd>Tab</kbd> restarts.' : ''); } });
+    ty.capture.addEventListener('focus', function () { if (ty) { ty.win.classList.remove('blurred'); hint(ty.first == null ? 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.' : ''); } });
     focusCapture();
     placeCaret();
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (ty) placeCaret(); });
@@ -211,7 +211,8 @@
     return FT.text.isPrefix(w.typed, w.target + ' ');
   }
   function onText(data, t) {
-    if (!ty || ty.stopped) return;
+    if (ty && ty.stopped) { if (data === 'd') discard(); return; }
+    if (!ty) return;
     if (ty.burst && ty.burst.phase === 'rest') return;
     if (app.settings.errorMode === 'stop' && !correctSoFar()) return;
     beginIfNeeded(t);
@@ -267,27 +268,62 @@
     if (now !== before) paintWord(before);
     placeCaret();
   }
+  // Esc never loses work: before typing it leaves, then it pauses and resumes.
+  // Discarding is its own key (d).
   function onEscape() {
     if (!ty) return;
-    if (ty.stopped) { show('home'); return; }
     if (ty.first == null) { show('home'); return; }
+    if (ty.stopped) { resume(); return; }
+    pause();
+  }
+  function pause() {
     ty.stopped = true;
+    ty.pausedAt = performance.now();
     var bar = document.getElementById('stopbar');
     bar.hidden = false;
-    bar.innerHTML = '<span>Stopped.</span><button class="btn primary" type="button" id="fin">Finish and save <kbd>Enter</kbd></button>' +
-      '<button class="btn" type="button" id="dis">Discard <kbd>Esc</kbd></button>';
+    bar.innerHTML = '<span>Paused.</span><button class="btn primary" type="button" id="fin">Finish and save <kbd>Enter</kbd></button>' +
+      '<button class="btn" type="button" id="res">Resume <kbd>Esc</kbd></button>' +
+      '<button class="btn danger" type="button" id="dis">Discard <kbd>d</kbd></button>';
     document.getElementById('fin').onclick = finishExercise;
-    document.getElementById('dis').onclick = function () { show('home'); };
+    document.getElementById('res').onclick = resume;
+    document.getElementById('dis').onclick = discard;
+    U.announce('Paused. Enter saves, Escape resumes, d discards.');
     focusCapture();
+  }
+  function resume() {
+    if (!ty || !ty.stopped) return;
+    var gap = performance.now() - ty.pausedAt;
+    ty.pauses.push([ty.pausedAt, ty.pausedAt + gap]);
+    ty.t0 += gap;
+    if (ty.burst) { if (ty.burst.startNow != null) ty.burst.startNow += gap; if (ty.burst.restEnd != null) ty.burst.restEnd += gap; }
+    ty.stopped = false;
+    document.getElementById('stopbar').hidden = true;
+    hint('');
+    focusCapture();
+  }
+  function discard() { show('home'); }
+  // Tab restarts at once before typing; after that it asks once.
+  function onTab() {
+    if (!ty) return;
+    if (ty.first == null || (ty.tabArmed && Date.now() - ty.tabArmed < 3000)) { startExercise(ty.type, ty.opts); return; }
+    ty.tabArmed = Date.now();
+    hint('Press <kbd>Tab</kbd> again to restart; what you typed so far is dropped.');
+  }
+  // Time spent paused between a and b (performance clock).
+  function pausedWithin(a, b) {
+    return ty.pauses.reduce(function (sum, p) { return sum + Math.max(0, Math.min(b, p[1]) - Math.max(a, p[0])); }, 0);
   }
   function finishExercise() {
     if (!ty) return;
     var words = ty.session.state().words.filter(function (w) { return w.committed; });
     var info = { type: ty.type, startedAt: ty.startedAt, words: words, keys: ty.keys, opts: ty.opts,
-      durationMs: words.length ? words[words.length - 1].tEnd - ty.first : 0,
+      durationMs: words.length ? words[words.length - 1].tEnd - ty.first - pausedWithin(ty.first, words[words.length - 1].tEnd) : 0,
       text: ty.ex.text || null, rounds: ty.burst ? ty.burst.rounds : null };
     var textDone = ty.exhausted && ty.session.state().wordIndex >= ty.session.state().words.length;
     app.typingEndedAt = Date.now(); // keys still in flight must not trigger page shortcuts
+    // ended by the timer or the text (not by an explicit save): keys still in
+    // flight must not answer the effort question either
+    app.effortGuardUntil = ty.stopped ? 0 : Date.now() + 1000;
     stopTyping();
     document.body.classList.remove('typing-mode');
     if ((words.length < 10 && !textDone) || (info.rounds && !info.rounds.length)) {

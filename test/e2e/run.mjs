@@ -129,7 +129,7 @@ await step('backspace with no recent mistake explains why nothing happens', asyn
   await page.keyboard.press('Backspace');
   await page.getByText(/Nothing to fix nearby/).waitFor({ timeout: 2000 });
   await page.keyboard.press('Escape');
-  await page.keyboard.press('Escape');
+  await page.keyboard.press('d');
 });
 
 await step('progress persists across a reload', async () => {
@@ -196,10 +196,12 @@ await step('settings accept a layout and multi-letter keys', async () => {
 });
 
 // Type the next untyped words until the effort question appears.
+// After the timer or the text ends an exercise, keys are ignored for a moment.
+const effortReady = () => page.waitForFunction(() => Date.now() >= (window.FT.app.effortGuardUntil || 0));
 async function typeUntilEffort(limitMs = 60000) {
   const t0 = Date.now();
   while (Date.now() - t0 < limitMs) {
-    if (await page.getByText('How much effort did that take?').isVisible()) return;
+    if (await page.getByText('How much effort did that take?').isVisible()) { await effortReady(); return; }
     const w = await page.evaluate(() => {
       const el = [...document.querySelectorAll('.w')].find((e) => !e.querySelector('.ok,.bad,.extra'));
       return el ? el.textContent : null;
@@ -283,7 +285,7 @@ await step('leaving the effort question saves the exercise and leaves no stray k
   await page.waitForTimeout(200);
   assert.equal(await page.evaluate(() => window.FT.app.trainer.history().length), before + 1);
   assert.ok(await page.locator('#window').isVisible());
-  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape'); await page.keyboard.press('d');
 });
 
 await step('ending training with the mouse leaves no stale programme keys', async () => {
@@ -293,6 +295,7 @@ await step('ending training with the mouse leaves no stale programme keys', asyn
   await typeUntilEffort();
   await page.keyboard.press('2');
   await page.getByRole('button', { name: /End training/ }).click();
+  await page.getByRole('button', { name: /Click again to end/ }).click();
   await page.getByText('Daily training finished').waitFor();
   await page.keyboard.press('r');   // must do nothing, and not throw
   await page.keyboard.press('Enter');
@@ -311,7 +314,7 @@ await step('backspace is ignored during the rest between burst rounds', async ()
   const before = await done();
   for (let i = 0; i < 3; i++) await page.keyboard.press('Backspace');
   assert.equal(await done(), before);
-  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape'); await page.keyboard.press('d');
   await page.evaluate(() => { const a = window.FT.app; a.burstRun = 0; a.burstRest = 0; });
 });
 
@@ -325,6 +328,7 @@ await step('the last words of a text can be finished, and the place moves to the
   await page.locator('.w').first().waitFor();
   await page.keyboard.type('seven eight nine ten eleven twelve', { delay: 10 }); // no space after the last word
   await page.getByText('How much effort did that take?').waitFor({ timeout: 5000 });
+  await effortReady();
   await page.keyboard.press('2');
   await page.getByText(/Your place is saved/).waitFor();
   await page.waitForFunction((i) => window.FT.app.store.getText(i).then((t) => t.pos === 12), id, { timeout: 3000 });
@@ -426,7 +430,141 @@ await step('a wrong multi-letter press shows as one mark, and the rest of the wo
   assert.equal(await word(2).locator('.press-bad').count(), 0);
   assert.equal(await word(2).locator('.l.bad').count(), 1);
   if (shots) await page.screenshot({ path: shots + '/press-marks.png' });
-  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape'); await page.keyboard.press('d');
+});
+
+
+// ---------- keyboard and data safety ----------
+const typeWords = async (n) => {
+  const ws = await page.$$eval('.w', (e) => e.slice(0, 60).map((x) => x.textContent));
+  await page.keyboard.type(ws.slice(0, n).join(' ') + ' ', { delay: 5 });
+};
+const typedCount = () => page.evaluate(() => document.querySelectorAll('.w .l.ok, .w .l.bad').length);
+
+await step('Esc pauses typing; Esc resumes with the letters kept; d discards', async () => {
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
+  await page.locator('.w').first().waitFor();
+  await typeWords(3);
+  const before = await typedCount();
+  const saved = await page.evaluate(() => window.FT.app.trainer.history().length);
+  await page.keyboard.press('Escape');
+  await page.getByText(/Paused/).waitFor();
+  await page.keyboard.press('Escape');                       // resume
+  assert.ok(await page.locator('#stopbar').isHidden());
+  assert.equal(await typedCount(), before);
+  await typeWords(1);
+  assert.ok(await typedCount() > before);
+  await page.keyboard.press('Escape'); await page.keyboard.press('d');  // discard
+  await page.getByRole('button', { name: /Start (daily training|over)|Resume/ }).first().waitFor();
+  assert.equal(await page.evaluate(() => window.FT.app.trainer.history().length), saved);
+});
+
+await step('Tab asks before restarting once typing has begun', async () => {
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
+  await page.locator('.w').first().waitFor();
+  await typeWords(2);
+  const before = await typedCount();
+  await page.keyboard.press('Tab');
+  await page.getByText(/Press Tab again to restart/).waitFor();
+  assert.equal(await typedCount(), before);
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(100);
+  assert.equal(await typedCount(), 0);
+  await page.keyboard.press('Escape');
+});
+
+await step('a digit pressed as the timer ends is not saved as the effort rating', async () => {
+  await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 0.05 }));
+  await page.locator('.w').first().waitFor();
+  const ws = await page.$$eval('.w', (e) => e.slice(0, 30).map((x) => x.textContent));
+  await page.keyboard.type(ws.join(' '), { delay: 20 });
+  await page.getByText('How much effort did that take?').waitFor({ timeout: 10000 });
+  await page.keyboard.press('5');                            // in flight: ignored
+  await page.waitForTimeout(100);
+  assert.ok(await page.getByText('How much effort did that take?').isVisible());
+  await page.getByText(/Press 1–5/).waitFor();
+  await page.waitForTimeout(1100);
+  await page.keyboard.press('2');
+  await page.waitForTimeout(200);
+  assert.equal(await page.evaluate(() => window.FT.app.trainer.history().slice(-1)[0].effort), 2);
+});
+
+await step('between exercises Esc keeps the daily training; ending it asks first', async () => {
+  await page.keyboard.press('p');
+  await page.getByRole('button', { name: /Start (daily training|over)/ }).first().click();
+  await page.locator('.w').first().waitFor();
+  await typeWords(14);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
+  await page.getByText('How much effort did that take?').waitFor();
+  await page.keyboard.press('2');
+  await page.locator('#progbar').waitFor();
+  await page.keyboard.press('Escape');                       // back home, training kept
+  await page.getByRole('button', { name: /Resume/ }).waitFor();
+  await page.getByRole('button', { name: /Resume/ }).click();
+  await page.locator('.w').first().waitFor();
+  await typeWords(14);
+  await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
+  await page.getByText('How much effort did that take?').waitFor();
+  await page.keyboard.press('3');
+  await page.locator('#progbar').waitFor();
+  await page.keyboard.press('x');
+  await page.getByText(/Press x again to end/).waitFor();
+  assert.ok(await page.locator('#progbar').isVisible());
+  await page.keyboard.press('x');
+  await page.getByText('Daily training finished').waitFor();
+  await page.keyboard.press('Enter');
+});
+
+await step('rows of Sequences and Errors open with the keyboard, with j/k and with the arrows', async () => {
+  for (const move of [['j', 'k'], ['ArrowDown', 'ArrowUp']]) {
+    await page.keyboard.press('q');
+    await page.getByRole('button', { name: 'All with enough evidence' }).click();
+    await page.keyboard.press(move[0]);                      // first row
+    await page.keyboard.press(move[0]);                      // second row
+    await page.keyboard.press(move[1]);                      // back to the first
+    const first = await page.evaluate(() => document.activeElement.closest('tr').dataset.key);
+    assert.equal(first, await page.locator('tr[data-key]').first().getAttribute('data-key'));
+    await page.keyboard.press('Enter');
+    await page.locator('#why h2').waitFor();
+    assert.equal(await page.evaluate(() => document.activeElement.tagName), 'H2');
+  }
+  await page.keyboard.press('p');                            // practise it
+  await page.locator('.w').first().waitFor();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('e');
+  await page.keyboard.press('j');
+  if (await page.locator('tr[data-i]').count()) {
+    await page.keyboard.press('Enter');
+    await page.locator('#subex h2').waitFor();
+  }
+});
+
+await step('after navigation, focus is on the page heading; a skip link and a status region exist', async () => {
+  await page.keyboard.press('h');
+  await page.waitForTimeout(50);
+  assert.equal(await page.evaluate(() => document.activeElement.tagName), 'H1');
+  assert.equal(await page.locator('a.skip[href="#view"]').count(), 1);
+  assert.equal(await page.locator('[role="status"]').count(), 1);
+});
+
+await step('? lists the shortcuts of the current screen', async () => {
+  await page.keyboard.press('p');
+  await page.keyboard.press('?');
+  const help = page.locator('#keyhelp');
+  await help.waitFor();
+  assert.match(await help.textContent(), /Enter/);
+  assert.match(await help.textContent(), /Start daily training|Resume/);
+  await page.keyboard.press('Escape');
+  assert.equal(await help.count(), 0);
+});
+
+await step('importing a backup with statistics from an older model rebuilds them at once', async () => {
+  const dump = JSON.parse(await page.evaluate(() => window.FT.app.store.exportAll().then((d) => JSON.stringify(d))));
+  dump.profile.modelVersion = 1; dump.profile.history.forEach((h) => { delete h.keys; });
+  await page.evaluate(async (d) => { await window.FT.app.store.importAll(d, { mode: 'replace' }); await window.FT.ui.reloadFromStore(false); }, dump);
+  const v = await page.evaluate(() => [window.FT.app.trainer.profile().modelVersion, window.FT.MODEL_VERSION, window.FT.app.trainer.history().some((h) => h.keys)]);
+  assert.equal(v[0], v[1]);
+  assert.equal(v[2], true);
 });
 
 await step('phone width has no horizontal scroll', async () => {
