@@ -35,6 +35,20 @@
     }).then(function () { return t; });
   }
   function bundledLabel(b) { return b.title + ' · ' + b.author; }
+  // Free reading of a text from its place as stored now (it may have moved
+  // since home was drawn), after an optional change; a text deleted
+  // meanwhile is not brought back: home is drawn again without it.
+  function readOn(id, change) {
+    return app.store.getText(id).then(function (now) {
+      if (!now) return null;
+      return Promise.resolve(change && change(now)).then(function () { return now; });
+    }).then(U.onThisScreen(function (now) {
+      if (now) { U.startExercise('prose', { text: now, free: true }); return; }
+      app.reading = null;
+      U.go('home');
+      U.flash('That text is no longer stored.');
+    })).catch(U.storageError);
+  }
   // Home's way into the book: continue the current text in free reading, or
   // start the bundled one.
   function readingChoice() {
@@ -42,14 +56,10 @@
       var t = got[0], offer = got[1];
       if (t) {
         var c = FT.books.chapterAt(t, t.pos);
-        var resume = function () {   // the place as stored now: it may have moved since home was drawn
-          return app.store.getText(t.id).then(U.onThisScreen(function (now) { U.startExercise('prose', { text: now || t, free: true }); })).catch(U.storageError);
-        };
-        var choice = { label: 'Continue reading: ' + t.title + (c ? ' · ' + c.title : ''), act: resume };
+        var choice = { label: 'Continue reading: ' + t.title + (c ? ' · ' + c.title : ''), act: function () { return readOn(t.id); } };
         if (c && t.pos > c.start) {
           choice.chapterStart = { label: 'Start of this chapter: ' + c.title, act: function () {
-            return app.store.getText(t.id).then(function (now) { now.pos = c.start; return app.store.saveText(now).then(function () { return now; }); })
-              .then(U.onThisScreen(function (now) { U.startExercise('prose', { text: now, free: true }); })).catch(U.storageError);
+            return readOn(t.id, function (now) { now.pos = c.start; return app.store.saveText(now); });
           } };
         }
         return choice;

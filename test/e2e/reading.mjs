@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { step, freshPage, closePage, root, nav, startExercise, typeWords, finishWithEffort, rateEffort, seedExercises, seedText,
-  storedText, removeTexts, discard } from './harness.mjs';
+  storedText, removeTexts, discard, current } from './harness.mjs';
 
 const rowOf = (page, title) => page.locator('tr', { hasText: title });
 const firstWord = async (page) => (await page.locator('.w').first().textContent()).replace('¶', '');
@@ -188,6 +188,25 @@ export default async function reading() {
     await page.locator('.w').first().waitFor();
     assert.equal(await firstWord(page), await page.evaluate(async () => { const t = await window.FT.app.store.getText('alice'); return t.words[t.chapters[1].start]; }));
     await discard(page);
+  });
+
+  await step('a book deleted since home was drawn is not brought back by continuing it', async () => {
+    const t = await storedText(page, 'alice');
+    t.pos = t.chapters[1].start + 40;
+    const restore = () => page.evaluate((text) => window.FT.ui.app.store.saveText(text), t);
+    try {
+      for (const name of [/Start of this chapter/, /Continue reading/]) {
+        await restore();
+        await nav(page, 'settings/typing');
+        await nav(page, 'home');
+        await page.getByRole('button', { name }).waitFor();
+        await page.evaluate(() => window.FT.ui.app.store.deleteText('alice'));
+        await page.getByRole('button', { name }).click();
+        await page.locator('#notice', { hasText: /no longer stored/ }).waitFor();
+        assert.equal(await current(page), 'home');
+        assert.ok(!(await storedText(page, 'alice')), String(name));
+      }
+    } finally { await restore(); }
   });
 
   await step('timed prose that runs out of time ends at the end of the sentence, not mid-sentence', async () => {
