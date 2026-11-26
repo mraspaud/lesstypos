@@ -106,3 +106,33 @@ test('an exercise too short to count gets no comparison', () => {
   const cur = { type: 'relaxed', wpm: 90, firstAttemptAccuracy: 1, effort: 3, words: 3 };
   assert.equal(FT.progress.compare(h, cur), null);
 });
+
+// Functionality: the experimental fluency index over time, and its check
+// against every complete benchmark set (the prediction made before the set).
+const predicted = (entry, fluencyWpm, effortlessWpm, fluencyCoverage = 0.8) => Object.assign(entry, { fluencyWpm, effortlessWpm, fluencyCoverage });
+const relaxedAt = (d, h) => ({ type: 'relaxed', startedAt: D(d, h), wpm: 50, words: 200, firstAttemptAccuracy: 0.99 });
+
+test('the fluency index per day is the last prediction of the day with enough coverage', () => {
+  const h = [predicted(relaxedAt(1, 9), 50, 45), predicted(relaxedAt(1, 18), 52, undefined, 0.7), predicted(relaxedAt(2, 9), 70, 60, 0.3), predicted(relaxedAt(3, 9), 55, 48)];
+  const days = plain(FT.progress.series(h).fluency);
+  assert.deepEqual(days.map((p) => [p.day, p.wpm, p.effortlessWpm, p.coverage]), [['2026-01-01', 52, null, 0.7], ['2026-01-03', 55, 48, 0.8]]);
+});
+
+test('each complete benchmark set is checked against the prediction made before its first trial', () => {
+  const h = [
+    predicted(trial('a', 1, 60), 66, 70), predicted(trial('a', 1, 62), 67, 71), predicted(trial('a', 1, 64), 67, 71),
+    predicted(trial('b', 8, 70), 60, undefined), predicted(trial('b', 8, 72), 60, undefined), predicted(trial('b', 8, 74), 60, undefined),
+    predicted(trial('c', 9, 80), 60, 60),                                                            // incomplete set
+  ];
+  const check = plain(FT.progress.fluencyCheck(h));
+  assert.deepEqual(check.rows.map((r) => [r.set, r.measured, r.fluencyWpm, r.effortlessWpm]), [['a', 62, 66, 70], ['b', 72, 60, null]]);
+  assert.deepEqual(check.fluency, { sets: 2, meanAbsoluteError: 8, meanError: -4 });        // (+4, -12): under-predicting on the whole
+  assert.deepEqual(check.effortless, { sets: 1, meanAbsoluteError: 8, meanError: 8 });
+});
+
+test('a benchmark predicted with too little coverage is not checked', () => {
+  const h = [60, 62, 64].map((wpm) => predicted(trial('a', 1, wpm), 66, 70, 0.4));
+  const check = plain(FT.progress.fluencyCheck(h));
+  assert.deepEqual(check.rows, []);
+  assert.equal(check.fluency, null);
+});

@@ -85,11 +85,42 @@
     var days = last ? FT.days.between(last.startedAt, now) : null;
     return { last: last, days: days, due: !last || days >= DUE_DAYS };
   }
+  // The experimental fluency index (FT.fluency) is shown only where at least
+  // FLUENCY_MIN_COVERAGE of the reference was timed from contexts of two
+  // characters or more (design choice: half).
+  var FLUENCY_MIN_COVERAGE = 0.5;
+  function fluencyShown(h) { return h.fluencyWpm != null && h.fluencyCoverage >= FLUENCY_MIN_COVERAGE; }
+  var orNull = function (x) { return x == null ? null : x; };
+  // The index after the last exercise of each day.
+  function fluencyByDay(history) {
+    return byDay(history.filter(fluencyShown), function (l) {
+      var last = l[l.length - 1];
+      return { wpm: last.fluencyWpm, effortlessWpm: orNull(last.effortlessWpm), coverage: last.fluencyCoverage };
+    });
+  }
+  // Each complete benchmark set against the index predicted before its first
+  // trial: rows, and per variant the mean absolute error and the mean error
+  // (positive: over-predicting), or null without a checked set.
+  function fluencyCheck(history) {
+    var rows = completeSets(history).map(function (r) {
+      var first = history.filter(function (h) { return h.type === 'benchmark' && h.benchmarkSet === r.set; })[0];
+      return fluencyShown(first) ? { set: r.set, startedAt: r.startedAt, measured: r.wpm, fluencyWpm: first.fluencyWpm,
+        effortlessWpm: orNull(first.effortlessWpm), coverage: first.fluencyCoverage } : null;
+    }).filter(Boolean);
+    function errors(key) {
+      var e = rows.filter(function (r) { return r[key] != null; }).map(function (r) { return r[key] - r.measured; });
+      var mean = function (v) { return v.reduce(function (a, b) { return a + b; }, 0) / v.length; };
+      return e.length ? { sets: e.length, meanAbsoluteError: mean(e.map(Math.abs)), meanError: mean(e) } : null;
+    }
+    return { rows: rows, fluency: errors('fluencyWpm'), effortless: errors('effortlessWpm') };
+  }
+
   // Comparable progress series (comparable sessions only, one point per day):
   //   relaxed       comparable relaxed practice (FT.history.isComparableRelaxed): WPM, accuracy, effort, rhythm, word-start penalty;
   //   benchmark     complete sets of 3 trials (median and range);
   //   commonPairMs  common-pair timing from relaxed practice (one exercise
   //                 type, so comparable), weighted by the number of intervals behind each.
+  //   fluency       the experimental fluency index, A and B, with its coverage.
   function series(history) {
     var relaxed = history.filter(FT.history.isComparableRelaxed);
     var effort = function (l) {
@@ -105,6 +136,7 @@
       commonPairMs: byDay(history.filter(function (h) { return h.type === 'relaxed' && h.commonPairMs != null; }), function (l) {
         return { commonPairMs: weightedMedian(l.map(function (h) { return [h.commonPairMs, h.commonPairIntervals || 1]; })) };
       }),
+      fluency: fluencyByDay(history),
     };
   }
 
@@ -122,5 +154,5 @@
     return { keys: keys, land: land };
   }
 
-  FT.progress = { completeSets: completeSets, previousSet: previousSet, benchmarkStatus: benchmarkStatus, sumKeys: sumKeys, compare: compare, benchmarkResult: benchmarkResult, series: series };
+  FT.progress = { fluencyCheck: fluencyCheck, FLUENCY_MIN_COVERAGE: FLUENCY_MIN_COVERAGE, completeSets: completeSets, previousSet: previousSet, benchmarkStatus: benchmarkStatus, sumKeys: sumKeys, compare: compare, benchmarkResult: benchmarkResult, series: series };
 })(globalThis.FT);
