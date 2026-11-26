@@ -58,6 +58,15 @@ test('table of contents links in single quotes, with ../ or encoded paths, and a
   assert.deepEqual(Object.keys(got), ['One', 'Two', 'Three']);
 });
 
+test('the printed page numbers listed beside the table of contents do not cut chapters', async () => {
+  const got = await chapterWords(buildEpub({
+    chapters: [{ href: 'one.xhtml', body: longText('one') + '<span id="pg2"></span>' + longText('more') }],
+    ncx: '<navPoint><navLabel><text>One</text></navLabel><content src="one.xhtml"/></navPoint>',
+    pageList: '<pageTarget type="normal" value="2"><navLabel><text>[Pg 2]</text></navLabel><content src="one.xhtml#pg2"/></pageTarget>',
+  }));
+  assert.deepEqual(Object.keys(got), ['One']);
+});
+
 test('a malformed link or a file missing from the EPUB does not stop the import', async () => {
   const got = await chapterWords(buildEpub({
     chapters: [{ href: '100%.xhtml', body: longText('one') }, { href: 'gone.xhtml', body: '', missing: true }, { href: 'two.xhtml', body: longText('two') }],

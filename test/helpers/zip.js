@@ -36,8 +36,9 @@ function buildZip(files, opts = {}) {
 const xhtml = (body) => `<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>x</title></head><body>${body}</body></html>`;
 
 // An EPUB with chapters { href, body } and a table of contents given as
-// either nav (EPUB 3) or ncx (EPUB 2) markup listing entries.
-function buildEpub({ chapters, nav, ncx, spineExtra = '' }) {
+// either nav (EPUB 3) or ncx (EPUB 2) markup listing entries, and an
+// optional ncx page list (printed page numbers).
+function buildEpub({ chapters, nav, ncx, pageList = '', spineExtra = '' }) {
   const items = chapters.map((c, i) => `<item id="c${i}" href="${c.href}" media-type="application/xhtml+xml"/>`).join('');
   const files = {
     mimetype: 'application/epub+zip',
@@ -49,7 +50,7 @@ function buildEpub({ chapters, nav, ncx, spineExtra = '' }) {
   };
   for (const c of chapters) if (!c.missing) files['OEBPS/' + decodeURIComponentSafe(c.href)] = xhtml(c.body);
   if (nav) files['OEBPS/nav.xhtml'] = xhtml(`<nav epub:type="toc"><ol>${nav}</ol></nav>`);
-  if (ncx) files['OEBPS/toc.ncx'] = `<?xml version="1.0"?><ncx><navMap>${ncx}</navMap></ncx>`;
+  if (ncx) files['OEBPS/toc.ncx'] = `<?xml version="1.0"?><ncx><navMap>${ncx}</navMap>${pageList && `<pageList>${pageList}</pageList>`}</ncx>`;
   return buildZip(files);
 }
 function decodeURIComponentSafe(s) { try { return decodeURIComponent(s); } catch { return s; } }

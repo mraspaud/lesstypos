@@ -124,7 +124,8 @@
     var ncxId = attr((/<spine[^>]*>/i.exec(opf) || [''])[0], 'toc');
     var ncx = ncxId && manifest[ncxId];
     if (ncx && files[ncx.path]) {
-      var xml = new TextDecoder().decode(files[ncx.path]), out = [], re = /<navLabel>\s*<text>([\s\S]*?)<\/text>\s*<\/navLabel>\s*(<content\b[^>]*>)/gi, m;
+      var ncxXml = new TextDecoder().decode(files[ncx.path]), out = [], re = /<navLabel>\s*<text>([\s\S]*?)<\/text>\s*<\/navLabel>\s*(<content\b[^>]*>)/gi, m;
+      var xml = (/<navMap\b[\s\S]*?<\/navMap>/i.exec(ncxXml) || [ncxXml])[0];   // the chapters, not the printed page list
       while ((m = re.exec(xml))) { var src = attr(m[2], 'src'); if (src) out.push({ title: textOf(m[1]), src: resolve(ncx.path, src) }); }
       return out;
     }
