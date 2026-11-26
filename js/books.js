@@ -30,15 +30,23 @@
   function softenOpening(paragraph, keep) {
     return paragraph.replace(OPENING_CAPS, function (m, lead, first, rest) { return keep[first + rest] ? m : lead + first + rest.toLowerCase(); });
   }
+  // A chapter's words, and the indices of the words that end its paragraphs.
   function wordsOf(paragraphs, keep) {
-    var text = paragraphs.map(function (p) { return softenOpening(p, keep); }).join('\n\n').replace(/(\d)([½¼¾])/g, '$1 $2');
-    return FT.text.prepare(text).map(cleanWord).filter(Boolean);
+    var words = [], breaks = [];
+    paragraphs.forEach(function (p) {
+      var text = softenOpening(p, keep).replace(/(\d)([½¼¾])/g, '$1 $2');
+      var got = FT.text.prepare(text).map(cleanWord).filter(Boolean);
+      if (!got.length) return;
+      words.push.apply(words, got);
+      breaks.push(words.length - 1);
+    });
+    return { words: words, breaks: breaks };
   }
 
   function book(title, author, chapters) {
     var split = chapters.map(function (c) { return { title: c.title, paragraphs: c.text.split(/\n\s*\n/) }; });
     var keep = capitalsInside([].concat.apply([], split.map(function (c) { return c.paragraphs; })));
-    chapters = split.map(function (c) { return { title: c.title, words: wordsOf(c.paragraphs, keep) }; })
+    chapters = split.map(function (c) { var w = wordsOf(c.paragraphs, keep); return { title: c.title, words: w.words, breaks: w.breaks }; })
       .filter(function (c) { return c.words.length && !NOT_PROSE.test(c.title.trim()); });
     var start = chapters.findIndex(function (c) { return c.words.length >= BODY_MIN_WORDS; });
     return { title: title, author: author, chapters: chapters, start: Math.max(0, start) };
@@ -242,8 +250,15 @@
 
   // ---- stored form ----
   function toText(b, id) {
-    var words = [], chapters = b.chapters.map(function (c) { var start = words.length; words.push.apply(words, c.words); return { title: c.title, start: start }; });
-    var text = { id: id, title: b.title || (words.slice(0, 5).join(' ')), words: words, chapters: chapters,
+    var words = [], breaks = [];
+    var chapters = b.chapters.map(function (c) {
+      var start = words.length;
+      words.push.apply(words, c.words);
+      (c.breaks || []).forEach(function (i) { breaks.push(start + i); });
+      return { title: c.title, start: start };
+    });
+    if (breaks[breaks.length - 1] === words.length - 1) breaks.pop(); // the end of the text needs no Enter
+    var text = { id: id, title: b.title || (words.slice(0, 5).join(' ')), words: words, breaks: breaks, chapters: chapters,
       pos: chapters.length ? chapters[b.start].start : 0, addedAt: Date.now() };
     if (b.author) text.author = b.author;
     return text;
@@ -264,7 +279,7 @@
     var b = FT.data && FT.data.alice;
     if (!b) return null;
     return { title: b.title, author: b.author, start: b.start || 0,
-      chapters: b.chapters.map(function (c) { return { title: c.title, words: c.text.split(' ') }; }) };
+      chapters: b.chapters.map(function (c) { return { title: c.title, words: c.text.split(' '), breaks: c.breaks || [] }; }) };
   }
 
   FT.books = { fromEpub: fromEpub, fromText: fromText, toText: toText, chapterAt: chapterAt, readXhtml: readXhtml,

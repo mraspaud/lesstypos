@@ -82,9 +82,14 @@
       return { type: 'benchmark', words: take(400), more: take, targets: [] };
     }
     function proseExercise(o) {
-      var text = o.text, at = text.pos || 0, batch = o.batch || 400;
+      var text = o.text, at = text.pos || 0, batch = o.batch || 400, ends = {};
+      (text.breaks || []).forEach(function (i) { ends[i] = true; });
       function take(n) {
-        var out = text.words.slice(at, at + n).map(function (w) { return { word: w, source: 'prose' }; });
+        var out = text.words.slice(at, at + n).map(function (w, k) {
+          var item = { word: w, source: 'prose' };
+          if (ends[at + k]) item.sep = FT.session.PARAGRAPH;
+          return item;
+        });
         at += out.length;
         return out;
       }

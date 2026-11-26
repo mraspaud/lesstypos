@@ -40,7 +40,7 @@
     for (var i = 0; i < words.length; i++) {
       var w = words[i];
       if (!w.stream.length) continue;
-      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream);
+      var an = w.analysis || FT.align.analyzeWord(FT.session.targetOf(w), w.stream);
       var first = w.stream[0].t, end = w.stream[w.stream.length - 1].t;
       if (t0 === null) t0 = first;
       var start = prevEnd === null ? first : prevEnd;
@@ -156,7 +156,7 @@
     var ms = (macros || []).map(function (m) { return m.toLowerCase(); });
     var keys = {}, land = {};
     words.forEach(function (w) {
-      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream, { macros: macros });
+      var an = w.analysis || FT.align.analyzeWord(FT.session.targetOf(w), w.stream, { macros: macros });
       var P = an.targets.map(function (x) { return x.ch; });
       var tp = FT.text.targetPresses(P.join(''), macros), byPress = {};
       P.forEach(function (ch, i) {

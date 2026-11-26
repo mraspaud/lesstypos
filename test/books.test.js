@@ -204,3 +204,9 @@ test('the bundled book is ready to type from Chapter I', () => {
   assert.ok(stored.bundled);
   assert.ok(stored.words.length > 25000);
 });
+
+test('the bundled book keeps its paragraphs', () => {
+  const stored = FT.books.bundledText();
+  assert.ok(stored.breaks.length > 500);
+  assert.equal(stored.words[stored.breaks[0]], 'conversations?”');   // the end of the first paragraph
+});

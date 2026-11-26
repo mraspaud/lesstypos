@@ -351,7 +351,7 @@
   function displayWord(word, stream, macros) {
     var target = Array.from(word);
     var flags = flagStream(stream), ids = FT.text.pressIds(stream, macros);
-    var shown = stream.map(function (e, i) { return i; }).filter(function (i) { return flags[i] && stream[i].ch !== ' '; });
+    var shown = stream.map(function (e, i) { return i; }).filter(function (i) { return flags[i] && !/^[ \n]$/.test(stream[i].ch); });
     var typedPresses = groupBy(shown.map(function (i) { return stream[i]; }), shown.map(function (i) { return ids[i]; }));
     var targetPresses = groupBy(target.map(function (ch) { return { ch: ch }; }), FT.text.targetPresses(word, macros));
     var positions = target.map(function () { return { status: 'untyped', group: null, press: false }; });

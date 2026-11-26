@@ -34,7 +34,7 @@
       if (!w.stream.length) return;
       var t = wordEnd(w);
       if (t < start || t > end) return;
-      var an = w.analysis || FT.align.analyzeWord(w.target + ' ', w.stream, { macros: macros });
+      var an = w.analysis || FT.align.analyzeWord(FT.session.targetOf(w), w.stream, { macros: macros });
       n++; C += an.counts.C;
       an.targets.forEach(function (x) { targets++; err += x.err; });
     });

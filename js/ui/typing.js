@@ -237,7 +237,7 @@
   }
   function correctSoFar() {
     var w = ty.session.current();
-    return FT.text.isPrefix(w.typed, w.target + ' ');
+    return FT.text.isPrefix(w.typed, FT.session.targetOf(w));
   }
   // The card over the text: what to do and what counts, read before starting.
   function briefing(exDef, nRounds, type) {

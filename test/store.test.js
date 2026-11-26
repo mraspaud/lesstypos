@@ -264,6 +264,15 @@ test('a backup text may carry its chapters, which must start within it in order'
   }
 });
 
+test('a backup text may carry its paragraph ends, which must lie within it in order', async () => {
+  const base = { format: 'lesstypos-export', schema: 1, settings: {}, profile: null, sessions: [] };
+  const text = (breaks) => ({ id: 't', title: 'Book', words: ['a', 'b', 'c', 'd'], pos: 0, breaks });
+  await mk().importAll(Object.assign({}, base, { texts: [text([0, 2])] }));
+  for (const bad of [[4], [2, 1], [1.5], 'x']) {
+    await assert.rejects(mk().importAll(Object.assign({}, base, { texts: [text(bad)] })), /text/);
+  }
+});
+
 // Functionality: the book that comes with the app is stored and backed up as
 // a reference, its words taken from the app.
 test('the bundled book is stored as a reference and read back whole', async () => {

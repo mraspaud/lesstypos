@@ -23,7 +23,12 @@
   function validText(t) {
     return t && typeof t.id === 'string' && typeof t.title === 'string' && Array.isArray(t.words) &&
       t.words.every(function (w) { return typeof w === 'string'; }) &&
-      Number.isInteger(t.pos) && t.pos >= 0 && t.pos <= t.words.length && validChapters(t.chapters, t.words.length);
+      Number.isInteger(t.pos) && t.pos >= 0 && t.pos <= t.words.length && validChapters(t.chapters, t.words.length) &&
+      validBreaks(t.breaks, t.words.length);
+  }
+  function validBreaks(breaks, length) {
+    if (breaks === undefined) return true;
+    return Array.isArray(breaks) && breaks.every(function (b, i) { return Number.isInteger(b) && b >= 0 && b < length && (i === 0 || b > breaks[i - 1]); });
   }
   function validChapters(chapters, length) {
     if (chapters === undefined) return true;
