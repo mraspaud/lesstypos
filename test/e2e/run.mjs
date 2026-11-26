@@ -1077,7 +1077,7 @@ await step('home continues the book with c, in free reading: no time limit, the 
 await step('reading from home continues exactly where the book was left, also after prose read another way', async () => {
   const readAndSave = async (n) => {
     await page.locator('.w').first().waitFor();
-    const words = await page.$$eval('.w', (els) => els.slice(0, n).map((e) => e.textContent.replace('¶', '')));
+    const words = await page.$$eval('.w', (els, count) => els.slice(0, count).map((e) => e.textContent.replace('¶', '')), n);
     for (const w of words) await page.keyboard.type(w.replace(/[\u2018\u2019]/g, "'") + ' ', { delay: 8 });
     await page.keyboard.press('Escape'); await page.keyboard.press('Enter');
     await page.getByText('How much effort did that take?').waitFor();
@@ -1086,10 +1086,10 @@ await step('reading from home continues exactly where the book was left, also af
   await page.keyboard.press('1');
   await page.getByRole('button', { name: /Continue reading/ }).waitFor();
   await page.keyboard.press('c');
-  await readAndSave(3);
+  await readAndSave(12);   // at least 10 words are saved
   await nav('settings/texts');
   await page.locator('tr', { hasText: 'current' }).getByRole('button', { name: /Type now/ }).click();
-  await readAndSave(4);
+  await readAndSave(13);
   const pos = await page.evaluate(async () => { const a = window.FT.app; return (await a.store.getText(a.settings.currentText)).pos; });
   const expected = await page.evaluate(async () => { const a = window.FT.app; const t = await a.store.getText(a.settings.currentText); return t.words[t.pos]; });
   await page.keyboard.press('1');
