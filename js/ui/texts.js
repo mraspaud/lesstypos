@@ -47,6 +47,19 @@
     }).then(function () { return t; });
   }
   function bundledLabel(b) { return b.title + ' · ' + b.author; }
+  // Home's way into the book: continue the current text in free reading, or
+  // start the bundled one.
+  function readingChoice() {
+    return Promise.all([currentText(), bundledOffer()]).then(function (got) {
+      var t = got[0], offer = got[1];
+      if (t) {
+        var c = FT.books.chapterAt(t, t.pos);
+        return { label: 'Continue reading: ' + t.title + (c ? ' · ' + c.title : ''), act: function () { startExercise('prose', { text: t, free: true }); } };
+      }
+      if (offer) return { label: 'Read ' + offer.title, act: function () { addBundled().then(function (b) { startExercise('prose', { text: b, free: true }); }).catch(storageError); } };
+      return null;
+    });
+  }
   function textForm() {
     return '<form class="stack" id="tform"><label for="ttitle">Title</label><input type="text" id="ttitle" placeholder="Moby-Dick, chapter 1">' +
       '<label for="tbody">Text</label><textarea id="tbody" class="mono" placeholder="Paste the text here"></textarea>' +
@@ -150,5 +163,5 @@
   }
 
   Object.assign(U, { proseProgress: proseProgress, currentText: currentText, textForm: textForm, bindTextForm: bindTextForm, viewTexts: viewTexts,
-    bundledOffer: bundledOffer, addBundled: addBundled, bundledLabel: bundledLabel });
+    bundledOffer: bundledOffer, addBundled: addBundled, bundledLabel: bundledLabel, readingChoice: readingChoice });
 })(globalThis.FT);

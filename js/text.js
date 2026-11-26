@@ -58,5 +58,13 @@
     return t.split(/[\s\u00A0\u2009\u202F]+/).filter(Boolean);
   }
 
-  FT.text = { equivalence: equivalence, prepare: prepare };
+  // Design choice: a word ending in . ! ? or …, before any closing quotes or
+  // brackets, ends a sentence, except a few common abbreviations.
+  var ABBREVIATIONS = /^(mr|mrs|ms|dr|st|prof|sr|jr|vs|e\.g|i\.e|cf)\.$/i;
+  function endsSentence(word) {
+    var bare = word.replace(/["'”’»)\]]+$/, '');
+    return /[.!?…]$/.test(bare) && !ABBREVIATIONS.test(bare);
+  }
+
+  FT.text = { equivalence: equivalence, prepare: prepare, endsSentence: endsSentence };
 })(globalThis.FT);

@@ -22,8 +22,9 @@ const nav = (route) => page.evaluate((r) => window.FT.ui.go(r), route);
 // Runs fn with a daily-training definition, restoring the default afterwards
 // even when fn fails, so one step cannot leak into the next.
 async function withProgramme(steps, fn) {
-  await page.evaluate((st) => { const a = window.FT.app; a.settings.programme = { name: 'test', steps: st }; a.settings.programmeRun = null; a.run = null; }, steps);
-  try { await fn(); } finally { await page.evaluate(() => { const a = window.FT.app; a.settings.programme = null; a.settings.programmeRun = null; a.run = null; }); }
+  const reset = (st) => { const a = window.FT.app; a.settings.programme = st && { name: 'test', steps: st }; a.settings.programmeRun = null; a.run = null; a.settings.trainedOn = null; };
+  await page.evaluate(reset, steps);
+  try { await fn(); } finally { await page.evaluate(reset, null); }
 }
 async function step(name, fn) {
   try { await fn(); console.log('ok -', name); }
@@ -31,6 +32,9 @@ async function step(name, fn) {
 }
 
 // The steps type straight away; the instruction card has its own steps.
+// Finishing a daily training makes reading home's first choice for the day;
+// steps about the training start from a day without one.
+const notTrainedToday = () => page.evaluate(() => { window.FT.app.settings.trainedOn = null; });
 const showCards = (on) => page.evaluate(async (v) => { window.FT.app.settings.showInstructions = v; await window.FT.ui.saveSettings(); }, on);
 await page.goto(url);
 await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
@@ -254,14 +258,17 @@ await step('the daily programme runs every exercise with effort ratings and ends
     await page.keyboard.press('Enter');
   }
   await page.getByText('Daily training finished').waitFor();
+  await notTrainedToday();
   assert.equal(await page.locator('tbody tr').count(), 5);
   if (shots) await page.screenshot({ path: shots + '/programme-summary.png', fullPage: true });
   const t = await page.evaluate(() => window.FT.app.store.listTexts().then((l) => l[0]));
   assert.ok(t.pos > 0, 'prose position advanced');
   await page.keyboard.press('Enter');
+  await notTrainedToday();
 });
 
 await step('an interrupted programme can be resumed after a reload', async () => {
+  await page.getByRole('button', { name: /Start daily training/ }).waitFor();
   await page.keyboard.press('Enter'); // start a new programme
   await page.locator('.w').first().waitFor();
   await typeUntilEffort();
@@ -312,6 +319,7 @@ await step('ending training with the mouse leaves no stale programme keys', asyn
   await page.getByRole('button', { name: /End training/ }).click();
   await page.getByRole('button', { name: /Press again to end/ }).click();
   await page.getByText('Daily training finished').waitFor();
+  await notTrainedToday();
   await page.keyboard.press('r');   // must do nothing, and not throw
   await page.keyboard.press('Enter');
   await page.getByRole('button', { name: /Relaxed practice only/ }).waitFor();
@@ -535,6 +543,7 @@ await step('between exercises Esc keeps the daily training; ending it asks first
   assert.ok(await page.locator('#progbar').isVisible());
   await page.keyboard.press('x');
   await page.getByText('Daily training finished').waitFor();
+  await notTrainedToday();
   await page.keyboard.press('Enter');
 });
 
@@ -828,8 +837,10 @@ await step('x, then d, then x ends the daily training', async () => {
     await page.keyboard.press('d');
     await page.keyboard.press('x');
     await page.getByText('Daily training finished').waitFor();
+  await notTrainedToday();
     await page.keyboard.press('Enter');
   });
+  await notTrainedToday();
 });
 
 await step('the current section tab looks selected', async () => {
@@ -1046,6 +1057,47 @@ await step('a past exercise opens from the Progress log with keys only, details 
   assert.ok(await page.locator('#details').evaluate((d) => d.open));
   await page.keyboard.press('Escape');
   await page.locator('#alltable').waitFor();
+});
+
+await step('home continues the book with c, in free reading: no time limit, the clock counts up', async () => {
+  await page.keyboard.press('1');
+  const read = page.getByRole('button', { name: /Continue reading/ });
+  await read.waitFor();
+  assert.match(await read.textContent(), /Alice|Snowdrop|·/);
+  await page.keyboard.press('c');
+  await page.locator('.w').first().waitFor();
+  assert.equal(await page.locator('#timer').textContent(), '0:00');
+  await page.keyboard.type(await page.locator('.w').first().textContent(), { delay: 20 });
+  await page.waitForTimeout(1200);
+  assert.match(await page.locator('#timer').textContent(), /^0:0[1-9]$/);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Delete');
+});
+
+await step('once today’s daily training is done, Enter on home continues reading; the training stays on a', async () => {
+  await page.evaluate(() => { const a = window.FT.app; a.settings.trainedOn = window.FT.trainer.dayOf(Date.now()); });
+  await page.keyboard.press('1');
+  await page.getByRole('button', { name: /Daily training again/ }).waitFor();
+  assert.match(await page.locator('#primary').textContent(), /Continue reading/);
+  await page.keyboard.press('Enter');
+  await page.locator('.w').first().waitFor();
+  assert.equal(await page.locator('#timer').textContent(), '0:00');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Delete');
+  await page.evaluate(() => { window.FT.app.settings.trainedOn = null; });
+});
+
+await step('timed prose that runs out of time ends at the end of the sentence, not mid-sentence', async () => {
+  const text = { id: 'sentences', title: 'Sentences', words: 'One two. Three four five. Six seven eight.'.split(' '), pos: 0 };
+  await page.evaluate((t) => window.FT.ui.startExercise('prose', { text: t, minutes: 0.02 }), text);
+  await page.locator('.w').first().waitFor();
+  await page.keyboard.type('One two. Three ', { delay: 30 });
+  await page.waitForTimeout(1500);                            // the 1.2 s are up mid-sentence
+  await page.keyboard.type('four ', { delay: 30 });
+  assert.equal(await page.evaluate(() => window.FT.ui.app.current), 'typing');
+  await page.keyboard.type('five. ', { delay: 30 });
+  await page.waitForFunction(() => window.FT.ui.app.current !== 'typing');
+  await page.keyboard.press('0');                             // skip the effort rating
 });
 
 await step('the chapter choice steps with the arrow keys and keeps the focus', async () => {

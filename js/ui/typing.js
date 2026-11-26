@@ -41,11 +41,12 @@
     var durationMs = (opts.minutes || app.settings.durationMin) * 60000;
     var nRounds = Math.max(1, Math.floor(durationMs / (2 * burstRun())));
     var withCard = app.settings.showInstructions !== false;
+    var free = type === 'prose' && !!opts.free;   // free reading: no time limit, the clock counts up
     setView('<section class="typing">' +
       '<div class="ex-head"><span class="name">' + esc(exDef.name) + (opts.pinned ? ' ' + opts.pinned.map(seq).join(' ') : '') + '</span>' +
       '<span>' + esc(exDef.goal) + '</span>' +
       (type === 'prose' ? '<span class="muted">' + esc(opts.text.title) + proseChapter(opts.text) + ', ' + proseProgress(opts.text, opts.text.pos) + '</span>' : '') +
-      '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' ? '' : ' hidden') + '>' + (type === 'bursts' ? 'Round 1 of ' + nRounds : clock(durationMs)) + '</span></div>' +
+      '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' || free ? '' : ' hidden') + '>' + (type === 'bursts' ? 'Round 1 of ' + nRounds : clock(free ? 0 : durationMs)) + '</span></div>' +
       (type === 'bursts' ? '<div class="pace" id="pace" aria-hidden="true"><div class="pace-fill" id="pacefill"></div><div class="pace-target" id="pacetarget"></div></div>' +
         '<div class="pace-label muted num" id="pacelabel">Target ' + Math.round(app.trainer.bursts.target()) + ' WPM</div>' : '') +
       '<div class="stage"><div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div></div>' +
@@ -59,7 +60,7 @@
     ty = { type: type, ex: ex, session: session, fed: fed, durationMs: durationMs, keys: [], first: null, startedAt: null,
       els: [], inner: document.getElementById('inner'), caret: document.getElementById('caret'),
       win: document.getElementById('window'), capture: document.getElementById('capture'), stopped: false, opts: opts, offset: 0, pauses: [],
-      briefing: withCard };
+      briefing: withCard, free: free };
     if (type === 'bursts') ty.burst = { total: nRounds, rounds: [], phase: 'ready', target: app.trainer.bursts.target(), ref: app.trainer.bursts.reference() };
     renderWords(0);
     ty.detach = FT.input.attach(ty.capture, {
@@ -196,10 +197,20 @@
   function tick() {
     if (!ty || ty.stopped) return;
     if (ty.burst) { burstTick(); return; }
-    var left = ty.durationMs - (performance.now() - ty.t0);
-    var el = document.getElementById('timer');
+    var elapsed = performance.now() - ty.t0, el = document.getElementById('timer');
+    if (ty.free) { if (el) el.textContent = clock(Math.floor(elapsed / 1000) * 1000); return; }
+    var left = ty.durationMs - elapsed;
     if (el) el.textContent = clock(left);
-    if (left <= 0) finishExercise();
+    if (left > 0 || ty.overtime) return;
+    if (ty.type !== 'prose' || atSentenceEnd()) { finishExercise(); return; }
+    ty.overtime = true;   // prose: time is up, but the sentence is finished first (user decision)
+    hint('Time is up: finish the sentence.');
+  }
+  // At the start of a word that follows the end of a sentence or paragraph.
+  function atSentenceEnd() {
+    var st = ty.session.state(), prev = st.words[st.wordIndex - 1], cur = st.words[st.wordIndex];
+    if (!prev || (cur && cur.typed.length)) return false;
+    return FT.text.endsSentence(prev.target) || FT.session.separatorOf(prev) === FT.session.PARAGRAPH;
   }
   // Speed bursts: rounds of BURST_RUN ms, each started by the first keystroke
   // after a BURST_REST ms rest. A live pace bar compares the round's speed
@@ -298,6 +309,7 @@
       renderWords(from);
     }
     if (st.wordIndex >= st.words.length) { finishExercise(); return; } // end of a prose text
+    if (ty.overtime && st.wordIndex !== before && atSentenceEnd()) { finishExercise(); return; }
     placeCaret();
     if (st.wordIndex !== before) trimAbove();
   }

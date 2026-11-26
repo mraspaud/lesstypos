@@ -22,8 +22,10 @@
   // ---------- home ----------
   // The one thing Enter does on Train: resume today's training, start it, or
   // (with nothing switched on) open its settings.
-  function primaryAction(steps, run, def) {
+  function primaryAction(steps, run, def, reading) {
     if (!steps.length) return { label: 'Choose exercises', act: function () { go('settings/training'); } };
+    var choice = FT.programme.homeDefault({ day: today(), trainedOn: app.settings.trainedOn, resumable: !!run });
+    if (choice === 'read' && reading) return reading;
     if (run) {
       var done = run.results().length, total = done + run.upcoming().length;
       return { label: 'Resume: ' + EXERCISES[run.current().type].name.toLowerCase() + ' (' + (done + 1) + ' of ' + total + ')', act: function () { startProgramme(run); } };
@@ -39,13 +41,24 @@
     var def = programmeDef(), run = FT.programme.resume(app.settings.programmeRun, today());
     var steps = def.steps.filter(function (x) { return x.enabled; });
     var first = targets[0];
-    var main = primaryAction(steps, run, def);
+    // Drawn at once from the last known way into the book, redrawn if it changed.
+    renderHome(app.reading);
+    U.readingChoice().then(U.onThisScreen(function (reading) {
+      var changed = (reading && reading.label) !== (app.reading && app.reading.label);
+      app.reading = reading;
+      if (changed) renderHome(reading);
+    }));
+    function renderHome(reading) {
+    var main = primaryAction(steps, run, def, reading);
+    var readingFirst = main === reading;
     var html = '<section class="home-start">' +
       '<h1>Daily training</h1>' +
       (steps.length ? '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + esc(String(x.minutes)) + ' min'; }).join(' · ') + '.</p>'
         : '<p class="lead">No exercises are switched on for the daily training.</p>') +
       '<div class="row"><button class="btn primary" type="button" id="primary">' + esc(main.label) + ' <kbd>Enter</kbd></button>' +
-      (run ? '<button class="btn" type="button" id="restart">Start over</button>' : '') + '</div>' +
+      (run ? '<button class="btn" type="button" id="restart">Start over</button>' : '') +
+      (readingFirst ? '<button class="btn" type="button" id="again">Daily training again · ' + FT.programme.totalMinutes(def) + ' min <kbd>a</kbd></button>'
+        : reading ? '<button class="btn" type="button" id="read">' + esc(reading.label) + ' <kbd>c</kbd></button>' : '') + '</div>' +
       '<div class="row more"><span class="muted">More:</span>' +
       '<button class="btn" type="button" id="start">Relaxed practice only · ' + esc(String(app.settings.durationMin)) + ' min <kbd>r</kbd></button>' +
       '<button class="btn" type="button" id="bench">Benchmark · 3 × 1 min <kbd>b</kbd></button>' +
@@ -75,6 +88,9 @@
     if (one) document.getElementById('one').onclick = one;
     app.keys = { Enter: main.act, r: relaxedOnly, b: startBenchmark };
     if (one) app.keys.f = one;
+    if (reading) { app.keys.c = reading.act; if (!readingFirst) document.getElementById('read').onclick = reading.act; }
+    if (readingFirst) { var train = function () { startProgramme(null); }; document.getElementById('again').onclick = train; app.keys.a = train; }
+    }
   }
 
   // ---------- benchmark ----------
@@ -238,6 +254,7 @@
       '<p class="muted">Speeds from different exercises are not comparable: warm-up and bursts use easier words, prose has capitals and punctuation.</p>' +
       '<div class="row"><button class="btn primary" type="button" id="home">Done <kbd>Enter</kbd></button><a href="#insights/progress">See progress</a></div>';
     app.run = null;
+    app.settings.trainedOn = today();
     saveRun();
     setView(html);
     document.getElementById('home').onclick = function () { go('home'); };

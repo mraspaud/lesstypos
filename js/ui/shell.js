@@ -332,6 +332,8 @@
         });
       }).then(function () {
         if (!app.storageOk) app.notice = 'This browser does not allow storage for this page, so progress will be lost when you close it. Use Settings: Data → Export to keep it.';
+        return U.readingChoice().then(function (r) { app.reading = r; }, function () {});
+      }).then(function () {
         return app.store.getDraft().catch(function () { return null; });
       }).then(function (draft) {
         if (draft) return resumeDraft(draft);

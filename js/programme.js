@@ -93,5 +93,15 @@
     return Object.assign({}, run, { def: def });
   }
 
-  FT.programme = { DEFAULT: DEFAULT, STEP_TYPES: STEP_TYPES, runner: runner, resume: resume, totalMinutes: totalMinutes, clean: clean, cleanRun: cleanRun };
+  // What home offers first. Practice spread over days is learnt better per
+  // hour than extra practice the same day (Baddeley & Longman 1978, typing;
+  // consolidation over hours and sleep: Brashers-Krug et al. 1996, Walker et
+  // al. 2002, smaller in Pan & Rickard 2015), so after the day's training it
+  // offers relaxed reading. Design choice: the day is the calendar day.
+  function homeDefault(o) {
+    if (o.resumable) return 'resume';
+    return o.trainedOn === o.day ? 'read' : 'train';
+  }
+
+  FT.programme = { homeDefault: homeDefault, DEFAULT: DEFAULT, STEP_TYPES: STEP_TYPES, runner: runner, resume: resume, totalMinutes: totalMinutes, clean: clean, cleanRun: cleanRun };
 })(globalThis.FT);

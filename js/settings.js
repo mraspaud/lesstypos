@@ -5,7 +5,7 @@
   var DEFAULTS = {
     durationMin: 5, errorMode: 'continue', errorStyle: 'clear', macros: [], autoMacros: false,
     layoutText: '', fontSize: 1.6, theme: 'system', showTimer: true,
-    accents: true, programme: null, programmeRun: null, currentText: null, showInstructions: true,
+    accents: true, programme: null, programmeRun: null, currentText: null, showInstructions: true, trainedOn: null,
   };
   var DURATIONS = [1, 2, 3, 5, 7, 10];
   var CHOICES = { errorMode: ['continue', 'stop'], errorStyle: ['clear', 'subtle'], theme: ['system', 'light', 'dark'] };
@@ -32,6 +32,7 @@
       programmeRun: FT.programme.cleanRun(s.programmeRun),
       currentText: typeof s.currentText === 'string' ? s.currentText : null,
       showInstructions: flag('showInstructions', s.showInstructions),
+      trainedOn: Number.isInteger(s.trainedOn) ? s.trainedOn : null,
     };
   }
 
