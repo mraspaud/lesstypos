@@ -174,9 +174,11 @@
       return listPrefix('text:').then(function (l) { return l.map(unpackText).filter(Boolean).sort(function (a, b) { return a.addedAt - b.addedAt; }); });
     }
     function exportAll() {
-      return Promise.all([load(), listSessions(), listTexts()]).then(function (r) {
-        return { format: FORMAT, schema: FT.SCHEMA, app: FT.version, exportedAt: new Date().toISOString(),
+      return Promise.all([load(), listSessions(), listTexts(), db.get('draft')]).then(function (r) {
+        var out = { format: FORMAT, schema: FT.SCHEMA, app: FT.version, exportedAt: new Date().toISOString(),
           settings: r[0].settings, profile: r[0].profile, sessions: r[1].map(FT.codec.encodeSession), texts: r[2].map(packText) };
+        if (r[3]) out.draft = r[3];
+        return out;
       });
     }
     function migrate(d) {
@@ -199,22 +201,45 @@
         if (data.schema > FT.SCHEMA) throw new Error('This export comes from a newer version (schema ' + data.schema + ')');
         if (!(data.texts || []).every(function (t) { return validText(unpackText(t)); })) throw new Error('This export contains a damaged text; nothing was changed');
         var d = migrate(clone(data));
-        if (!d.sessions.every(FT.codec.validSession)) throw new Error('This export contains a damaged exercise; nothing was changed');
-        if (mode === 'replace') {
-          return reset('all').then(function () {
-            return Promise.all(d.sessions.map(saveSession).concat((d.texts || []).map(saveText),
-              [saveSettings(d.settings || {}), d.profile ? saveProfile(d.profile) : db.del('profile')]));
-          });
+        if (!d.sessions.every(FT.codec.validSession) || (d.draft && !validDraft(d.draft))) {
+          throw new Error('This export contains a damaged exercise; nothing was changed');
         }
-        // Merge: add sessions and texts; keep local settings and the furthest
-        // reading position of texts present on both sides.
-        return Promise.all(d.sessions.map(saveSession).concat((d.texts || []).map(function (t) {
-          return getText(t.id).then(function (mine) {
-            if (mine) t.pos = Math.max(mine.pos || 0, t.pos || 0);
-            return saveText(t);
-          });
-        })));
+        var written = mode === 'replace' ? replaceWith(d) : mergeWith(d);
+        return written.then(function () { return restoreDraft(d.draft); }).then(repairAfterImport);
       }).then(function () { return data; });
+    }
+    // Everything saved anew is saved compactly.
+    function replaceWith(d) {
+      return reset('all').then(function () {
+        return Promise.all(d.sessions.map(saveSession).concat((d.texts || []).map(saveText),
+          [saveSettings(d.settings || {}), d.profile ? saveProfile(d.profile) : db.del('profile'), db.set('compacted', true)]));
+      });
+    }
+    // Adds sessions and texts; keeps local settings, the tags of both sides
+    // and the furthest reading position of texts present on both sides.
+    function mergeWith(d) {
+      return Promise.all(d.sessions.map(function (s) {
+        return getSession(s.id).then(function (mine) {
+          var tags = FT.conditions.cleanTags(((mine && mine.tags) || []).concat(s.tags || []));
+          if (tags.length) s.tags = tags;
+          return saveSession(s);
+        });
+      }).concat((d.texts || []).map(function (t) {
+        return getText(t.id).then(function (mine) {
+          if (mine) t.pos = Math.max(mine.pos || 0, t.pos || 0);
+          return saveText(t);
+        });
+      })));
+    }
+    function validDraft(draft) { return FT.codec.validSession(draft.raw) && draft.ui && typeof draft.ui === 'object'; }
+    // The backup's exercise awaiting its rating, unless one is waiting here.
+    function restoreDraft(draft) {
+      if (!draft) return null;
+      return db.get('draft').then(function (mine) { return mine ? null : db.set('draft', draft); });
+    }
+    // The backup may come from before places were repaired.
+    function repairAfterImport() {
+      return db.del('placesRepaired').then(repairReadingPlaces);
     }
     function reset(what) {
       return db.keys().then(function (keys) {

@@ -70,7 +70,7 @@
         H.panel('Export', '<p>Save a complete backup: settings, statistics and every raw exercise.</p>' +
           '<div class="row">' + button('Download backup', download, 'primary', 'exp') + button('Copy backup to clipboard', copy, null, 'copy') + '</div>' +
           '<p class="muted" id="expmsg"></p>') +
-        H.panel('Import', '<p>Restore a backup. Replacing removes the current data first. Merging adds the exercises and texts from the backup (any with the same identity are replaced), keeps your settings and the furthest reading position, then rebuilds the statistics.</p>' +
+        H.panel('Import', '<p>Restore a backup. Replacing removes the current data first. Merging adds the exercises and texts from the backup (any with the same identity are replaced, keeping the tags of both), keeps your settings and the furthest reading position, then rebuilds the statistics.</p>' +
           '<div class="row"><input type="file" id="file" accept="application/json,.json">' + H.select({ id: 'impmode' }, [['replace', 'Replace current data'], ['merge', 'Merge with current data']]) + '</div>' +
           '<textarea id="paste" class="mono" placeholder="…or paste a backup here"></textarea><div class="row">' +
           button('Import pasted backup', function () { return importBackup(document.getElementById('paste').value); }, null, 'imp') + '</div><p class="muted" id="impmsg"></p>') +

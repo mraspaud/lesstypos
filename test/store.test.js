@@ -302,13 +302,19 @@ test('a backup carries the bundled book as a reference, and import restores it w
 
 // Functionality: places saved while prose skipped part of the book are
 // repaired once, from the latest prose exercise of each text.
-test('a reading place saved after a skip is repaired once at start-up', async () => {
-  const s = mk();
+// A book whose place (321) was saved after prose skipped from word 165 to
+// 445: the exercise really ended at 601.
+async function placeSavedAfterSkip(s) {
   const words = Array.from({ length: 700 }, (_, i) => 'w' + i);
   await s.saveText({ id: 'b', title: 'Book', words, pos: 321, addedAt: 1 });
   const typed = [...Array.from({ length: 120 }, (_, k) => 45 + k), ...Array.from({ length: 156 }, (_, k) => 445 + k)];
   await s.saveSession({ id: 'p1', type: 'prose', startedAt: 5, text: { id: 'b', from: 45, to: 321 },
     words: typed.map((i) => ({ target: words[i], stream: [{ k: 'c', ch: words[i], t: i }] })) });
+}
+
+test('a reading place saved after a skip is repaired once at start-up', async () => {
+  const s = mk();
+  await placeSavedAfterSkip(s);
   assert.equal(await s.repairReadingPlaces(), 1);
   assert.equal((await s.getText('b')).pos, 601);
   const t = await s.getText('b'); t.pos = 45; await s.saveText(t);   // later choices are the user's
@@ -323,4 +329,50 @@ test('tags typed after a sitting are written to its exercises', async () => {
   await s.tagSessions(['a'], ['home', 'tired']);
   assert.deepEqual(plain((await s.getSession('a')).tags), ['home', 'tired']);
   assert.equal((await s.getSession('b')).tags, undefined);
+});
+
+// Functionality: an import, replacing or merging, leaves the store as a
+// start-up would: places saved after a skip repaired, the one-off upgrades
+// recorded, the exercise awaiting its rating kept, and no tag lost.
+test('an import repairs the reading places of the backup, replacing or merging', async () => {
+  const old = mk();
+  await placeSavedAfterSkip(old);
+  const dump = JSON.parse(JSON.stringify(await old.exportAll()));
+  for (const mode of ['replace', 'merge']) {
+    const adapter = FT.store.memoryAdapter(), s = FT.store.create({ adapter });
+    await s.repairReadingPlaces();   // done here once already
+    await s.importAll(dump, { mode });
+    assert.equal((await s.getText('b')).pos, 601, mode);
+    assert.equal(await adapter.get('placesRepaired'), true, mode);
+  }
+});
+
+test('a replacing import keeps the record that sessions are stored compactly', async () => {
+  const adapter = FT.store.memoryAdapter(), s = FT.store.create({ adapter });
+  await s.compactSessions();
+  await s.importAll(JSON.parse(JSON.stringify(await mk().exportAll())));
+  assert.equal(await adapter.get('compacted'), true);
+});
+
+test('a backup carries the exercise awaiting its rating; import restores it unless one is waiting here', async () => {
+  const a = mk();
+  const draft = { raw: typedSession('d'), ui: { programme: false, run: null, minutes: 1, pinned: null, textId: null } };
+  await a.saveDraft(draft);
+  const dump = JSON.parse(JSON.stringify(await a.exportAll()));
+  const b = mk();
+  await b.importAll(dump, { mode: 'merge' });
+  assert.deepEqual(plain(await b.getDraft()), plain(draft));
+  const c = mk(), mine = { raw: typedSession('mine'), ui: draft.ui };
+  await c.saveDraft(mine);
+  await c.importAll(dump, { mode: 'merge' });
+  assert.equal((await c.getDraft()).raw.id, 'mine');
+});
+
+test('merging a session stored on both sides keeps the tags of both', async () => {
+  const s = mk();
+  await s.saveSession(Object.assign(typedSession('a'), { tags: ['home', 'tired'] }));
+  const backup = { format: 'lesstypos-export', schema: FT.SCHEMA, settings: {}, profile: null,
+    sessions: [Object.assign(typedSession('a'), { tags: ['tired', 'wrist-rest'] })] };
+  await s.importAll(backup, { mode: 'merge' });
+  assert.deepEqual(plain((await s.getSession('a')).tags), ['home', 'tired', 'wrist-rest']);
 });
