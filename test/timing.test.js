@@ -85,8 +85,9 @@ test('timing is normalised by population baselines', () => {
   const d = r.records[4];
   assert.equal(d.ch, 'd');
   assert.equal(d.ratio, 1);
-  const f = r.records[7];
-  assert.equal(f.ratio, 2);
+  const f = r.records[7], e = r.records[6];
+  assert.ok(Math.abs(f.ratio / e.ratio - 2) < 1e-9); // twice as slow as its neighbour
+  assert.ok(Math.abs(f.ratio - 200 / (100 * Math.pow(2, 1 / 6))) < 1e-9); // against the geometric mean
 });
 
 test('macro candidates are suggested but never merged automatically', () => {
@@ -222,4 +223,21 @@ test('the auto-inserted space does not take the last letter out of timing', () =
   const r = FT.timing.extract(words);
   const d = r.records.find((x) => x.ch === 'd');
   assert.equal(d.clean, true);
+});
+
+// Functionality: each population (word-initial, within-word) is centred on the
+// log scale the model compares on: its mean log interval (geometric mean)
+// maps to ratio 1. With medians, a population skewed differently was shifted
+// (about 8% for one user's word starts), biasing every word-start sequence
+// against its single-letter parent. Design choice (centring per session).
+test('timing ratios are centred per population on the log scale', () => {
+  // within-word intervals skewed right, word starts skewed left
+  const within = [100, 100, 100, 100, 300], start = [300, 300, 300, 300, 100];
+  const script = within.map((dt, i) => ['ab', 'ab ', [start[i], dt, 100]]);
+  const r = run(script);
+  const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  const clean = r.records.filter((x) => x.clean);
+  assert.ok(Math.abs(mean(clean.filter((x) => x.wordInitial).map((x) => x.logRatio))) < 1e-9);
+  assert.ok(Math.abs(mean(clean.filter((x) => !x.wordInitial).map((x) => x.logRatio))) < 1e-9);
+  clean.forEach((x) => assert.ok(Math.abs(x.ratio - Math.exp(x.logRatio)) < 1e-12));
 });

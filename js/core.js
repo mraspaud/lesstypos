@@ -6,7 +6,7 @@
   FT.SCHEMA = 2; // 2: sessions stored and exported compactly (FT.codec)
   // Bump when derived statistics change meaning; profiles are then rebuilt
   // from the raw sessions (the source of truth).
-  FT.MODEL_VERSION = 8; // 3: a session is a programme run; 4: progress fields in history; 5: one wrong press = one error; 6: simultaneous pairs and late keys; 7: transpositions; 8: rebuilt from compact sessions (0.01 ms), compact model
+  FT.MODEL_VERSION = 9; // 3: a session is a programme run; 4: progress fields in history; 5: one wrong press = one error; 6: simultaneous pairs and late keys; 7: transpositions; 8: rebuilt from compact sessions (0.01 ms), compact model; 9: timing centred on the mean log per population
   // Seedable PRNG (mulberry32) so generators are reproducible in tests.
   FT.rng = function (seed) {
     var a = (seed >>> 0) || 1;

@@ -6,8 +6,10 @@
 //   post-error slowing (Salthouse 1986).
 // - Word-initial transitions are a separate population (Salthouse 1986;
 //   Logan & Crump 2011), each normalised by its own baseline. Normalising by a
-//   per-user baseline follows Dhakal et al.; using the session median per
-//   population is a design choice.
+//   per-user baseline follows Dhakal et al.; centring each population per
+//   session on its mean log interval (geometric mean) is a design choice: the
+//   model compares log ratios, and a median would leave populations with
+//   different skew offset from each other.
 // - Multi-character outputs: a single input event carrying several characters
 //   is one motor event (observed fact). Declared macros typed as separate fast
 //   keystrokes (< macroGapMs) are merged too (FT.text.pressIds). Undeclared fast pairs are only
@@ -23,6 +25,10 @@
   var CTX = 3;
   var SIMULTANEOUS_MS = 6;
 
+  function meanLog(a) {
+    if (!a.length) return null;
+    return a.reduce(function (s, x) { return s + Math.log(Math.max(x, 1e-3)); }, 0) / a.length;
+  }
   function median(a) {
     if (!a.length) return null;
     var s = a.slice().sort(function (x, y) { return x - y; });
@@ -70,9 +76,12 @@
     var within = [], initial = [];
     records.forEach(function (r) { if (r.clean) (r.wordInitial ? initial : within).push(r.iki); });
     var baseline = { within: median(within), initial: median(initial) };
+    // Ratios are centred per population on the log scale (geometric mean = 1),
+    // the scale the model compares on; the medians above are for display.
+    var centre = { within: meanLog(within), initial: meanLog(initial) };
     records.forEach(function (r) {
-      var b = r.wordInitial ? baseline.initial : baseline.within;
-      if (r.clean && b) { r.ratio = r.iki / b; r.logRatio = Math.log(Math.max(r.ratio, 1e-3)); }
+      var c = r.wordInitial ? centre.initial : centre.within;
+      if (r.clean && c != null) { r.logRatio = Math.log(Math.max(r.iki, 1e-3)) - c; r.ratio = Math.exp(r.logRatio); }
     });
     return { records: records, baseline: baseline };
   }
