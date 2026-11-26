@@ -67,3 +67,15 @@ test('an acute accent typed as an apostrophe counts as one', () => {
   assert.ok(sameStr('don´t', "don't"));
   assert.ok(!same('`', "'")); // the grave accent is a real ASCII character
 });
+
+test('letters with strokes or without a dot count as their base letter when accents are accepted', () => {
+  for (const [ch, base] of [['ø', 'o'], ['Ø', 'O'], ['ł', 'l'], ['Ł', 'L'], ['đ', 'd'], ['Đ', 'D'], ['ı', 'i']]) {
+    assert.equal(canon(ch), base, ch);
+    assert.equal(FT.text.equivalence({ accents: false }).canon(ch), ch, ch + ' without accents');
+  }
+});
+
+test('single guillemets count as an apostrophe, double ones as a quote', () => {
+  for (const ch of ['‹', '›']) assert.ok(FT.text.equivalence({ accents: false }).same(ch, "'"), ch);
+  for (const ch of ['«', '»']) assert.ok(FT.text.equivalence({ accents: false }).same(ch, '"'), ch);
+});

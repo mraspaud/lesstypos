@@ -5,11 +5,13 @@
 (function (FT) {
   'use strict';
   var MAP = {
-    '‘': "'", '’': "'", '‚': "'", '‛': "'", '′': "'", 'ʼ': "'", '´': "'",
+    '‘': "'", '’': "'", '‚': "'", '‛': "'", '′': "'", 'ʼ': "'", '´': "'", '‹': "'", '›': "'",
     '“': '"', '”': '"', '„': '"', '‟': '"', '″': '"', '«': '"', '»': '"',
     '‐': '-', '‑': '-', '‒': '-', '–': '-', '—': '-', '―': '-', '−': '-',
     ' ': ' ', ' ': ' ', ' ': ' ',
   };
+  // Letters whose mark does not come apart in Unicode decomposition (NFD).
+  var BASE_LETTERS = { 'ø': 'o', 'Ø': 'O', 'ł': 'l', 'Ł': 'L', 'đ': 'd', 'Đ': 'D', 'ı': 'i' };
   // accents: letters with diacritics also match their base letter (é = e).
   function makeEquivalence(accents) {
     var cache = {};
@@ -20,7 +22,7 @@
       if (out === undefined) {
         out = ch;
         if (accents && /[^\u0000-\u007f]/.test(ch)) {
-          var base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          var base = BASE_LETTERS[ch] || ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
           if (Array.from(base).length === 1) out = base;
         }
       }
