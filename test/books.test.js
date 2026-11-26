@@ -69,6 +69,54 @@ test('a paragraph opening in capitals for typography is typed in normal case', (
   assert.ok(words.includes('NASA') && words.includes('BBC'));
 });
 
+const prose = (n, word = 'word') => Array.from({ length: n }, () => word).join(' ');
+const gutenberg = (body) => 'Title: The Book\n\n*** START OF THE PROJECT GUTENBERG EBOOK THE BOOK ***\n\n' + body + '\n\n*** END OF THE PROJECT GUTENBERG EBOOK THE BOOK ***\n';
+
+test('a Gutenberg text whose Contents has no page numbers and whose headings take two lines', () => {
+  const book = FT.books.fromText(gutenberg('THE BOOK\n\nContents\n\n CHAPTER I.     Down the Hole\n CHAPTER II.    The Pool\n\n\n\n' +
+    'CHAPTER I.\nDown the Hole\n\n' + prose(200, 'alice') + '\n\nCHAPTER II.\nThe Pool\n\n' + prose(200, 'tears')));
+  assert.deepEqual(plain(titles(book).slice(book.start)), ['CHAPTER I. Down the Hole', 'CHAPTER II. The Pool']);
+  assert.doesNotMatch(allText(book), /Contents|CHAPTER/);
+});
+
+test('without a header, title and author come from the title page', () => {
+  const book = FT.books.fromText('*** START OF THE PROJECT GUTENBERG EBOOK 11 ***\n\n[Illustration]\n\nAlice’s Adventures in Wonderland\n\nby Lewis Carroll\n\nChapter 1\n\n' + prose(200));
+  assert.equal(book.title, 'Alice’s Adventures in Wonderland');
+  assert.equal(book.author, 'Lewis Carroll');
+});
+
+test('text before the first chapter heading is kept', () => {
+  const book = FT.books.fromText(prose(300, 'before') + '\n\nChapter 4\n\n' + prose(300, 'after'));
+  assert.equal(allText(book).split(' ').length, 600);
+  assert.equal(book.start, 0);
+});
+
+test('a book of short chapters starts at the first', () => {
+  const book = FT.books.fromText('Chapter 1\n\n' + prose(20) + '\n\nChapter 2\n\n' + prose(20) + '\n\nChapter 3\n\n' + prose(20));
+  assert.equal(book.chapters.length, 3);
+  assert.equal(book.start, 0);
+});
+
+test('a production note and a transcriber’s note go entirely, however many lines', () => {
+  const book = FT.books.fromText(gutenberg('Produced by Someone\nand the Proofreading Team at http://www.pgdp.net\n\n' +
+    "Transcriber's Note:\n\nObvious typos fixed.\nItalics shown as _this_.\n\nChapter 1\n\n" + prose(200)));
+  assert.doesNotMatch(allText(book), /Produced|Proofreading|Transcriber|typos|Italics/);
+});
+
+test('a one-line paragraph that only starts like a heading is not a chapter', () => {
+  const book = FT.books.fromText('Chapter 1\n\n' + prose(200) + '\n\nPart civil, part military.\n\n' + prose(200));
+  assert.equal(book.chapters.length, 1);
+});
+
+test('a fraction after a number stays readable', () => {
+  assert.deepEqual(plain(FT.books.fromText('It was 2½ miles.').chapters[0].words), ['It', 'was', '2', '1/2', 'miles.']);
+});
+
+test('a word in capitals used as such elsewhere keeps its capitals at a paragraph start', () => {
+  const words = plain(FT.books.fromText('NASA announced a launch.\n\nLater NASA said more.').chapters[0].words);
+  assert.equal(words[0], 'NASA');
+});
+
 // Functionality: a book comes with the app, so prose works from the start.
 test('Alice in Wonderland comes with the app, ready at Chapter I', () => {
   const alice = FT.books.bundled();

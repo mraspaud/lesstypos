@@ -7,6 +7,8 @@
   var NOT_PROSE = /project gutenberg|^(table of )?contents$|^(list of )?(illustrations|plates|figures)\b|^list of /i;
 
   // ---- words ----
+  // Design choice: equivalence is per character (FT.text.canon), so letters
+  // whose ASCII form is two letters are spelled out, as … becomes ... .
   var SPELLED = { 'æ': 'ae', 'Æ': 'AE', 'œ': 'oe', 'Œ': 'OE', 'ß': 'ss', '½': '1/2', '¼': '1/4', '¾': '3/4' };
   function cleanWord(w) {
     if (/^\[[\w*]{1,3}\]$/.test(w)) return ''; // a footnote marker
@@ -15,20 +17,31 @@
   }
   // Design choice: a paragraph opening with a word in capitals followed by a
   // lowercase word is a typographic flourish ("IT was the middle of winter"),
-  // typed in normal case; capitals elsewhere (NASA) stay.
-  function softenOpening(paragraph) {
-    return paragraph.replace(/^(\s*[“‘"']?)(\p{Lu})(\p{Lu}+)(?=[\s,;:’'”"]+\p{Ll})/u, function (m, lead, first, rest) { return lead + first + rest.toLowerCase(); });
+  // typed in normal case, unless the book uses that word in capitals
+  // elsewhere too (NASA).
+  var OPENING_CAPS = /^(\s*[“‘"']?)(\p{Lu})(\p{Lu}+)(?=[\s,;:’'”"]+\p{Ll})/u;
+  function capitalsInside(paragraphs) {
+    var seen = {};
+    paragraphs.forEach(function (p) {
+      (p.replace(OPENING_CAPS, '').match(/\b\p{Lu}{2,}\b/gu) || []).forEach(function (w) { seen[w] = true; });
+    });
+    return seen;
   }
-  function wordsOf(text) {
-    return FT.text.prepare(text.split(/\n\s*\n/).map(softenOpening).join('\n\n')).map(cleanWord).filter(Boolean);
+  function softenOpening(paragraph, keep) {
+    return paragraph.replace(OPENING_CAPS, function (m, lead, first, rest) { return keep[first + rest] ? m : lead + first + rest.toLowerCase(); });
+  }
+  function wordsOf(paragraphs, keep) {
+    var text = paragraphs.map(function (p) { return softenOpening(p, keep); }).join('\n\n').replace(/(\d)([½¼¾])/g, '$1 $2');
+    return FT.text.prepare(text).map(cleanWord).filter(Boolean);
   }
 
   function book(title, author, chapters) {
-    chapters = chapters.map(function (c) { return { title: c.title, words: wordsOf(c.text) }; })
+    var split = chapters.map(function (c) { return { title: c.title, paragraphs: c.text.split(/\n\s*\n/) }; });
+    var keep = capitalsInside([].concat.apply([], split.map(function (c) { return c.paragraphs; })));
+    chapters = split.map(function (c) { return { title: c.title, words: wordsOf(c.paragraphs, keep) }; })
       .filter(function (c) { return c.words.length && !NOT_PROSE.test(c.title.trim()); });
-    var start = 0;
-    while (start < chapters.length - 1 && chapters[start].words.length < BODY_MIN_WORDS) start++;
-    return { title: title, author: author, chapters: chapters, start: chapters.length ? start : 0 };
+    var start = chapters.findIndex(function (c) { return c.words.length >= BODY_MIN_WORDS; });
+    return { title: title, author: author, chapters: chapters, start: Math.max(0, start) };
   }
 
   // ---- markup ----
@@ -140,45 +153,69 @@
   }
   function stripEditorial(text) {
     return text.replace(/\[Illustration[\s\S]*?\]/gi, '')
-      .replace(/^\s*Produced by[\s\S]*?(\n\s*\n|$)/mi, '\n')
-      .replace(/^\s*Transcriber['’]s Notes?\.?\s*\n\s*\n[\s\S]*?(\n\s*\n|$)/mi, '\n');
+      .replace(/^\s*Produced by[\s\S]*?(?=\n\s*\n|(?![\s\S]))/mi, '\n')
+      .replace(/^\s*Transcriber['’]s Notes?[.:]?\s*\n\s*\n[\s\S]*?(?=\n\s*\n|(?![\s\S]))/mi, '\n');
   }
   var PAGE_NUMBER = /\s{2,}(\d+|[ivxlc]+|Frontispiece)\s*$/i;
   function norm(s) { return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim(); }
-  // Titles listed under "Contents" (lines with a page number, or plain lines).
+  // Titles listed under "Contents": lines with a page number, or short plain
+  // lines, until the body begins.
+  var CONTENTS_LINE_MAX = 70, HEADING_LINE_MAX = 60;
   function contentsTitles(paragraphs) {
     var i = paragraphs.findIndex(function (p) { return /^\s*(table of )?contents\s*$/i.test(p); });
-    if (i < 0) return { titles: [], after: 0 };
-    var titles = [], k = i + 1;
+    if (i < 0) return { titles: [], at: 0, after: 0 };
+    var titles = [], seen = {}, k = i + 1;
     for (; k < paragraphs.length; k++) {
-      var lines = paragraphs[k].split('\n').filter(function (l) { return l.trim(); });
-      var listed = lines.filter(function (l) { return PAGE_NUMBER.test(l) || /^\s*PAGE\s*$/i.test(l); });
-      if (!listed.length && titles.length) break;
-      listed.forEach(function (l) { if (!/^\s*PAGE\s*$/i.test(l)) titles.push(l.replace(PAGE_NUMBER, '').trim()); });
+      var lines = paragraphs[k].split('\n').filter(function (l) { return l.trim() && !/^\s*PAGE\s*$/i.test(l); });
+      if (seen[norm(paragraphs[k])]) break;   // the first heading: the body begins
+      var numbered = lines.filter(function (l) { return PAGE_NUMBER.test(l); });
+      var listed = numbered.length ? numbered : lines.every(function (l) { return l.trim().length <= CONTENTS_LINE_MAX; }) ? lines : [];
+      if (!listed.length) { if (titles.length || k > i + 2) break; continue; }
+      listed.forEach(function (l) { var t = l.replace(PAGE_NUMBER, '').trim(); titles.push(t); seen[norm(t)] = true; });
     }
-    return { titles: titles, after: k };
+    return { titles: titles, at: i, after: k };
   }
-  function isHeadingLine(p) { return p.indexOf('\n') < 0 && p.trim().length <= 60; }
+  function isHeading(p) {
+    var lines = p.split('\n');
+    return lines.length <= 2 && lines.every(function (l) { return l.trim().length <= HEADING_LINE_MAX; });
+  }
+  function headingTitle(p) { return p.split('\n').map(function (l) { return l.trim(); }).join(' '); }
+  var NUMBERED_HEADING = /^\s*(chapter|CHAPTER|Chapter|book|BOOK|Book|part|PART|Part)\s+([0-9]+|[IVXLCDM]+)(?=[.:]|\s|$)/;
+  // A title page: a short paragraph followed by "by Author", near the start.
+  function titlePage(paragraphs) {
+    for (var j = 1; j < Math.min(paragraphs.length, 6); j++) {
+      var by = /^\s*by\s+(.{2,60})$/i.exec(paragraphs[j]);
+      if (by && isHeading(paragraphs[j - 1])) return { title: headingTitle(paragraphs[j - 1]), author: by[1].trim() };
+    }
+    return {};
+  }
   function fromText(raw) {
     raw = String(raw).replace(/\r\n?/g, '\n');
-    var title = header(raw, 'Title'), author = header(raw, 'Author');
     var paragraphs = stripEditorial(bodyOf(raw)).split(/\n\s*\n/).map(function (p) { return p.replace(/^\n+|\n+$/g, ''); }).filter(function (p) { return p.trim(); });
+    var page = titlePage(paragraphs);
+    var title = header(raw, 'Title') || page.title, author = header(raw, 'Author') || page.author;
     var contents = contentsTitles(paragraphs), headings = [], from = contents.after;
     contents.titles.forEach(function (t) {
       for (var j = from; j < paragraphs.length; j++) {
-        if (isHeadingLine(paragraphs[j]) && norm(paragraphs[j]) === norm(t)) { headings.push(j); from = j + 1; return; }
+        if (isHeading(paragraphs[j]) && norm(paragraphs[j]) === norm(t)) { headings.push(j); from = j + 1; return; }
       }
     });
     if (!headings.length) {
-      paragraphs.forEach(function (p, j) { if (isHeadingLine(p) && /^\s*(chapter|book|part)\s+([0-9]+|[ivxlcdm]+)\b/i.test(p)) headings.push(j); });
+      paragraphs.forEach(function (p, j) { if (isHeading(p) && p.indexOf('\n') < 0 && NUMBERED_HEADING.test(p)) headings.push(j); });
     }
+    var inContents = function (j) { return contents.titles.length && j >= contents.at && j < contents.after; };
     var prose = function (from, to) {
-      return paragraphs.slice(from, to).filter(function (p) { return !p.split('\n').every(function (l) { return PAGE_NUMBER.test(l) || !l.trim(); }); }).join('\n\n');
+      var kept = [];
+      for (var j = from; j < to; j++) {
+        if (!inContents(j) && !paragraphs[j].split('\n').every(function (l) { return PAGE_NUMBER.test(l) || !l.trim(); })) kept.push(paragraphs[j]);
+      }
+      return kept.join('\n\n');
     };
     if (!headings.length) return book(title, author, [{ title: title || 'Text', text: prose(0, paragraphs.length) }]);
-    return book(title, author, headings.map(function (h, k) {
-      return { title: paragraphs[h].trim(), text: prose(h + 1, k + 1 < headings.length ? headings[k + 1] : paragraphs.length) };
-    }));
+    var lead = headings[0] > 0 ? [{ title: title || 'Opening', text: prose(0, headings[0]) }] : [];
+    return book(title, author, lead.concat(headings.map(function (h, k) {
+      return { title: headingTitle(paragraphs[h]), text: prose(h + 1, k + 1 < headings.length ? headings[k + 1] : paragraphs.length) };
+    })));
   }
 
   // ---- stored form ----
