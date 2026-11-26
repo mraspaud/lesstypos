@@ -39,7 +39,7 @@
     var ex = app.trainer.newExercise({ type: type, pinned: opts.pinned, text: opts.text, run: opts.run });
     var durationMs = (opts.minutes || app.settings.durationMin) * 60000;
     var nRounds = Math.max(1, Math.floor(durationMs / (2 * burstRun())));
-    var withCard = app.settings.showInstructions !== false && !/[?&]nocards\b/.test(location.search);
+    var withCard = app.settings.showInstructions !== false;
     setView('<section class="typing">' +
       '<div class="ex-head"><span class="name">' + esc(exDef.name) + (opts.pinned ? ' ' + opts.pinned.map(seq).join(' ') : '') + '</span>' +
       '<span>' + esc(exDef.goal) + '</span>' +

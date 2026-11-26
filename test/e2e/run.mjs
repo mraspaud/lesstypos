@@ -8,9 +8,7 @@ import assert from 'node:assert/strict';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-// ?nocards: the steps type straight away; the instruction card has its own step.
-const plainUrl = 'file://' + path.join(root, 'index.html');
-const url = plainUrl + '?nocards';
+const url = 'file://' + path.join(root, 'index.html');
 const shots = process.env.SHOTS;
 
 const browser = await chromium.launch();
@@ -32,8 +30,11 @@ async function step(name, fn) {
   catch (e) { console.log('not ok -', name); console.log(e); process.exitCode = 1; }
 }
 
+// The steps type straight away; the instruction card has its own steps.
+const showCards = (on) => page.evaluate(async (v) => { window.FT.app.settings.showInstructions = v; await window.FT.ui.saveSettings(); }, on);
 await page.goto(url);
 await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+await showCards(false);
 
 await step('home offers daily training and relaxed practice', async () => {
   await page.getByRole('button', { name: /Start daily training · 20 min/ }).waitFor();
@@ -908,8 +909,7 @@ await step('a rebuild finishing after you left does not touch the new screen', a
 
 
 await step('the instruction card is shown in full, heading to keys, on desktop and phone', async () => {
-  await page.goto(plainUrl);
-  await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  await showCards(true);
   const shownInFull = (sel) => page.evaluate((s) => {
     const el = document.querySelector(s), r = el.getBoundingClientRect();
     return [[r.left + 2, r.top + 2], [r.right - 2, r.bottom - 2]].every(([x, y]) => el.contains(document.elementFromPoint(x, y)));
@@ -925,14 +925,12 @@ await step('the instruction card is shown in full, heading to keys, on desktop a
     }
   } finally {
     await page.setViewportSize({ width: 1100, height: 800 });
-    await page.goto(url);
-    await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+    await showCards(false);
   }
 });
 
 await step('after a click on the instruction card, one Enter starts', async () => {
-  await page.goto(plainUrl);
-  await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  await showCards(true);
   try {
     await page.evaluate(() => window.FT.ui.startExercise('relaxed', { minutes: 1 }));
     await page.locator('#briefing').click();
@@ -940,14 +938,12 @@ await step('after a click on the instruction card, one Enter starts', async () =
     assert.equal(await page.locator('#briefing').count(), 0);
     await page.keyboard.press('Escape');
   } finally {
-    await page.goto(url);
-    await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+    await showCards(false);
   }
 });
 
 await step('an instruction card comes before the exercise; Enter starts, letters before it do nothing', async () => {
-  await page.goto(plainUrl);
-  await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+  await showCards(true);
   try {
     await page.evaluate(() => window.FT.ui.startExercise('bursts', { minutes: 1 }));
     const card = page.locator('#briefing');
@@ -967,8 +963,7 @@ await step('an instruction card comes before the exercise; Enter starts, letters
     assert.equal(await page.locator('#briefing').count(), 0);
     await page.keyboard.press('Escape');
   } finally {
-    await page.goto(url);
-    await page.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+    await showCards(false);
   }
 });
 
