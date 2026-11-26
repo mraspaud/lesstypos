@@ -75,6 +75,19 @@
     return { wpm: ref.keystrokes.length / 5 / (totalMs / 60000), coverage: covered / pressed };
   }
 
+  // A session's pace per population (within words, word-initial): the ms a
+  // keystroke takes at ratio 1, or null without clean intervals. Design
+  // choice: the residual within each context, the mean of each clean interval
+  // divided by its context's expected ratio (expectedRatio(record), from the
+  // model before this session), i.e. centre x mean(exp(logRatio - mu)). The
+  // arithmetic mean itself already holds the spread between contexts, which
+  // the prediction applies again through exp(mu).
+  function pace(records, expectedRatio) {
+    var within = [], initial = [];
+    records.forEach(function (r) { if (r.clean) (r.wordInitial ? initial : within).push(r.iki / expectedRatio(r)); });
+    return { within: FT.stats.mean(within), initial: FT.stats.mean(initial) };
+  }
+
   // The last SCALE_EXERCISES comparable relaxed exercises with measured mean
   // intervals (FT.timing meanMs) that pass filter. Design choice: 5. Relaxed
   // practice is the pace the index is about.
@@ -113,6 +126,6 @@
     return { wpm: a.wpm, effortlessWpm: low ? predict(evaluation, low, ref, opts).wpm : undefined, coverage: a.coverage };
   }
 
-  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, recent: recent, errorCostMs: errorCostMs, scale: scale, effortless: effortless, index: index,
+  FT.fluency = { reference: reference, referenceOf: referenceOf, predict: predict, pace: pace, recent: recent, errorCostMs: errorCostMs, scale: scale, effortless: effortless, index: index,
     REFERENCE_WORDS: REFERENCE_WORDS, MIN_SCALE_EXERCISES: MIN_SCALE_EXERCISES, EFFORTLESS_MAX: EFFORTLESS_MAX };
 })(globalThis.FT);

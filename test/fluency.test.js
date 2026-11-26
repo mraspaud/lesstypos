@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { load } = require('./helpers/load');
+const { load, plain } = require('./helpers/load');
 const { near } = require('./helpers/assert');
 const { typist } = require('./helpers/typing');
 
@@ -95,6 +95,26 @@ test('the reference text of a corpus marks the declared keys it is given', () =>
   assert.equal(keyed.words, FT.fluency.reference(corpus).words);
   assert.ok(keyed.keystrokes.some((k) => k.sameKey) && !FT.fluency.reference(corpus).keystrokes.some((k) => k.sameKey));
   assert.equal(FT.fluency.reference(corpus, ['th']), keyed);
+});
+
+// A session's pace: the time of a keystroke at ratio 1, measured on what is
+// left of each clean interval once its context's ratio is taken out, so the
+// spread between contexts, which the prediction applies, is not counted twice.
+const timed = (iki, more = {}) => Object.assign({ clean: true, wordInitial: false, iki, ch: 'b', ctx: 'a' }, more);
+
+test('without context ratios, the pace is the arithmetic mean of the clean intervals', () => {
+  const p = FT.fluency.pace([timed(100), timed(300), timed(400, { wordInitial: true }), timed(5000, { clean: false })], () => 1);
+  assert.deepEqual(plain(p), { within: 200, initial: 400 });
+});
+
+test('the pace takes each clean interval relative to its context’s ratio', () => {
+  const slowAfterX = (r) => (r.ctx === 'x' ? 4 : 1);
+  const p = FT.fluency.pace([timed(100), timed(400, { ctx: 'x' }), timed(200, { wordInitial: true })], slowAfterX);
+  assert.deepEqual(plain(p), { within: 100, initial: 200 });
+});
+
+test('a population without clean intervals has no pace', () => {
+  assert.equal(FT.fluency.pace([timed(100)], () => 1).initial, null);
 });
 
 // History entries of relaxed practice with their mean clean intervals (ms).
