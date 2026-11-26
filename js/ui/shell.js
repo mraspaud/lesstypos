@@ -2,7 +2,7 @@
 (function (FT) {
   'use strict';
   if (typeof document === 'undefined') return;
-  var U = FT.ui, app = U.app, DEFAULT_SETTINGS = U.DEFAULT_SETTINGS;
+  var U = FT.ui, app = U.app;
   var esc = FT.fmt.esc;
   // defined in other ui files
   function startExercise() { return U.startExercise.apply(null, arguments); }
@@ -32,7 +32,7 @@
     FT.text.setOptions({ accents: s.accents !== false });
     if (app.trainerSettings) app.trainerSettings.accents = s.accents !== false;
   }
-  function programmeDef() { return app.settings.programme || FT.programme.DEFAULT; }
+  function programmeDef() { return FT.programme.clean(app.settings.programme) || FT.programme.DEFAULT; }
   function today() { return FT.trainer.dayOf(Date.now()); }
   function saveSettings() {
     applySettings();
@@ -292,7 +292,7 @@
         // sessions stored before compaction are re-saved compactly (once)
         return app.store.compactSessions().catch(function () {}).then(app.store.load);
       }).then(function (d) {
-        app.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
+        app.settings = FT.settings.clean(d.settings);
         applySettings();
         var rebuild = !d.profile || FT.trainer.needsRebuild(d.profile);
         return (rebuild ? app.store.listSessions() : Promise.resolve([])).then(function (sessions) {

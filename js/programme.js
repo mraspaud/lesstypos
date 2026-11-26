@@ -66,5 +66,29 @@
     return runner(state.def, { day: day }, state);
   }
 
-  FT.programme = { DEFAULT: DEFAULT, runner: runner, resume: resume, totalMinutes: totalMinutes };
+  var STEP_TYPES = DEFAULT.steps.map(function (st) { return st.type; });
+  var MIN_MINUTES = 0.5, MAX_MINUTES = 30;
+  function cleanMinutes(m, fallback) {
+    var n = Number(m);
+    return isFinite(n) && n > 0 ? Math.min(MAX_MINUTES, Math.max(MIN_MINUTES, n)) : fallback;
+  }
+  // A definition from storage or a backup, reduced to known step types.
+  function clean(def) {
+    if (!def || typeof def !== 'object' || !Array.isArray(def.steps)) return null;
+    return { name: typeof def.name === 'string' ? def.name : DEFAULT.name, steps: def.steps.filter(function (st) {
+      return st && STEP_TYPES.indexOf(st.type) >= 0;
+    }).map(function (st) {
+      var fallback = DEFAULT.steps[STEP_TYPES.indexOf(st.type)].minutes;
+      return { type: st.type, minutes: cleanMinutes(st.minutes, fallback), enabled: st.enabled !== false };
+    }) };
+  }
+  // A saved run is kept only when it is whole and made of known steps.
+  function cleanRun(run) {
+    if (!run || typeof run !== 'object' || typeof run.id !== 'string' || !Number.isInteger(run.index) || !Array.isArray(run.results)) return null;
+    var def = clean(run.def);
+    if (!def || def.steps.length !== run.def.steps.length) return null;
+    return run;
+  }
+
+  FT.programme = { DEFAULT: DEFAULT, STEP_TYPES: STEP_TYPES, runner: runner, resume: resume, totalMinutes: totalMinutes, clean: clean, cleanRun: cleanRun };
 })(globalThis.FT);

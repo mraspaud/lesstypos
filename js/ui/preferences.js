@@ -2,7 +2,7 @@
 (function (FT) {
   'use strict';
   if (typeof document === 'undefined') return;
-  var U = FT.ui, app = U.app, EXERCISES = U.EXERCISES, DEFAULT_SETTINGS = U.DEFAULT_SETTINGS;
+  var U = FT.ui, app = U.app, EXERCISES = U.EXERCISES;
   var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, fix = FT.fmt.fix;
   // defined in other ui files
   function applySettings() { return U.applySettings.apply(null, arguments); }
@@ -102,7 +102,7 @@
     el.innerHTML = def.steps.map(function (st, i) {
       return '<div class="row progstep"><input type="checkbox" data-step="' + i + '" aria-label="Include ' + esc(EXERCISES[st.type].name) + '"' + (st.enabled ? ' checked' : '') + '>' +
         '<span style="min-width:9rem">' + esc(EXERCISES[st.type].name) + '</span>' +
-        '<input type="number" data-step="' + i + '" min="0.5" max="30" step="0.5" value="' + st.minutes + '" style="max-width:5rem" aria-label="Minutes"> <span class="muted">min</span>' +
+        '<input type="number" data-step="' + i + '" min="0.5" max="30" step="0.5" value="' + esc(String(st.minutes)) + '" style="max-width:5rem" aria-label="Minutes"> <span class="muted">min</span>' +
         '<button class="btn" type="button" id="up-' + i + '" data-up="' + i + '"' + (i ? '' : ' disabled') + ' aria-label="Move ' + esc(EXERCISES[st.type].name) + ' up">↑</button>' +
         '<button class="btn" type="button" id="down-' + i + '" data-down="' + i + '"' + (i < def.steps.length - 1 ? '' : ' disabled') + ' aria-label="Move ' + esc(EXERCISES[st.type].name) + ' down">↓</button></div>';
     }).join('') + '<p class="help">' + FT.programme.totalMinutes(def) + ' minutes in total. <button class="btn" type="button" id="progreset">Restore default</button></p>';
@@ -139,7 +139,7 @@
       '<section class="panel stack"><h2>Export</h2><p>Save a complete backup: settings, statistics and every raw exercise.</p>' +
       '<div class="row"><button class="btn primary" type="button" id="exp">Download backup</button><button class="btn" type="button" id="copy">Copy backup to clipboard</button></div>' +
       '<p class="muted" id="expmsg"></p></section>' +
-      '<section class="panel stack"><h2>Import</h2><p>Restore a backup. Replacing removes the current data first. Merging adds exercises and texts that are not already here, keeps your settings and the furthest reading position, then rebuilds the statistics.</p>' +
+      '<section class="panel stack"><h2>Import</h2><p>Restore a backup. Replacing removes the current data first. Merging adds the exercises and texts from the backup (any with the same identity are replaced), keeps your settings and the furthest reading position, then rebuilds the statistics.</p>' +
       '<div class="row"><input type="file" id="file" accept="application/json,.json"><select id="impmode"><option value="replace">Replace current data</option><option value="merge">Merge with current data</option></select></div>' +
       '<textarea id="paste" class="mono" placeholder="…or paste a backup here"></textarea><div class="row"><button class="btn" type="button" id="imp">Import pasted backup</button></div><p class="muted" id="impmsg"></p></section>' +
       '<section class="panel stack"><h2>Rebuild and reset</h2>' +
@@ -200,7 +200,7 @@
         if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Click again to confirm'; return; }
         var what = b.dataset.reset;
         app.store.reset(what).then(function () {
-          if (what === 'settings' || what === 'all') { app.settings = Object.assign({}, DEFAULT_SETTINGS); applySettings(); }
+          if (what === 'settings' || what === 'all') { app.settings = FT.settings.clean({}); applySettings(); }
           return reloadFromStore(false);
         }).then(function () { viewData(); document.getElementById('resetmsg').textContent = 'Done.'; });
       };
@@ -208,7 +208,7 @@
   }
   function reloadFromStore(rebuild) {
     return app.store.load().then(function (d) {
-      app.settings = Object.assign({}, DEFAULT_SETTINGS, d.settings);
+      app.settings = FT.settings.clean(d.settings);
       applySettings();
       return app.store.listSessions().then(function (sessions) {
         var stale = !d.profile || FT.trainer.needsRebuild(d.profile); // e.g. a backup from an older version

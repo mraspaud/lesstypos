@@ -102,20 +102,28 @@
   // Whether an encoded session is whole (array lengths and indices agree).
   function isInt(x) { return Number.isInteger(x); }
   function validWord(w) {
-    if (w.c === undefined) return true;
+    if (!w || typeof w.target !== 'string') return false;
+    if (w.c === undefined) return plainWord(w);
     if (typeof w.c !== 'string' || !Array.isArray(w.t) || !Array.isArray(w.g)) return false;
     var chars = Array.from(w.c), letters = chars.filter(function (ch) { return ch !== BACK; }).length;
     return w.t.length === chars.length && w.t.every(isInt) && w.g.length === letters &&
       w.g.every(function (x) { return x === null || isInt(x); }) &&
       (w.a === undefined || (Array.isArray(w.a) && w.a.every(function (i) { return isInt(i) && i >= 0 && i < chars.length; })));
   }
+  function keyEvent(e) { return e && (e.k === 'd' || e.k === 'u') && typeof e.c === 'string' && Number.isFinite(e.t); }
+  function streamEntry(e) {
+    return e && Number.isFinite(e.t) && (e.k === 'b' || (e.k === 'c' && typeof e.ch === 'string'));
+  }
+  function plainWord(w) { return w && typeof w.target === 'string' && Array.isArray(w.stream) && w.stream.every(streamEntry); }
   function validKeys(k) {
-    if (k === undefined || Array.isArray(k)) return true;
+    if (k === undefined) return true;
+    if (Array.isArray(k)) return k.every(keyEvent);
     if (!k || !Array.isArray(k.codes) || !Array.isArray(k.ev) || k.ev.length % 2) return false;
     return k.ev.every(function (x, i) { return isInt(x) && (i % 2 || (x >= 0 && x >> 1 < k.codes.length)); });
   }
+  // Whether a session, encoded or plain, is whole enough to store and replay.
   function validSession(s) {
-    if (!s || !s.enc) return true;
+    if (!s || typeof s !== 'object') return false;
     return (s.words === undefined || (Array.isArray(s.words) && s.words.every(validWord))) && validKeys(s.keys);
   }
 

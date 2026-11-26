@@ -31,14 +31,14 @@
     var first = targets[0];
     var html = '<section class="home-start">' +
       '<h1>Daily training</h1>' +
-      '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + x.minutes + ' min'; }).join(' · ') + '.</p>' +
+      '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + esc(String(x.minutes)) + ' min'; }).join(' · ') + '.</p>' +
       '<div class="row">' +
       (run ? '<button class="btn primary" type="button" id="resume">Resume: ' + esc(EXERCISES[run.current().type].name.toLowerCase()) + ' (' + (run.results().length + 1) + ' of ' + (run.results().length + run.upcoming().length) + ') <kbd>Enter</kbd></button>' +
         '<button class="btn" type="button" id="prog">Start over</button>'
         : '<button class="btn primary" type="button" id="prog">Start daily training · ' + FT.programme.totalMinutes(def) + ' min <kbd>Enter</kbd></button>') +
       '</div>' +
       '<div class="row more"><span class="muted">More:</span>' +
-      '<button class="btn" type="button" id="start">Relaxed practice only · ' + app.settings.durationMin + ' min <kbd>r</kbd></button>' +
+      '<button class="btn" type="button" id="start">Relaxed practice only · ' + esc(String(app.settings.durationMin)) + ' min <kbd>r</kbd></button>' +
       '<button class="btn" type="button" id="bench">Benchmark · 3 × 1 min <kbd>b</kbd></button>' +
       (first ? '<button class="btn" type="button" id="one">Practise ' + seq(first.key) + ' · 3 min <kbd>f</kbd></button>' : '') +
       '<span class="muted">' + benchmarkDue(h) + '</span></div>' +
@@ -145,7 +145,7 @@
   function nextLine() {
     var c = app.run.current();
     if (!c) return '<p>That was the last exercise.</p>';
-    return '<p><b>Next: ' + esc(EXERCISES[c.type].name) + '</b>, ' + c.minutes + ' min. <span class="muted">' + esc(EXERCISES[c.type].goal) + '</span></p>';
+    return '<p><b>Next: ' + esc(EXERCISES[c.type].name) + '</b>, ' + esc(String(c.minutes)) + ' min. <span class="muted">' + esc(EXERCISES[c.type].goal) + '</span></p>';
   }
   function programmeBar() {
     var r = app.run, done = r.results().length, total = done + r.upcoming().length;

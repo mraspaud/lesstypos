@@ -211,3 +211,14 @@ test('compacting runs once: later starts do not read every exercise again', asyn
   assert.equal(await FT.store.create({ adapter }).compactSessions(), 0);
   assert.equal(reads, 0);
 });
+
+test('a backup with a damaged plain exercise is refused before anything is replaced', async () => {
+  const b = mk();
+  await b.saveSession(typedSession('keep'));
+  for (const bad of [{ id: 'b', words: [{ target: 'x', stream: 'garbage' }] }, { id: 'c', words: 'nope' },
+    { id: 'd', words: [{ target: 1, stream: [] }] }, { id: 'e', words: [{ target: 'a', stream: [{ k: 'c', ch: 'a' }] }] },
+    { id: 'f', words: [], keys: 'x' }]) {
+    await assert.rejects(b.importAll({ format: 'lesstypos-export', schema: 1, settings: {}, profile: null, sessions: [bad] }), /damaged/);
+  }
+  assert.equal((await b.listSessions())[0].id, 'keep');
+});

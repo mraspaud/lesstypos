@@ -2,11 +2,7 @@
 // their functions on FT.ui.
 (function (FT) {
   'use strict';
-  var DEFAULT_SETTINGS = {
-    durationMin: 5, errorMode: 'continue', errorStyle: 'clear', macros: [], autoMacros: false,
-    layoutText: '', fontSize: 1.6, theme: 'system', showTimer: true,
-    accents: true, programme: null, programmeRun: null, currentText: null,
-  };
+  var DEFAULT_SETTINGS = FT.settings.DEFAULTS;
   var EXERCISES = {
     warmup: { name: 'Warm-up', goal: 'Familiar words to settle your hands into a comfortable rhythm. No need to push.' },
     relaxed: { name: 'Relaxed practice', goal: 'Type calmly and look ahead. Accuracy and an even rhythm matter more than speed.' },

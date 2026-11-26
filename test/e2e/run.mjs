@@ -741,6 +741,19 @@ await step('wording: one name for accuracy, places named as they appear', async 
   assert.doesNotMatch(src, /first-attempt (accuracy|error rate per key)|× first-attempt error/);
 });
 
+
+await step('a pasted backup with markup in its settings or an unknown step cannot break or script the app', async () => {
+  const dump = JSON.parse(await page.evaluate(() => window.FT.app.store.exportAll().then((d) => JSON.stringify(d))));
+  dump.settings.durationMin = '<img id="pwned" src="x" onerror="window.pwned=1">';
+  dump.settings.programme = { name: 'x', steps: [{ type: 'relaxed', minutes: '<b id="bold">', enabled: true }, { type: 'nope', minutes: 3, enabled: true }] };
+  await page.evaluate(async (d) => { await window.FT.app.store.importAll(d, { mode: 'replace' }); await window.FT.ui.reloadFromStore(false); }, dump);
+  await page.keyboard.press('1');
+  await page.getByRole('button', { name: /Relaxed practice only · 5 min/ }).waitFor();
+  assert.equal(await page.locator('#pwned, #bold').count(), 0);
+  assert.equal(await page.evaluate(() => window.pwned), undefined);
+  assert.match(await page.locator('.lead').textContent(), /relaxed practice 5 min\./);
+});
+
 await step('phone width has no horizontal scroll', async () => {
   await page.setViewportSize({ width: 390, height: 800 });
   for (const k of ['p', 't', 'q', 'h', 's', 'd']) {
