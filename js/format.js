@@ -58,6 +58,12 @@
     if (c.kind === 'lower-effort') return 'About the same speed as your recent sessions at higher effort, with less effort.';
     return (c.deltaWpm >= 0 ? '+' : '') + c.deltaWpm.toFixed(1) + ' WPM compared with your recent sessions at effort ' + c.effort + '.';
   }
+  // How far into a text a place is: "12% (word 1,200 of 10,000)".
+  function textProgress(t, pos) {
+    var total = t.words ? t.words.length : t.total;
+    pos = Number(pos) || 0;
+    return pct(total ? pos / total : 0, 0) + ' (word ' + pos.toLocaleString() + ' of ' + total.toLocaleString() + ')';
+  }
   // Why a sequence is in the focus list, from its judgement (model.evaluate).
   function focusReason(c, stage) {
     var against = c.parent ? seq(c.parent) : 'all your typing';
@@ -67,5 +73,5 @@
     return stageLabel(stage || 'improving') + ': ×' + fix(c.latRel, 1) + ' against ' + against + ' now';
   }
 
-  FT.fmt = { vocabSentence: vocabSentence, comparison: comparison, focusReason: focusReason, stageLabel: stageLabel, stateLabel: stateLabel, stagePill: stagePill, statePill: statePill, statusLegend: statusLegend, storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
+  FT.fmt = { vocabSentence: vocabSentence, textProgress: textProgress, comparison: comparison, focusReason: focusReason, stageLabel: stageLabel, stateLabel: stateLabel, stagePill: stagePill, statePill: statePill, statusLegend: statusLegend, storageLine: storageLine, esc: esc, seq: seq, pct: pct, fix: fix, pill: pill, lateNote: lateNote };
 })(globalThis.FT);

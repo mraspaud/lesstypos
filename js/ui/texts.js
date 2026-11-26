@@ -1,30 +1,18 @@
-// Texts for prose exercises: add, choose, delete.
+// Texts for prose exercises: add, choose a chapter, start over, delete; and
+// home's way into the book.
 (function (FT) {
   'use strict';
   if (typeof document === 'undefined') return;
   var U = FT.ui, app = U.app;
-  var esc = FT.fmt.esc, pct = FT.fmt.pct, pill = FT.fmt.pill;
-  // defined in other ui files
-  function saveSettings() { return U.saveSettings.apply(null, arguments); }
-  function setView() { return U.setView.apply(null, arguments); }
-  function startExercise() { return U.startExercise.apply(null, arguments); }
-  function storageError() { return U.storageError.apply(null, arguments); }
+  var esc = FT.fmt.esc, pill = FT.fmt.pill, H = FT.html;
 
-  // ---------- texts ----------
-  function proseProgress(t, pos) {
-    var total = t.words ? t.words.length : t.total;
-    pos = Number(pos) || 0;
-    return pct(total ? pos / total : 0, 0) + ' (word ' + pos.toLocaleString() + ' of ' + total.toLocaleString() + ')';
-  }
   // "Start at" for a text with chapters.
   var LONG_TEXT = 2000; // words: a book, where choosing a chapter matters
   function chapterChoice(t) {
     if (!t.chapters && t.words.length > LONG_TEXT) return '<div class="muted">No chapters: add it again from its EPUB to choose where to start.</div>';
     if (!t.chapters || t.chapters.length < 2) return '';
     var here = FT.books.chapterAt(t, t.pos);
-    return '<div><label class="muted">Start at <select data-chapter="' + esc(t.id) + '">' + t.chapters.map(function (c) {
-      return '<option value="' + c.start + '"' + (c === here ? ' selected' : '') + '>' + esc(c.title) + '</option>';
-    }).join('') + '</select></label></div>';
+    return '<div><label class="muted">Start at ' + H.select({ 'data-chapter': t.id }, t.chapters.map(function (c) { return [c.start, c.title]; }), here && here.start) + '</label></div>';
   }
   function currentText() {
     return app.store.listTexts().then(function (list) {
@@ -43,7 +31,7 @@
     var t = FT.books.bundledText();
     return app.store.saveText(t).then(function () {
       app.settings.currentText = t.id;
-      return saveSettings();
+      return U.saveSettings();
     }).then(function () { return t; });
   }
   function bundledLabel(b) { return b.title + ' · ' + b.author; }
@@ -55,18 +43,18 @@
       if (t) {
         var c = FT.books.chapterAt(t, t.pos);
         var resume = function () {   // the place as stored now: it may have moved since home was drawn
-          app.store.getText(t.id).then(U.onThisScreen(function (now) { startExercise('prose', { text: now || t, free: true }); })).catch(storageError);
+          app.store.getText(t.id).then(U.onThisScreen(function (now) { U.startExercise('prose', { text: now || t, free: true }); })).catch(U.storageError);
         };
         var choice = { label: 'Continue reading: ' + t.title + (c ? ' · ' + c.title : ''), act: resume };
         if (c && t.pos > c.start) {
           choice.chapterStart = { label: 'Start of this chapter: ' + c.title, act: function () {
             app.store.getText(t.id).then(function (now) { now.pos = c.start; return app.store.saveText(now).then(function () { return now; }); })
-              .then(U.onThisScreen(function (now) { startExercise('prose', { text: now, free: true }); })).catch(storageError);
+              .then(U.onThisScreen(function (now) { U.startExercise('prose', { text: now, free: true }); })).catch(U.storageError);
           } };
         }
         return choice;
       }
-      if (offer) return { label: 'Read ' + offer.title, act: function () { addBundled().then(function (b) { startExercise('prose', { text: b, free: true }); }).catch(storageError); } };
+      if (offer) return { label: 'Read ' + offer.title, act: function () { addBundled().then(function (b) { U.startExercise('prose', { text: b, free: true }); }).catch(U.storageError); } };
       return null;
     });
   }
@@ -115,73 +103,62 @@
         if (titleBox.value.trim()) t.title = titleBox.value.trim();
         return app.store.saveText(t).then(function () {
           app.settings.currentText = t.id;
-          return saveSettings();
+          return U.saveSettings();
         }).then(function () { after(t); });
-      }).catch(storageError);
+      }).catch(U.storageError);
     });
   }
   // A click handler that asks first: the first press arms the button, the second acts.
-  function onSecondPress(button, askLabel, act) {
-    return function () {
+  function onSecondPress(askLabel, act) {
+    return function (button) {
       if (!button.classList.contains('armed')) { button.classList.add('armed'); button.textContent = askLabel; return; }
       act();
     };
   }
+  function button(label, onClick, kind) { return U.keyButton({ label: label, kind: kind, onClick: onClick }); }
+  function storedText(id, change) {
+    return app.store.getText(id).then(function (t) { change(t); return app.store.saveText(t).then(function () { return t; }); });
+  }
+  function typeText(t) { U.startExercise('prose', { text: t }); }
+  function textRow(t) {
+    var current = t.id === app.settings.currentText, unfinished = t.pos < t.words.length;
+    var fromStart = function (t) { t.pos = 0; };
+    var actions =
+      (current ? '' : button('Make current', function () { app.settings.currentText = t.id; U.saveSettings().then(U.onThisScreen(viewTexts)); })) +
+      (unfinished ? button('Type now', function () { app.store.getText(t.id).then(U.onThisScreen(typeText)); }) +
+          (t.pos > 0 ? button('Start over', onSecondPress('Click again to start over', function () {
+            storedText(t.id, fromStart).then(U.onThisScreen(viewTexts)).catch(U.storageError);
+          })) : '')
+        : button('Start over', function () { storedText(t.id, fromStart).then(U.onThisScreen(typeText)); })) +
+      button('Delete', onSecondPress('Click again to delete', function () { app.store.deleteText(t.id).then(U.onThisScreen(viewTexts)); }), 'danger');
+    return H.row([H.cell(esc(t.title) + (current ? ' ' + pill('current') : '')), H.cell(t.words.length.toLocaleString(), 'num'),
+      H.cell('<span data-progress="' + esc(t.id) + '">' + FT.fmt.textProgress(t, t.pos) + '</span>' + chapterChoice(t), 'num'),
+      H.cell('<div class="row">' + actions + '</div>')]);
+  }
   function viewTexts() {
-    Promise.all([app.store.listTexts(), bundledOffer()]).then(U.onThisScreen(function (got) {
-      var list = got[0], offer = got[1];
-      var html = '<section class="stack">' + U.sectionHead('settings') + '<p class="muted">Prose exercises continue the current text from where you stopped. Texts stay in this browser and are included in backups.</p></section>';
-      if (list.length) {
-        html += '<div class="tablewrap"><table><thead><tr><th>Title</th><th>Words</th><th>Progress</th><th></th></tr></thead><tbody>' +
-          list.map(function (t) {
-            var cur = t.id === app.settings.currentText;
-            return '<tr><td>' + esc(t.title) + (cur ? ' ' + pill('current') : '') + '</td><td class="num">' + t.words.length.toLocaleString() + '</td><td class="num">' +
-              '<span data-progress="' + esc(t.id) + '">' + proseProgress(t, t.pos) + '</span>' + chapterChoice(t) + '</td><td><div class="row">' +
-              (cur ? '' : '<button class="btn" type="button" data-use="' + esc(t.id) + '">Make current</button>') +
-              (t.pos < t.words.length ? '<button class="btn" type="button" data-type="' + esc(t.id) + '">Type now</button>' +
-                  (t.pos > 0 ? '<button class="btn" type="button" data-startover="' + esc(t.id) + '">Start over</button>' : '')
-                : '<button class="btn" type="button" data-restart="' + esc(t.id) + '">Start over</button>') +
-              '<button class="btn danger" type="button" data-del="' + esc(t.id) + '">Delete</button></div></td></tr>';
-          }).join('') + '</tbody></table></div>';
-      }
-      if (offer) {
-        html += '<div class="tablewrap"><table><thead><tr><th>Comes with the app</th><th>Words</th><th></th></tr></thead><tbody><tr><td>' + esc(bundledLabel(offer)) +
-          '</td><td class="num">' + offer.words.length.toLocaleString() +
-          '</td><td><button class="btn" type="button" id="usebundled">Type now</button></td></tr></tbody></table></div>';
-      }
-      html += '<section class="panel stack"><h2>Add a text</h2>' + textForm() + '</section>';
-      setView(html);
-      if (offer) document.getElementById('usebundled').onclick = function () {
-        addBundled().then(U.onThisScreen(function (t) { startExercise('prose', { text: t }); })).catch(storageError);
-      };
-      bindTextForm(U.onThisScreen(viewTexts));
-      app.$view.querySelectorAll('[data-use]').forEach(function (b) { b.onclick = function () { app.settings.currentText = b.dataset.use; saveSettings().then(U.onThisScreen(viewTexts)); }; });
-      app.$view.querySelectorAll('[data-type]').forEach(function (b) {
-        b.onclick = function () { app.store.getText(b.dataset.type).then(U.onThisScreen(function (t) { startExercise('prose', { text: t }); })); };
-      });
-      app.$view.querySelectorAll('select[data-chapter]').forEach(function (sel) {
-        sel.onchange = function () {
-          app.store.getText(sel.dataset.chapter).then(function (t) { t.pos = +sel.value; return app.store.saveText(t).then(function () { return t; }); })
-            .then(U.onThisScreen(function (t) { sel.closest('td').querySelector('[data-progress]').textContent = proseProgress(t, t.pos); })).catch(storageError);
-        };
-      });
-      app.$view.querySelectorAll('[data-restart]').forEach(function (b) {
-        b.onclick = function () {
-          app.store.getText(b.dataset.restart).then(function (t) { t.pos = 0; return app.store.saveText(t).then(function () { return t; }); })
-            .then(U.onThisScreen(function (t) { startExercise('prose', { text: t }); }));
-        };
-      });
-      app.$view.querySelectorAll('[data-startover]').forEach(function (b) {
-        b.onclick = onSecondPress(b, 'Click again to start over', function () {
-          app.store.getText(b.dataset.startover).then(function (t) { t.pos = 0; return app.store.saveText(t); }).then(U.onThisScreen(viewTexts)).catch(storageError);
+    U.screen('settings/texts', { render: function () {
+      Promise.all([app.store.listTexts(), bundledOffer()]).then(U.onThisScreen(function (got) {
+        var list = got[0], offer = got[1];
+        var html = '<section class="stack">' + U.sectionHead('settings') + '<p class="muted">Prose exercises continue the current text from where you stopped. Texts stay in this browser and are included in backups.</p></section>';
+        if (list.length) html += H.table(['Title', 'Words', 'Progress', ''], list.map(textRow));
+        if (offer) {
+          html += H.table(['Comes with the app', 'Words', ''], [H.row([H.cell(esc(bundledLabel(offer))), H.cell(offer.words.length.toLocaleString(), 'num'),
+            H.cell(U.keyButton({ label: 'Type now', id: 'usebundled', onClick: function () { addBundled().then(U.onThisScreen(typeText)).catch(U.storageError); } }))])]);
+        }
+        html += H.panel('Add a text', textForm());
+        U.paint(html);
+        bindTextForm(U.onThisScreen(viewTexts));
+        app.$view.querySelectorAll('select[data-chapter]').forEach(function (sel) {
+          sel.onchange = function () {
+            storedText(sel.dataset.chapter, function (t) { t.pos = +sel.value; })
+              .then(U.onThisScreen(function (t) { sel.closest('td').querySelector('[data-progress]').textContent = FT.fmt.textProgress(t, t.pos); })).catch(U.storageError);
+          };
         });
-      });
-      app.$view.querySelectorAll('[data-del]').forEach(function (b) {
-        b.onclick = onSecondPress(b, 'Click again to delete', function () { app.store.deleteText(b.dataset.del).then(U.onThisScreen(viewTexts)); });
-      });
-    }));
+      }));
+    } });
   }
 
-  Object.assign(U, { proseProgress: proseProgress, currentText: currentText, textForm: textForm, bindTextForm: bindTextForm, viewTexts: viewTexts,
+  U.route('settings/texts', viewTexts);
+  Object.assign(U, { currentText: currentText, textForm: textForm, bindTextForm: bindTextForm, viewTexts: viewTexts,
     bundledOffer: bundledOffer, addBundled: addBundled, bundledLabel: bundledLabel, readingChoice: readingChoice });
 })(globalThis.FT);

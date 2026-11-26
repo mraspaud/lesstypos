@@ -1,446 +1,458 @@
-// Typing screen: input, rendering, caret and line scrolling, timers, speed-burst rounds.
+// Typing screen: one instance per exercise, with its input, rendering, caret
+// and line scrolling, timers and speed-burst rounds. What it records is built
+// in record.js.
 (function (FT) {
   'use strict';
   if (typeof document === 'undefined') return;
   var U = FT.ui, app = U.app;
   var esc = FT.fmt.esc, seq = FT.fmt.seq, pct = FT.fmt.pct, fix = FT.fmt.fix;
-  // defined in other ui files
-  function go() { return U.go.apply(null, arguments); }
-  function proseProgress() { return U.proseProgress.apply(null, arguments); }
-  function renderNav() { return U.renderNav.apply(null, arguments); }
-  function renderNotice() { return U.renderNotice.apply(null, arguments); }
-  function setView() { return U.setView.apply(null, arguments); }
-  function show() { return U.show.apply(null, arguments); }
-  function viewBetween() { return U.viewBetween.apply(null, arguments); }
-  function complete() { return U.complete.apply(null, arguments); }
-  function analysisOptions() { return U.analysisOptions.apply(null, arguments); }
-  function equivalence() { return U.equivalence.apply(null, arguments); }
-  function viewEffort() { return U.viewEffort.apply(null, arguments); }
-
-  // ---------- typing ----------
-  function burstRun() { return app.burstRun || FT.exercises.BURST_ROUND_MS; }   // overridable for tests
-  function burstRest() { return app.burstRest || FT.exercises.BURST_REST_MS; }
   var WORDS_SHOWN = 120, WORDS_ADDED = 100;   // the DOM holds a window of the exercise's words
-  var ty = null; // active typing state
-  function stopTyping() {
-    if (ty) { clearInterval(ty.timer); if (ty.detach) ty.detach(); ty = null; }
+  var START_HINT = 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.';
+
+  function burstRoundMs() { return app.burstRun || FT.exercises.BURST_ROUND_MS; }   // overridable for tests
+  function burstRestMs() { return app.burstRest || FT.exercises.BURST_REST_MS; }
+  function clock(ms) {
+    var s = Math.max(0, Math.ceil(ms / 1000));
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
   }
   function proseChapter(text) {
     var c = FT.books.chapterAt(text, text.pos);
     return c ? ' · ' + esc(c.title) : '';
   }
-  function startExercise(type, opts) {
-    stopTyping();
-    app.screenGen = (app.screenGen || 0) + 1; // pages still loading must not paint over the exercise
-    opts = opts || {};
-    app.current = 'typing';
-    document.body.classList.add('typing-mode');
-    renderNav();
-    var exDef = FT.exercises.instructions(type, app.settings);
-    var ex = app.trainer.newExercise({ type: type, pinned: opts.pinned, text: opts.text, run: opts.run });
-    var durationMs = (opts.minutes || app.settings.durationMin) * 60000;
-    var nRounds = Math.max(1, Math.floor(durationMs / (2 * burstRun())));
-    var withCard = app.settings.showInstructions !== false;
-    var free = type === 'prose' && !!opts.free;   // free reading: no time limit, the clock counts up
-    setView('<section class="typing">' +
-      '<div class="ex-head"><span class="name">' + esc(exDef.name) + (opts.pinned ? ' ' + opts.pinned.map(seq).join(' ') : '') + '</span>' +
-      '<span>' + esc(exDef.goal) + '</span>' +
-      (type === 'prose' ? '<span class="muted">' + esc(opts.text.title) + proseChapter(opts.text) + ', ' + proseProgress(opts.text, opts.text.pos) + '</span>' : '') +
-      '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' || free ? '' : ' hidden') + '>' + (type === 'bursts' ? 'Round 1 of ' + nRounds : clock(free ? 0 : durationMs)) + '</span></div>' +
-      (type === 'bursts' ? '<div class="pace" id="pace" aria-hidden="true"><div class="pace-fill" id="pacefill"></div><div class="pace-target" id="pacetarget"></div></div>' +
-        '<div class="pace-label muted num" id="pacelabel">Target ' + Math.round(app.trainer.bursts.target()) + ' WPM</div>' : '') +
-      '<div class="stage"><div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div></div>' +
-      (withCard ? briefing(exDef, nRounds, type) : '') + '</div>' +
-      '<div class="focus-hint" id="hint">' + (withCard ? '' : 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.') + '</div>' +
-      '<div id="stopbar" class="stopbar" hidden></div>' +
-      '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"' + (withCard ? ' aria-describedby="briefing"' : '') + '></textarea>' +
-      '</section>');
-    var session = FT.session.create(ex.words.slice(0, WORDS_SHOWN), { equivalence: equivalence() });
-    ty = { type: type, ex: ex, session: session, pending: ex.words.slice(WORDS_SHOWN), durationMs: durationMs, keys: [], first: null, startedAt: null,
-      els: [], inner: document.getElementById('inner'), caret: document.getElementById('caret'),
-      win: document.getElementById('window'), capture: document.getElementById('capture'), stopped: false, opts: opts, offset: 0, pauses: [],
-      briefing: withCard, free: free };
-    if (type === 'bursts') ty.burst = { total: nRounds, rounds: [], phase: 'ready', target: app.trainer.bursts.target(), ref: app.trainer.bursts.reference() };
-    renderWords(0);
-    ty.detach = FT.input.attach(ty.capture, {
-      onText: onText, onBack: onBack, onBackWord: onBackWord,
-      onKey: function (k) {
-        if (!ty || ty.stopped) return;
-        if (ty.first != null) ty.keys.push(k);
-        else if (k.k === 'd') ty.startKey = k; // the keydown that will start the exercise comes before its letter
-      },
-      onEscape: onEscape, onTab: onTab,
-      onEnter: function (t) {
-        if (!ty) return;
-        if (ty.briefing) closeBriefing();
-        else if (ty.stopped) finishExercise();
-        else onText(FT.session.PARAGRAPH, t);   // the end of a paragraph
-      },
-      onDelete: function () { if (ty && ty.stopped) discard(); },
-    });
-    ty.win.addEventListener('click', focusCapture);
-    if (ty.briefing) document.getElementById('briefing').addEventListener('click', focusCapture);
-    ty.capture.addEventListener('blur', function () { if (ty) { ty.win.classList.add('blurred'); hint('Click here or press any key to continue typing.'); } });
-    ty.capture.addEventListener('focus', function () { if (ty) { ty.win.classList.remove('blurred'); hint(ty.first == null && !ty.briefing ? 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.' : ''); } });
-    focusCapture();
-    placeCaret();
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (ty) placeCaret(); });
-  }
-  window.addEventListener('resize', function () { if (ty) placeCaret(); });
-  // Reloading or closing the tab mid-exercise asks first (nothing is dropped without asking).
-  window.addEventListener('beforeunload', function (e) { if (ty && ty.first != null) { e.preventDefault(); e.returnValue = ''; } });
-  function focusCapture() { if (ty) ty.capture.focus({ preventScroll: true }); }
-  function hint(html) { var el = document.getElementById('hint'); if (el) el.innerHTML = html; }
-  function clock(ms) {
-    var s = Math.max(0, Math.ceil(ms / 1000));
-    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-  }
-  function renderWords(from) {
-    var words = ty.session.state().words;
-    var frag = document.createDocumentFragment();
-    for (var i = from; i < words.length; i++) {
-      var el = document.createElement('span');
-      el.className = 'w';
-      ty.els[i] = el;
-      paintWord(i, el);
-      frag.appendChild(el);
-      if (FT.session.separatorOf(words[i]) === FT.session.PARAGRAPH) frag.appendChild(document.createElement('br'));
-    }
-    ty.inner.appendChild(frag);
-  }
-  // A word shows its typed presses compared by position (FT.align.displayWord):
-  // one joined mark for a wrong multi-letter press, extra letters at the end.
-  // data-cursor = letters typed so far.
-  function paintWord(i, el) {
-    var w = ty.session.state().words[i];
-    el = el || ty.els[i];
-    if (!el) return;
-    var d = FT.align.displayWord(w.target, w.stream, analysisOptions());
-    var T = Array.from(w.target), html = '';
-    var letter = function (cls, ch) { return '<span class="l' + cls + '">' + esc(ch) + '</span>'; };
-    for (var p = 0; p < T.length; p++) {
-      var pos = d.positions[p];
-      if (pos.press) {
-        var q = p;
-        while (q + 1 < T.length && d.positions[q + 1].press && d.positions[q + 1].group === pos.group) q++;
-        html += '<span class="press-bad">' + T.slice(p, q + 1).map(function (ch) { return letter(' bad', ch); }).join('') + '</span>';
-        p = q;
-        continue;
-      }
-      html += letter(pos.status === 'ok' ? ' ok' : pos.status === 'bad' ? ' bad' : '', T[p]);
-    }
-    d.extras.forEach(function (ch) { html += letter(' extra', ch); });
-    if (FT.session.separatorOf(w) === FT.session.PARAGRAPH) html += letter(' sep' + paragraphEndStatus(w), '¶');
-    el.innerHTML = html;
-    el.dataset.cursor = d.cursor;
-  }
-  function paragraphEndStatus(w) {
-    if (!w.committed) return '';
-    return w.typed.slice(-1) === FT.session.PARAGRAPH ? ' ok' : ' bad';
-  }
-  // Caret and line scrolling from on-screen rectangles, relative to the typing
-  // window (independent of offsetParent quirks and of the host page's CSS).
-  function placeCaret() {
-    var st = ty.session.state(), i = st.wordIndex, el = ty.els[i];
-    if (!el || !el.isConnected) return;
-    var typed = +el.dataset.cursor || 0, letters = el.querySelectorAll('.l');
-    var win = ty.win.getBoundingClientRect(), inner = ty.inner.getBoundingClientRect();
-    var r, x;
-    if (typed < letters.length) { r = letters[typed].getBoundingClientRect(); x = r.left; }
-    else if (letters.length) { r = letters[letters.length - 1].getBoundingClientRect(); x = r.right; }
-    else { r = el.getBoundingClientRect(); x = r.left; }
-    var lineH = el.getBoundingClientRect().height || r.height;
-    var yInInner = r.top - inner.top;                       // unaffected by the app.current scroll offset
-    var line = Math.round((el.getBoundingClientRect().top - inner.top) / lineH);
-    var offset = Math.max(0, line - 1) * lineH;
-    if (offset !== ty.offset) {
-      ty.offset = offset;
-      ty.inner.style.transform = 'translateY(' + (-offset) + 'px)';
-    }
-    ty.caret.style.left = (x - win.left) + 'px';
-    ty.caret.style.top = (yInInner - offset + (r.height - ty.caret.offsetHeight) / 2) + 'px';
-  }
-  function trimAbove() {
-    // Drop committed words more than one line above the view to keep the DOM small.
-    // Measure everything first: removing a word reflows the following ones.
-    var st = ty.session.state(), cur = ty.els[st.wordIndex];
-    if (!cur) return;
-    var lh = cur.getBoundingClientRect().height, top = ty.inner.getBoundingClientRect().top, drop = [];
-    for (var i = 0; i < st.wordIndex; i++) {
-      var el = ty.els[i];
-      if (!el || !el.parentNode) continue;
-      if (el.getBoundingClientRect().top - top + lh <= ty.offset - lh) drop.push(el); else break;
-    }
-    drop.forEach(function (el) {
-      if (el.nextSibling && el.nextSibling.nodeName === 'BR') el.parentNode.removeChild(el.nextSibling);
-      el.parentNode.removeChild(el);
-    });
-    if (drop.length) { ty.offset = -1; placeCaret(); }
-  }
-  function startClock(t) {
-    ty.first = t; ty.startedAt = Date.now(); ty.t0 = performance.now();
-    if (ty.startKey) ty.keys.push(ty.startKey);
-    ty.timer = setInterval(tick, 200);
-  }
-  function beginIfNeeded(t) {
-    if (ty.burst && ty.burst.phase === 'ready') {
-      ty.burst.phase = 'run'; ty.burst.start = t; ty.burst.startNow = performance.now();
-      if (ty.first == null) startClock(t);
-      hint('');
-      return;
-    }
-    if (ty.first != null) return;
-    startClock(t);
-    hint('');
-  }
-  function tick() {
-    if (!ty || ty.stopped) return;
-    if (ty.burst) { burstTick(); return; }
-    var elapsed = performance.now() - ty.t0, el = document.getElementById('timer');
-    if (ty.free) { if (el) el.textContent = clock(Math.floor(elapsed / 1000) * 1000); return; }
-    var left = ty.durationMs - elapsed;
-    if (el) el.textContent = clock(left);
-    if (left > 0 || ty.overtime) return;
-    if (ty.type !== 'prose' || atSentenceEnd()) { finishExercise(); return; }
-    ty.overtime = true;   // prose: time is up, but the sentence is finished first (user decision)
-    hint('Time is up: finish the sentence.');
-  }
-  // At the start of a word that follows the end of a sentence or paragraph.
-  function atSentenceEnd() {
-    var st = ty.session.state(), prev = st.words[st.wordIndex - 1], cur = st.words[st.wordIndex];
-    if (!prev || (cur && cur.typed.length)) return false;
-    return FT.text.endsSentence(prev.target) || FT.session.separatorOf(prev) === FT.session.PARAGRAPH;
-  }
-  // Speed bursts: rounds of BURST_ROUND_MS, each started by the first keystroke
-  // after a BURST_REST_MS rest. A live pace bar compares the round's speed
-  // with the adaptive target (FT.bursts).
-  // Closes the current burst round at `end` (keystroke clock); returns true
-  // when that finished the exercise.
-  // keepOpen: at a pause, the last round does not end the exercise yet.
-  function endRound(end, now, keepOpen) {
-    var b = ty.burst;
-    now = now == null ? performance.now() : now;
-    b.rounds.push({ start: b.start, end: end });
-    var full = roundStats(b.start, end);
-    var res = FT.bursts.step(b.target, full, b.ref);
-    b.last = { stats: full, res: res };
-    b.target = res.after;
-    if (b.rounds.length >= b.total) {
-      if (keepOpen) { b.phase = 'done'; return false; }
-      finishExercise(); return true;
-    }
-    b.phase = 'rest'; b.restEnd = now + burstRest();
-    return false;
-  }
-  function roundStats(start, end) {
-    var words = ty.session.state().words.filter(function (w) { return w.committed && FT.bursts.finishedWithin(w, start, end); });
-    return FT.bursts.roundStats(words, FT.align.analyzeWords(words, analysisOptions()), start, end);
-  }
-  function burstTick() {
-    var b = ty.burst, now = performance.now(), timer = document.getElementById('timer');
-    if (b.phase === 'run') {
-      var elapsed = now - b.startNow, end = b.start + burstRun();
-      var st = roundStats(b.start, b.start + Math.min(elapsed, burstRun()));
-      paintPace(st.wpm, b.target);
-      timer.textContent = 'Round ' + (b.rounds.length + 1) + ' of ' + b.total + ' · ' + clock(burstRun() - elapsed);
-      if (elapsed >= burstRun()) endRound(end, now);
-    } else if (b.phase === 'rest') {
-      var left = b.restEnd - now, l = b.last;
-      timer.textContent = 'Rest · ' + clock(left);
-      hint('Round ' + b.rounds.length + ': ' + fix(l.stats.wpm) + ' WPM, ' + pct(l.stats.accuracy, 0) + ' accuracy (' +
-        (l.res.result === 'met' ? 'target met' : esc(l.res.reason)) + '). Target now ' + Math.round(b.target) +
-        ' WPM. Relax your hands; next round in ' + Math.ceil(left / 1000) + ' s.');
-      paintPace(null, b.target);
-      if (left <= 0) { b.phase = 'ready'; hint('Round ' + (b.rounds.length + 1) + ' of ' + b.total + ': start typing when ready.'); timer.textContent = 'Round ' + (b.rounds.length + 1) + ' of ' + b.total; }
-    }
-  }
-  function paintPace(wpm, target) {
-    var max = target * 1.5, fill = document.getElementById('pacefill'), mark = document.getElementById('pacetarget');
-    if (!fill) return;
-    fill.style.width = Math.min(100, ((wpm || 0) / max) * 100) + '%';
-    fill.classList.toggle('over', wpm != null && wpm >= target);
-    mark.style.left = (100 / 1.5) + '%';
-    document.getElementById('pacelabel').textContent = (wpm != null ? fix(wpm) + ' WPM · ' : '') + 'target ' + Math.round(target) + ' WPM';
-  }
-  function correctSoFar() {
-    var w = ty.session.current();
-    return equivalence().isPrefix(w.typed, FT.session.targetOf(w));
-  }
   // The card over the text: what to do and what counts, read before starting.
-  function briefing(exDef, nRounds, type) {
+  function briefingCard(exDef, nRounds, type) {
     return '<div class="briefing" id="briefing" role="dialog" aria-labelledby="briefing-title">' +
       '<h2 id="briefing-title">' + esc(exDef.name) + (type === 'bursts' ? ' · ' + nRounds + ' rounds' : '') + '</h2>' +
       '<p>' + esc(exDef.goal) + '</p><p class="muted">' + esc(exDef.counts) + '</p>' +
       '<p><kbd>Enter</kbd> start · <kbd>Esc</kbd> leave · <kbd>Tab</kbd> restart</p></div>';
   }
-  function closeBriefing() {
-    ty.briefing = false;
-    var el = document.getElementById('briefing');
-    if (el) el.remove();
-    ty.capture.removeAttribute('aria-describedby');
-    hint('Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.');
-    focusCapture();
+
+  function startExercise(type, opts) {
+    var typing = typingScreen(type, opts || {});
+    U.screen('typing', {
+      render: typing.render,
+      onLeave: typing.stop,
+      holdOnNavigation: typing.holdForLeave,
+      onKey: function (e) { if (e.target && e.target.id !== 'capture') typing.keyElsewhere(e); },
+    });
   }
 
-  function onText(data, t) {
-    if (ty && ty.briefing) return; // read the card first: Enter starts
-    if (ty && ty.stopped) { hint('Paused: <kbd>Esc</kbd> resumes, <kbd>Enter</kbd> saves, <kbd>Del</kbd> discards.'); return; } // typing never discards
-    if (!ty) return;
-    if (ty.burst && ty.burst.phase === 'rest') return;
-    if (app.settings.errorMode === 'stop' && !correctSoFar()) return;
-    beginIfNeeded(t);
-    if (ty.hinted) { hint(''); ty.hinted = false; }
-    var before = ty.session.state().wordIndex;
-    ty.session.input({ kind: 'text', data: data, t: t });
-    var st = ty.session.state();
-    // the last word of a text needs no space: complete it once typed correctly
-    var cur = st.words[st.wordIndex];
-    if (ty.exhausted && st.wordIndex === st.words.length - 1 && equivalence().sameStr(cur.typed, cur.target)) {
-      ty.session.input({ kind: 'text', data: ' ', t: t, auto: true });
-      st = ty.session.state();
+  function typingScreen(type, opts) {
+    var live = false;   // between render and stop
+    var ex, session, pending, durationMs, keys = [], startKey = null, firstKeyAt = null, startedAt = null, clockStart = null;
+    var els = [], inner, caret, win, capture, offset = 0, timer = null, detachInput = null;
+    var paused = false, pausedAt = null, pauses = [], briefing, free, burst = null;
+    var overtime = false, hinted = false, exhausted = false, tabArmedAt = 0;
+
+    function render() {
+      live = true;
+      var exDef = FT.exercises.instructions(type, app.settings);
+      ex = app.trainer.newExercise({ type: type, pinned: opts.pinned, text: opts.text, run: opts.run });
+      durationMs = (opts.minutes || app.settings.durationMin) * 60000;
+      var nRounds = Math.max(1, Math.floor(durationMs / (2 * burstRoundMs())));
+      briefing = app.settings.showInstructions !== false;
+      free = type === 'prose' && !!opts.free;   // free reading: no time limit, the clock counts up
+      U.paint('<section class="typing">' +
+        '<div class="ex-head"><span class="name">' + esc(exDef.name) + (opts.pinned ? ' ' + opts.pinned.map(seq).join(' ') : '') + '</span>' +
+        '<span>' + esc(exDef.goal) + '</span>' +
+        (type === 'prose' ? '<span class="muted">' + esc(opts.text.title) + proseChapter(opts.text) + ', ' + FT.fmt.textProgress(opts.text, opts.text.pos) + '</span>' : '') +
+        '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' || free ? '' : ' hidden') + '>' + (type === 'bursts' ? 'Round 1 of ' + nRounds : clock(free ? 0 : durationMs)) + '</span></div>' +
+        (type === 'bursts' ? '<div class="pace" id="pace" aria-hidden="true"><div class="pace-fill" id="pacefill"></div><div class="pace-target" id="pacetarget"></div></div>' +
+          '<div class="pace-label muted num" id="pacelabel">Target ' + Math.round(app.trainer.bursts.target()) + ' WPM</div>' : '') +
+        '<div class="stage"><div class="window' + (app.settings.errorStyle === 'subtle' ? ' subtle' : '') + '" id="window"><div class="inner" id="inner"></div><div class="caret" id="caret"></div></div>' +
+        (briefing ? briefingCard(exDef, nRounds, type) : '') + '</div>' +
+        '<div class="focus-hint" id="hint">' + (briefing ? '' : START_HINT) + '</div>' +
+        '<div id="stopbar" class="stopbar" hidden></div>' +
+        '<textarea id="capture" class="capture" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Typing input"' + (briefing ? ' aria-describedby="briefing"' : '') + '></textarea>' +
+        '</section>');
+      session = FT.session.create(ex.words.slice(0, WORDS_SHOWN), { equivalence: U.equivalence() });
+      pending = ex.words.slice(WORDS_SHOWN);
+      inner = document.getElementById('inner'); caret = document.getElementById('caret');
+      win = document.getElementById('window'); capture = document.getElementById('capture');
+      if (type === 'bursts') burst = { total: nRounds, rounds: [], phase: 'ready', target: app.trainer.bursts.target(), ref: app.trainer.bursts.reference() };
+      renderWords(0);
+      detachInput = FT.input.attach(capture, {
+        onText: onText, onBack: onBack, onBackWord: onBackWord,
+        onKey: function (k) {
+          if (!live || paused) return;
+          if (firstKeyAt != null) keys.push(k);
+          else if (k.k === 'd') startKey = k; // the keydown that will start the exercise comes before its letter
+        },
+        onEscape: onEscape, onTab: onTab,
+        onEnter: function (t) {
+          if (!live) return;
+          if (briefing) closeBriefing();
+          else if (paused) finish();
+          else onText(FT.session.PARAGRAPH, t);   // the end of a paragraph
+        },
+        onDelete: function () { if (live && paused) discard(); },
+      });
+      win.addEventListener('click', focusCapture);
+      if (briefing) document.getElementById('briefing').addEventListener('click', focusCapture);
+      capture.addEventListener('blur', function () { if (live) { win.classList.add('blurred'); hint('Click here or press any key to continue typing.'); } });
+      capture.addEventListener('focus', function () { if (live) { win.classList.remove('blurred'); hint(firstKeyAt == null && !briefing ? START_HINT : ''); } });
+      window.addEventListener('resize', placeCaret);
+      window.addEventListener('beforeunload', askBeforeUnload);
+      focusCapture();
+      placeCaret();
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(placeCaret);
     }
-    for (var i = before; i <= Math.min(st.wordIndex, st.words.length - 1); i++) paintWord(i);
-    if (st.words.length - st.wordIndex < 60 && !ty.exhausted) {
-      var more = nextWords(WORDS_ADDED);
-      if (!more.length) ty.exhausted = true;
-      var from = st.words.length;
-      ty.session.append(more);
-      renderWords(from);
+    function stop() {
+      if (!live) return;
+      live = false;
+      clearInterval(timer);
+      if (detachInput) detachInput();
+      window.removeEventListener('resize', placeCaret);
+      window.removeEventListener('beforeunload', askBeforeUnload);
     }
-    if (st.wordIndex >= st.words.length) { finishExercise(); return; } // end of a prose text
-    if (ty.overtime && st.wordIndex !== before && atSentenceEnd()) { finishExercise(); return; }
-    placeCaret();
-    if (st.wordIndex !== before) trimAbove();
-  }
-  // The prepared words in order, then more from the exercise: a book must not skip.
-  function nextWords(n) {
-    var out = ty.pending.splice(0, n);
-    return out.length ? out : ty.ex.more(n);
-  }
-  function resting() { return ty.burst && ty.burst.phase === 'rest'; }
-  function onBack(t) {
-    if (!ty || ty.stopped || ty.first == null || resting()) return;
-    var before = ty.session.state().wordIndex;
-    if (ty.session.input({ kind: 'back', t: t }) === false) { blocked(); return; }
-    var now = ty.session.state().wordIndex;
-    paintWord(now);
-    if (now !== before) paintWord(before);
-    placeCaret();
-  }
-  // Backspace at the start of a word after a correctly typed word does nothing;
-  // say why, briefly, and nudge the caret.
-  function blocked() {
-    hint('Nothing to fix nearby: backspace only goes back to a recent mistake.');
-    ty.hinted = true;
-    ty.caret.classList.remove('nudge');
-    void ty.caret.offsetWidth;
-    ty.caret.classList.add('nudge');
-  }
-  function onBackWord(t) {
-    if (!ty || ty.stopped || ty.first == null || resting()) return;
-    var before = ty.session.state().wordIndex;
-    if (!ty.session.current().typed.length) ty.session.input({ kind: 'back', t: t }); // step into a wrong previous word
-    var w = ty.session.current();
-    while (w.typed.length) ty.session.input({ kind: 'back', t: t });
-    var now = ty.session.state().wordIndex;
-    paintWord(now);
-    if (now !== before) paintWord(before);
-    placeCaret();
-  }
-  // Esc never loses work: before typing it leaves, then it pauses and resumes.
-  // Discarding is its own key (d).
-  function onEscape() {
-    if (!ty) return;
-    if (ty.first == null) { show('home'); return; }
-    if (ty.stopped) { resume(); return; }
-    pause();
-  }
-  function pause() {
-    ty.stopped = true;
-    ty.pausedAt = performance.now();
-    // a burst round in progress ends at the pause (its window never holds a pause)
-    if (ty.burst && ty.burst.phase === 'run') endRound(ty.pausedAt, null, true);
-    var bar = document.getElementById('stopbar');
-    bar.hidden = false;
-    bar.innerHTML = '<span>Paused.</span><button class="btn primary" type="button" id="fin">Finish and save <kbd>Enter</kbd></button>' +
-      '<button class="btn" type="button" id="res">Resume <kbd>Esc</kbd></button>' +
-      '<button class="btn danger" type="button" id="dis">Discard <kbd>Del</kbd></button>';
-    document.getElementById('fin').onclick = finishExercise;
-    document.getElementById('res').onclick = resume;
-    document.getElementById('dis').onclick = discard;
-    U.announce('Paused. Enter saves, Escape resumes, Delete discards.');
-    focusCapture();
-  }
-  function resume() {
-    if (!ty || !ty.stopped) return;
-    if (ty.burst && ty.burst.phase === 'done') { finishExercise(); return; }
-    var gap = performance.now() - ty.pausedAt;
-    ty.pauses.push([ty.pausedAt, ty.pausedAt + gap]);
-    ty.t0 += gap;
-    if (ty.burst) { if (ty.burst.startNow != null) ty.burst.startNow += gap; if (ty.burst.restEnd != null) ty.burst.restEnd += gap; }
-    ty.stopped = false;
-    document.getElementById('stopbar').hidden = true;
-    hint('');
-    focusCapture();
-  }
-  function discard() { stopTyping(); show('home'); }
-  // A key pressed while focus is elsewhere on the typing screen (after a click
-  // on a link, say): focus returns to the typing field, and the pause-bar keys
-  // still work.
-  function keyElsewhere(e) {
-    if (!ty) return;
-    focusCapture();
-    var act = { Escape: onEscape, Delete: ty.stopped ? discard : null, Enter: ty.briefing ? closeBriefing : ty.stopped ? finishExercise : null }[e.key];
-    if (act) { e.preventDefault(); act(); }
-  }
-  // Leaving while typing (nav, links, Back) pauses instead (user decision).
-  function holdForLeave() {
-    if (!ty || ty.first == null) return false;
-    if (!ty.stopped) pause();
-    focusCapture(); // the click that tried to leave took the focus
-    return true;
-  }
-  // Tab restarts at once before typing; after that it asks once.
-  function onTab() {
-    if (!ty) return;
-    if (ty.first == null || (ty.tabArmed && Date.now() - ty.tabArmed < 3000)) { startExercise(ty.type, ty.opts); return; }
-    ty.tabArmed = Date.now();
-    hint('Press <kbd>Tab</kbd> again to restart; what you typed so far is dropped.');
-  }
-  // Time spent paused between a and b (performance clock).
-  function pausedWithin(a, b) {
-    return ty.pauses.reduce(function (sum, p) { return sum + Math.max(0, Math.min(b, p[1]) - Math.max(a, p[0])); }, 0);
-  }
-  // An exercise in the same sitting as the previous one takes its conditions.
-  function sameSittingTags(startedAt) {
-    var sitting = FT.conditions.sittingTags(app.trainer.history(), startedAt);
-    return sitting.ask ? undefined : sitting.tags;
-  }
-  function finishExercise() {
-    if (!ty) return;
-    var words = ty.session.state().words.filter(function (w) { return w.committed; });
-    var info = { type: ty.type, startedAt: ty.startedAt, words: words, keys: ty.keys, opts: ty.opts,
-      durationMs: words.length ? words[words.length - 1].tEnd - ty.first - pausedWithin(ty.first, words[words.length - 1].tEnd) : 0,
-      text: ty.ex.text || null, rounds: ty.burst ? ty.burst.rounds : null };
-    var textDone = ty.exhausted && ty.session.state().wordIndex >= ty.session.state().words.length;
-    app.typingEndedAt = Date.now(); // keys still in flight must not trigger page shortcuts
-    // ended by the timer or the text (not by an explicit save): keys still in
-    // flight must not answer the effort question either
-    app.effortGuardUntil = ty.stopped ? 0 : Date.now() + 1000;
-    stopTyping();
-    document.body.classList.remove('typing-mode');
-    if ((words.length < 10 && !textDone) || (info.rounds && !info.rounds.length)) {
+    // Reloading or closing the tab mid-exercise asks first (nothing is dropped without asking).
+    function askBeforeUnload(e) { if (firstKeyAt != null) { e.preventDefault(); e.returnValue = ''; } }
+    function focusCapture() { if (live) capture.focus({ preventScroll: true }); }
+    function hint(html) { var el = document.getElementById('hint'); if (el) el.innerHTML = html; }
+
+    // ---------- words, caret and lines ----------
+    function renderWords(from) {
+      var words = session.state().words;
+      var frag = document.createDocumentFragment();
+      for (var i = from; i < words.length; i++) {
+        var el = document.createElement('span');
+        el.className = 'w';
+        els[i] = el;
+        paintWord(i, el);
+        frag.appendChild(el);
+        if (FT.session.separatorOf(words[i]) === FT.session.PARAGRAPH) frag.appendChild(document.createElement('br'));
+      }
+      inner.appendChild(frag);
+    }
+    // A word shows its typed presses compared by position (FT.align.displayWord):
+    // one joined mark for a wrong multi-letter press, extra letters at the end.
+    // data-cursor = letters typed so far.
+    function paintWord(i, el) {
+      var w = session.state().words[i];
+      el = el || els[i];
+      if (!el) return;
+      var shown = FT.align.displayWord(w.target, w.stream, U.analysisOptions());
+      var target = Array.from(w.target), html = '';
+      var letter = function (cls, ch) { return '<span class="l' + cls + '">' + esc(ch) + '</span>'; };
+      for (var p = 0; p < target.length; p++) {
+        var pos = shown.positions[p];
+        if (pos.press) {
+          var q = p;
+          while (q + 1 < target.length && shown.positions[q + 1].press && shown.positions[q + 1].group === pos.group) q++;
+          html += '<span class="press-bad">' + target.slice(p, q + 1).map(function (ch) { return letter(' bad', ch); }).join('') + '</span>';
+          p = q;
+          continue;
+        }
+        html += letter(pos.status === 'ok' ? ' ok' : pos.status === 'bad' ? ' bad' : '', target[p]);
+      }
+      shown.extras.forEach(function (ch) { html += letter(' extra', ch); });
+      if (FT.session.separatorOf(w) === FT.session.PARAGRAPH) html += letter(' sep' + paragraphEndStatus(w), '¶');
+      el.innerHTML = html;
+      el.dataset.cursor = shown.cursor;
+    }
+    function paragraphEndStatus(w) {
+      if (!w.committed) return '';
+      return w.typed.slice(-1) === FT.session.PARAGRAPH ? ' ok' : ' bad';
+    }
+    // Caret and line scrolling from on-screen rectangles, relative to the typing
+    // window (independent of offsetParent quirks and of the host page's CSS).
+    function placeCaret() {
+      if (!live) return;
+      var st = session.state(), el = els[st.wordIndex];
+      if (!el || !el.isConnected) return;
+      var typed = +el.dataset.cursor || 0, letters = el.querySelectorAll('.l');
+      var winBox = win.getBoundingClientRect(), innerBox = inner.getBoundingClientRect();
+      var r, x;
+      if (typed < letters.length) { r = letters[typed].getBoundingClientRect(); x = r.left; }
+      else if (letters.length) { r = letters[letters.length - 1].getBoundingClientRect(); x = r.right; }
+      else { r = el.getBoundingClientRect(); x = r.left; }
+      var lineH = el.getBoundingClientRect().height || r.height;
+      var yInInner = r.top - innerBox.top;                       // unaffected by the current scroll offset
+      var line = Math.round((el.getBoundingClientRect().top - innerBox.top) / lineH);
+      var lineOffset = Math.max(0, line - 1) * lineH;
+      if (lineOffset !== offset) {
+        offset = lineOffset;
+        inner.style.transform = 'translateY(' + (-offset) + 'px)';
+      }
+      caret.style.left = (x - winBox.left) + 'px';
+      caret.style.top = (yInInner - offset + (r.height - caret.offsetHeight) / 2) + 'px';
+    }
+    // Drops committed words more than one line above the view to keep the DOM small.
+    // Measures everything first: removing a word reflows the following ones.
+    function trimAbove() {
+      var st = session.state(), cur = els[st.wordIndex];
+      if (!cur) return;
+      var lh = cur.getBoundingClientRect().height, top = inner.getBoundingClientRect().top, drop = [];
+      for (var i = 0; i < st.wordIndex; i++) {
+        var el = els[i];
+        if (!el || !el.parentNode) continue;
+        if (el.getBoundingClientRect().top - top + lh <= offset - lh) drop.push(el); else break;
+      }
+      drop.forEach(function (el) {
+        if (el.nextSibling && el.nextSibling.nodeName === 'BR') el.parentNode.removeChild(el.nextSibling);
+        el.parentNode.removeChild(el);
+      });
+      if (drop.length) { offset = -1; placeCaret(); }
+    }
+
+    // ---------- clock ----------
+    function startClock(t) {
+      firstKeyAt = t; startedAt = Date.now(); clockStart = performance.now();
+      if (startKey) keys.push(startKey);
+      timer = setInterval(tick, 200);
+    }
+    function beginIfNeeded(t) {
+      if (burst && burst.phase === 'ready') {
+        burst.phase = 'run'; burst.start = t; burst.startNow = performance.now();
+        if (firstKeyAt == null) startClock(t);
+        hint('');
+        return;
+      }
+      if (firstKeyAt != null) return;
+      startClock(t);
+      hint('');
+    }
+    function tick() {
+      if (!live || paused) return;
+      if (burst) { burstTick(); return; }
+      var elapsed = performance.now() - clockStart, el = document.getElementById('timer');
+      if (free) { if (el) el.textContent = clock(Math.floor(elapsed / 1000) * 1000); return; }
+      var left = durationMs - elapsed;
+      if (el) el.textContent = clock(left);
+      if (left > 0 || overtime) return;
+      if (type !== 'prose' || atSentenceEnd()) { finish(); return; }
+      overtime = true;   // prose: time is up, but the sentence is finished first (user decision)
+      hint('Time is up: finish the sentence.');
+    }
+    // At the start of a word that follows the end of a sentence or paragraph.
+    function atSentenceEnd() {
+      var st = session.state(), prev = st.words[st.wordIndex - 1], cur = st.words[st.wordIndex];
+      if (!prev || (cur && cur.typed.length)) return false;
+      return FT.text.endsSentence(prev.target) || FT.session.separatorOf(prev) === FT.session.PARAGRAPH;
+    }
+
+    // ---------- speed bursts ----------
+    // Rounds of BURST_ROUND_MS, each started by the first keystroke after a
+    // BURST_REST_MS rest. A live pace bar compares the round's speed with the
+    // adaptive target (FT.bursts).
+    // Closes the current round at `end` (keystroke clock); returns true when
+    // that finished the exercise. keepOpen: at a pause, the last round does
+    // not end the exercise yet.
+    function endRound(end, now, keepOpen) {
+      now = now == null ? performance.now() : now;
+      burst.rounds.push({ start: burst.start, end: end });
+      var full = roundStats(burst.start, end);
+      var res = FT.bursts.step(burst.target, full, burst.ref);
+      burst.last = { stats: full, res: res };
+      burst.target = res.after;
+      if (burst.rounds.length >= burst.total) {
+        if (keepOpen) { burst.phase = 'done'; return false; }
+        finish(); return true;
+      }
+      burst.phase = 'rest'; burst.restEnd = now + burstRestMs();
+      return false;
+    }
+    function roundStats(start, end) {
+      var words = session.state().words.filter(function (w) { return w.committed && FT.bursts.finishedWithin(w, start, end); });
+      return FT.bursts.roundStats(words, FT.align.analyzeWords(words, U.analysisOptions()), start, end);
+    }
+    function burstTick() {
+      var now = performance.now(), timerEl = document.getElementById('timer');
+      if (burst.phase === 'run') {
+        var elapsed = now - burst.startNow, end = burst.start + burstRoundMs();
+        var st = roundStats(burst.start, burst.start + Math.min(elapsed, burstRoundMs()));
+        paintPace(st.wpm, burst.target);
+        timerEl.textContent = 'Round ' + (burst.rounds.length + 1) + ' of ' + burst.total + ' · ' + clock(burstRoundMs() - elapsed);
+        if (elapsed >= burstRoundMs()) endRound(end, now);
+      } else if (burst.phase === 'rest') {
+        var left = burst.restEnd - now, last = burst.last;
+        timerEl.textContent = 'Rest · ' + clock(left);
+        hint('Round ' + burst.rounds.length + ': ' + fix(last.stats.wpm) + ' WPM, ' + pct(last.stats.accuracy, 0) + ' accuracy (' +
+          (last.res.result === 'met' ? 'target met' : esc(last.res.reason)) + '). Target now ' + Math.round(burst.target) +
+          ' WPM. Relax your hands; next round in ' + Math.ceil(left / 1000) + ' s.');
+        paintPace(null, burst.target);
+        if (left <= 0) {
+          burst.phase = 'ready';
+          hint('Round ' + (burst.rounds.length + 1) + ' of ' + burst.total + ': start typing when ready.');
+          timerEl.textContent = 'Round ' + (burst.rounds.length + 1) + ' of ' + burst.total;
+        }
+      }
+    }
+    function paintPace(wpm, target) {
+      var max = target * 1.5, fill = document.getElementById('pacefill'), mark = document.getElementById('pacetarget');
+      if (!fill) return;
+      fill.style.width = Math.min(100, ((wpm || 0) / max) * 100) + '%';
+      fill.classList.toggle('over', wpm != null && wpm >= target);
+      mark.style.left = (100 / 1.5) + '%';
+      document.getElementById('pacelabel').textContent = (wpm != null ? fix(wpm) + ' WPM · ' : '') + 'target ' + Math.round(target) + ' WPM';
+    }
+    function resting() { return burst && burst.phase === 'rest'; }
+
+    // ---------- input ----------
+    function correctSoFar() {
+      var w = session.current();
+      return U.equivalence().isPrefix(w.typed, FT.session.targetOf(w));
+    }
+    function closeBriefing() {
+      briefing = false;
+      var el = document.getElementById('briefing');
+      if (el) el.remove();
+      capture.removeAttribute('aria-describedby');
+      hint(START_HINT);
+      focusCapture();
+    }
+    function onText(data, t) {
+      if (!live) return;
+      if (briefing) return; // read the card first: Enter starts
+      if (paused) { hint('Paused: <kbd>Esc</kbd> resumes, <kbd>Enter</kbd> saves, <kbd>Del</kbd> discards.'); return; } // typing never discards
+      if (resting()) return;
+      if (app.settings.errorMode === 'stop' && !correctSoFar()) return;
+      beginIfNeeded(t);
+      if (hinted) { hint(''); hinted = false; }
+      var before = session.state().wordIndex;
+      session.input({ kind: 'text', data: data, t: t });
+      var st = session.state();
+      // the last word of a text needs no space: complete it once typed correctly
+      var cur = st.words[st.wordIndex];
+      if (exhausted && st.wordIndex === st.words.length - 1 && U.equivalence().sameStr(cur.typed, cur.target)) {
+        session.input({ kind: 'text', data: ' ', t: t, auto: true });
+        st = session.state();
+      }
+      for (var i = before; i <= Math.min(st.wordIndex, st.words.length - 1); i++) paintWord(i);
+      if (st.words.length - st.wordIndex < 60 && !exhausted) {
+        var more = nextWords(WORDS_ADDED);
+        if (!more.length) exhausted = true;
+        var from = st.words.length;
+        session.append(more);
+        renderWords(from);
+      }
+      if (st.wordIndex >= st.words.length) { finish(); return; } // end of a prose text
+      if (overtime && st.wordIndex !== before && atSentenceEnd()) { finish(); return; }
+      placeCaret();
+      if (st.wordIndex !== before) trimAbove();
+    }
+    // The prepared words in order, then more from the exercise: a book must not skip.
+    function nextWords(n) {
+      var out = pending.splice(0, n);
+      return out.length ? out : ex.more(n);
+    }
+    function onBack(t) {
+      if (!live || paused || firstKeyAt == null || resting()) return;
+      var before = session.state().wordIndex;
+      if (session.input({ kind: 'back', t: t }) === false) { blocked(); return; }
+      repaintAround(before);
+    }
+    function onBackWord(t) {
+      if (!live || paused || firstKeyAt == null || resting()) return;
+      var before = session.state().wordIndex;
+      if (!session.current().typed.length) session.input({ kind: 'back', t: t }); // step into a wrong previous word
+      var w = session.current();
+      while (w.typed.length) session.input({ kind: 'back', t: t });
+      repaintAround(before);
+    }
+    function repaintAround(before) {
+      var now = session.state().wordIndex;
+      paintWord(now);
+      if (now !== before) paintWord(before);
+      placeCaret();
+    }
+    // Backspace at the start of a word after a correctly typed word does nothing;
+    // say why, briefly, and nudge the caret.
+    function blocked() {
+      hint('Nothing to fix nearby: backspace only goes back to a recent mistake.');
+      hinted = true;
+      caret.classList.remove('nudge');
+      void caret.offsetWidth;
+      caret.classList.add('nudge');
+    }
+
+    // ---------- pause, leave, restart ----------
+    // Esc never loses work: before typing it leaves, then it pauses and resumes.
+    // Discarding is its own key (Delete).
+    function onEscape() {
+      if (!live) return;
+      if (firstKeyAt == null) { U.show('home'); return; }
+      if (paused) { resume(); return; }
+      pause();
+    }
+    function pause() {
+      paused = true;
+      pausedAt = performance.now();
+      // a burst round in progress ends at the pause (its window never holds a pause)
+      if (burst && burst.phase === 'run') endRound(pausedAt, null, true);
+      var bar = document.getElementById('stopbar');
+      bar.hidden = false;
+      bar.innerHTML = '<span>Paused.</span><button class="btn primary" type="button" id="fin">Finish and save <kbd>Enter</kbd></button>' +
+        '<button class="btn" type="button" id="res">Resume <kbd>Esc</kbd></button>' +
+        '<button class="btn danger" type="button" id="dis">Discard <kbd>Del</kbd></button>';
+      document.getElementById('fin').onclick = finish;
+      document.getElementById('res').onclick = resume;
+      document.getElementById('dis').onclick = discard;
+      U.announce('Paused. Enter saves, Escape resumes, Delete discards.');
+      focusCapture();
+    }
+    function resume() {
+      if (!live || !paused) return;
+      if (burst && burst.phase === 'done') { finish(); return; }
+      var gap = performance.now() - pausedAt;
+      pauses.push([pausedAt, pausedAt + gap]);
+      clockStart += gap;
+      if (burst) { if (burst.startNow != null) burst.startNow += gap; if (burst.restEnd != null) burst.restEnd += gap; }
+      paused = false;
+      document.getElementById('stopbar').hidden = true;
+      hint('');
+      focusCapture();
+    }
+    function discard() { stop(); U.show('home'); }
+    // A key pressed while focus is elsewhere on the typing screen (after a click
+    // on a link, say): focus returns to the typing field, and the pause-bar keys
+    // still work.
+    function keyElsewhere(e) {
+      if (!live) return;
+      focusCapture();
+      var act = { Escape: onEscape, Delete: paused ? discard : null, Enter: briefing ? closeBriefing : paused ? finish : null }[e.key];
+      if (act) { e.preventDefault(); act(); }
+    }
+    // Leaving while typing (nav, links, Back) pauses instead (user decision).
+    function holdForLeave() {
+      if (!live || firstKeyAt == null) return false;
+      if (!paused) pause();
+      focusCapture(); // the click that tried to leave took the focus
+      return true;
+    }
+    // Tab restarts at once before typing; after that it asks once.
+    function onTab() {
+      if (!live) return;
+      if (firstKeyAt == null || (tabArmedAt && Date.now() - tabArmedAt < 3000)) { startExercise(type, opts); return; }
+      tabArmedAt = Date.now();
+      hint('Press <kbd>Tab</kbd> again to restart; what you typed so far is dropped.');
+    }
+
+    function finish() {
+      if (!live) return;
+      var st = session.state();
+      var typed = { type: type, startedAt: startedAt, words: st.words.filter(function (w) { return w.committed; }), keys: keys,
+        firstKeyAt: firstKeyAt, pauses: pauses, opts: opts, text: ex.text || null, rounds: burst ? burst.rounds : null,
+        textFinished: exhausted && st.wordIndex >= st.words.length };
+      app.typingEndedAt = Date.now(); // keys still in flight must not trigger page shortcuts
+      // ended by the timer or the text (not by an explicit save): keys still in
+      // flight must not answer the effort question either
+      app.effortGuardUntil = paused ? 0 : Date.now() + 1000;
+      stop();
+      var info = U.recordExercise(typed);
+      if (!info) { tooShort(); return; }
+      if (info.opts.bench) U.viewBenchStep(U.saveExercise(info));
+      else U.viewEffort(info);
+    }
+    function tooShort() {
       app.notice = 'That exercise was too short to analyse (fewer than 10 words), so nothing was saved.';
-      if (info.opts.programme && app.run) { viewBetween(); renderNotice(); app.notice = null; return; }
-      go('home');
+      if (opts.programme && app.run) { U.viewBetween(); U.renderNotice(); }
+      else U.go('home');
       app.notice = null;
-      return;
     }
-    info.raw = app.trainer.record({ type: info.type, startedAt: info.startedAt, durationMs: info.durationMs,
-      words: info.words, keys: info.keys, text: info.text, rounds: info.rounds, run: info.opts.run, tags: sameSittingTags(info.startedAt),
-      set: info.opts.bench ? app.bench.set : null, planMs: info.opts.bench ? info.opts.minutes * 60000 : null });
-    if (info.opts.bench) complete(info); else viewEffort(info);
+
+    return { render: render, stop: stop, keyElsewhere: keyElsewhere, holdForLeave: holdForLeave };
   }
 
-  Object.assign(U, { keyElsewhere: keyElsewhere, holdForLeave: holdForLeave, stopTyping: stopTyping, startExercise: startExercise, focusCapture: focusCapture, hint: hint, clock: clock, renderWords: renderWords, paintWord: paintWord, placeCaret: placeCaret, trimAbove: trimAbove, beginIfNeeded: beginIfNeeded, tick: tick, burstTick: burstTick, paintPace: paintPace, correctSoFar: correctSoFar, onText: onText, onBack: onBack, blocked: blocked, onBackWord: onBackWord, onEscape: onEscape, finishExercise: finishExercise });
+  U.startExercise = startExercise;
 })(globalThis.FT);
