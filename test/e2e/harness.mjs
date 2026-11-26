@@ -33,11 +33,14 @@ export const ready = (page) => page.waitForFunction(() => window.FT && window.FT
 
 // A new page in its own browser context, so its storage starts empty.
 // cards: whether instruction cards come before exercises (off, so steps type at once).
+// The web fonts are answered empty, so no step waits on the network.
+const WEB_FONTS = /^https:\/\/fonts\.(googleapis|gstatic)\.com\//;
 export async function freshPage({ viewport = DESKTOP, colorScheme = 'light', cards = false } = {}) {
   const context = await browser.newContext({ viewport, colorScheme });
+  await context.route(WEB_FONTS, (route) => route.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   const page = await context.newPage();
   page.on('pageerror', (e) => errors.push(e.message));
-  page.on('console', (m) => { if (m.type() === 'error' && !/fonts\.g/.test(m.text())) errors.push(m.text()); });
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(url);
   await ready(page);
   await showCards(page, cards);
