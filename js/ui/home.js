@@ -13,9 +13,9 @@
     if (choice === 'read' && reading) return reading;
     if (run) {
       var done = run.results().length, total = done + run.upcoming().length;
-      return { label: 'Resume: ' + exerciseName(run.current().type).toLowerCase() + ' (' + (done + 1) + ' of ' + total + ')', act: function () { U.startProgramme(run); } };
+      return { label: 'Resume: ' + exerciseName(run.current().type).toLowerCase() + ' (' + (done + 1) + ' of ' + total + ')', act: function () { return U.startProgramme(run); } };
     }
-    return { label: 'Start daily training · ' + FT.programme.totalMinutes(def) + ' min', act: function () { U.startProgramme(null); } };
+    return { label: 'Start daily training · ' + FT.programme.totalMinutes(def) + ' min', act: function () { return U.startProgramme(null); } };
   }
   // Drawn at once from the last known way into the book, redrawn if it changed.
   function viewHome() {
@@ -36,7 +36,7 @@
     var steps = def.steps.filter(function (x) { return x.enabled; });
     var main = primaryAction(steps, run, def, reading);
     var readingFirst = main === reading;
-    var trainAgain = function () { U.startProgramme(null); };
+    var trainAgain = function () { return U.startProgramme(null); };
     var practiseFirst = first && function () { U.startExercise('targeted', { pinned: [first.key], minutes: 3 }); };
     var html = '<section class="home-start">' +
       '<h1>Daily training</h1>' +

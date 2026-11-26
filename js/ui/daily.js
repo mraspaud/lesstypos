@@ -12,22 +12,21 @@
   function startProgramme(run) {
     app.run = run || FT.programme.runner(U.programmeDef(), { day: U.today() });
     U.saveRun();
-    runStep();
+    return runStep();
   }
   function runStep() {
     var c = app.run && app.run.current();
     if (!c) { viewProgrammeSummary(); return; }
     if (c.type === 'prose') {
-      U.currentText().then(U.onThisScreen(function (text) {
+      return U.currentText().then(U.onThisScreen(function (text) {
         if (text && text.pos < text.words.length) U.startExercise('prose', { minutes: c.minutes, programme: true, text: text, run: app.run.id() });
         else viewNeedText();
       }));
-      return;
     }
     U.startExercise(c.type, { minutes: c.minutes, programme: true, run: app.run.id() });
   }
   function skip() { app.run.skip(); U.saveRun(); viewBetween(); }
-  function repeat() { app.run.repeat(); U.saveRun(); runStep(); }
+  function repeat() { app.run.repeat(); U.saveRun(); return runStep(); }
   function endEarly() { app.run.finishEarly(); U.saveRun(); viewProgrammeSummary(); }
 
   // ---------- between exercises ----------
@@ -66,7 +65,7 @@
   function viewNeedText() {
     U.screen('needtext', { keys: HOME_KEYS, render: function () {
       U.bundledOffer().then(U.onThisScreen(function (offer) {
-        var useBundled = function () { U.addBundled().then(U.onThisScreen(runStep)).catch(U.storageError); };
+        var useBundled = function () { return U.addBundled().then(U.onThisScreen(runStep)).catch(U.storageError); };
         U.paint('<section class="stack"><h1>Prose needs a text</h1>' +
           (offer ? '<div class="row">' + U.keyButton({ label: 'Type ' + esc(U.bundledLabel(offer)), id: 'usebundled', kind: 'primary', onClick: useBundled }) + '</div>' +
             '<p class="muted">It comes with the app. Or add a text you would enjoy reading:</p>'

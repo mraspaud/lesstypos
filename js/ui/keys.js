@@ -109,7 +109,7 @@
     var s = screen.shortcuts[e.key];
     if (s && !(e.key === 'Enter' && /^(BUTTON|A|SUMMARY)$/.test(tag))) { // a focused control handles its own Enter
       if (e.key.length === 1 && typedJustNow()) return;
-      e.preventDefault(); s.act(); return;
+      e.preventDefault(); U.perform(s.act); return;
     }
     if (typedJustNow()) return;
     if ((e.key === '[' || e.key === ']') && U.stepSection(e.key === ']' ? 1 : -1)) { e.preventDefault(); return; }

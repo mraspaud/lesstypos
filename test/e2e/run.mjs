@@ -1295,5 +1295,42 @@ await step('phone width has no horizontal scroll', async () => {
   }
 });
 
+// What two presses of key on home, in one go, start.
+async function startedByTwoPresses(key, { withBook }) {
+  const fresh = await browser.newContext({ viewport: { width: 1100, height: 800 } });
+  const p = await fresh.newPage();
+  p.on('pageerror', (e) => errors.push(e.message));
+  try {
+    await p.goto(url);
+    await p.waitForFunction(() => window.FT && window.FT.app && window.FT.app.trainer);
+    await p.evaluate(async (book) => {
+      const U = window.FT.ui, app = window.FT.app;
+      app.settings.showInstructions = false;
+      app.settings.programme = { name: 'test', steps: [{ type: 'prose', minutes: 1, enabled: true }] };   // starts once the text is read
+      if (book) await U.addBundled();
+      window.started = { programmes: 0, exercises: 0 };
+      const startProgramme = U.startProgramme, startExercise = U.startExercise;
+      U.startProgramme = (...a) => { window.started.programmes++; return startProgramme(...a); };
+      U.startExercise = (...a) => { window.started.exercises++; return startExercise(...a); };
+      U.go('home');
+    }, withBook);
+    await p.getByRole('button', { name: /Start daily training/ }).waitFor();
+    await p.evaluate((k) => {
+      for (let i = 0; i < 2; i++) document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true, cancelable: true }));
+    }, key);
+    await p.locator('.w').first().waitFor();
+    await p.evaluate(() => window.FT.app.store.listTexts().then(() => new Promise((r) => setTimeout(r, 100))));   // the second press's work, if any, has settled
+    return await p.evaluate(() => window.started);
+  } finally { await fresh.close(); }
+}
+
+await step('two fast Enters on home start the daily training once', async () => {
+  assert.deepEqual(await startedByTwoPresses('Enter', { withBook: true }), { programmes: 1, exercises: 1 });
+});
+
+await step('two fast presses of c on home start reading the bundled book once', async () => {
+  assert.deepEqual(await startedByTwoPresses('c', { withBook: false }), { programmes: 0, exercises: 1 });
+});
+
 await step('no script errors', async () => { assert.deepEqual(errors, []); });
 await browser.close();
