@@ -157,8 +157,9 @@ test('ordinary errors are unchanged by press grouping', () => {
   assert.equal(total(AP('to ', '[th]<<to ')), 1);
 });
 
-// Functionality: the word on screen shows the best alignment of what was typed
-// with the target, with one mark per wrong press.
+// Functionality: the word on screen compares by position, press by press
+// (user decision), so a red letter stays where the mistake was made; one mark
+// per wrong press, and extra letters at the end.
 const DW = (p, typed, done = true, macros = ['th']) => {
   const st = pressStream(typed);
   const text = st.filter((e, i) => FT.align.flagStream(st)[i]).map((e) => e.ch).join('');
@@ -179,10 +180,17 @@ test('display: a single key for the th press marks t and h as one group', () => 
   assert.notEqual(d.positions[0].group, null);
 });
 
-test('display: an ordinary extra letter shows as one extra, the rest matches', () => {
+test('display: letters are compared by position, extra ones shown at the end', () => {
   const d = DW('cat', 'caat', true, []);
-  assert.equal(statuses(d), 'ok ok ok');
-  assert.deepEqual(d.extras.map((x) => [x.before, x.ch]), [[2, 'a']]);
+  assert.equal(statuses(d), 'ok ok bad');
+  assert.deepEqual(d.extras.map((x) => [x.before, x.ch]), [[3, 't']]);
+});
+
+test('display: a red letter stays where the mistake was made as the word goes on', () => {
+  const red = (typed) => statuses(DW('number', typed, false, [])).split(' ').map((x, i) => (x === 'bad' ? i : -1)).filter((i) => i >= 0);
+  assert.deepEqual(red('u'), [0]);
+  assert.deepEqual(red('un'), [0, 1]);
+  assert.deepEqual(red('unm'), [0, 1]);
 });
 
 test('display: a partly typed word leaves the rest untyped and puts the cursor after the typing', () => {

@@ -340,77 +340,43 @@
     };
   }
 
-  // What the word on screen shows: the best alignment of the typed text with
-  // the target (not a letter-by-letter comparison by position).
-  //   positions[i]: { status: ok | bad | untyped, group } (group: one wrong
-  //                 press, typed or target side, for one joined mark);
-  //   extras:       typed letters with no target letter ({ before, ch }),
-  //                 except letters that came out of a press already wrong;
-  //   cursor:       number of rendered letters (positions and extras) typed.
-  // While a word is in progress (complete false), the untyped rest is free.
-  function displayWord(P, typed, stream, macros, complete) {
-    var Parr = Array.from(P), T = Array.from(typed.replace(/ $/, '')), n = Parr.length, m = T.length;
-    var flags = flagStream(stream), flaggedIdx = [];
-    for (var f = 0; f < stream.length; f++) if (flags[f] && stream[f].ch !== ' ') flaggedIdx.push(f);
-    var typedPress = FT.text.pressIds(stream, macros), targetPress = FT.text.targetPresses(P, macros);
-    var D = msdMatrix(Parr, T);
-    var pressOf = function (j) { return typedPress[flaggedIdx[j]]; };
-    var typedSize = {}, targetSize = {};
-    flaggedIdx.forEach(function (idx) { var p = typedPress[idx]; if (p != null) typedSize[p] = (typedSize[p] || 0) + 1; });
-    targetPress.forEach(function (p) { targetSize[p] = (targetSize[p] || 0) + 1; });
-    // A finished word aligns to its end. A word in progress may end anywhere;
-    // among equally good ends, show the fewest extra letters, then the fewest
-    // red ones ("x" for "cat": c is red, not an extra x in front).
-    if (complete) return layout(n);
-    var best = null;
-    for (var e = 0; e <= n; e++) {
-      if (D[e][m] !== Math.min.apply(null, D.map(function (row) { return row[m]; }))) continue;
-      var r = layout(e), bad = r.positions.filter(function (x) { return x.status === 'bad'; }).length;
-      if (!best || r.extras.length < best.extras.length || (r.extras.length === best.extras.length && bad < best.bad)) { best = r; best.bad = bad; }
-    }
-    delete best.bad;
-    return best;
-
-    function layout(end) {
-      // One optimal path, walked from the end. On ties an extra letter is placed
-      // as late as possible ("caat" for "cat": the second a is the extra), then
-      // matches/substitutions, then omissions.
-      var ops = [];
-      for (var a = end, b = m; a > 0 || b > 0;) {
-        if (b > 0 && D[a][b - 1] + 1 === D[a][b]) { ops.push({ p: null, t: b - 1, before: a }); b--; }
-        else if (a > 0 && b > 0 && D[a - 1][b - 1] + (eq(Parr[a - 1], T[b - 1]) ? 0 : 1) === D[a][b]) { ops.push({ p: a - 1, t: b - 1 }); a--; b--; }
-        else { ops.push({ p: a - 1, t: null }); a--; }
-      }
-      ops.reverse();
-      var wrongPress = {};
-      ops.forEach(function (o) { if (o.p != null && o.t != null && !eq(Parr[o.p], T[o.t])) wrongPress[pressOf(o.t)] = true; });
-      var positions = Parr.map(function (_, k) { return { status: k < end ? 'ok' : 'untyped', group: null }; });
-      var extras = [], parent = Parr.map(function (_, k) { return k; });
-      var find = function (k) { while (parent[k] !== k) k = parent[k] = parent[parent[k]]; return k; };
-      var byT = {}, byTyped = {};
-      var link = function (map, key, k) { if (key == null) return; if (map[key] == null) map[key] = k; else parent[find(k)] = find(map[key]); };
-      ops.forEach(function (o) {
-        if (o.p == null) {
-          if (!wrongPress[pressOf(o.t)]) extras.push({ before: o.before, ch: T[o.t] });
-          return;
-        }
-        if (o.t != null && eq(Parr[o.p], T[o.t])) return;
-        positions[o.p].status = 'bad';
-        link(byT, targetPress[o.p], o.p);
-        if (o.t != null) link(byTyped, pressOf(o.t), o.p);
-      });
-      // a group is a press mark when a multi-letter press is involved on either side
-      var multi = {};
-      ops.forEach(function (o) {
-        if (o.p == null || positions[o.p].status !== 'bad') return;
-        if (targetSize[targetPress[o.p]] > 1 || (o.t != null && typedSize[pressOf(o.t)] > 1)) multi[find(o.p)] = true;
-      });
-      positions.forEach(function (x, k) {
-        if (x.status !== 'bad') { x.press = false; return; }
-        x.group = find(k); x.press = !!multi[x.group];
-      });
-      return { positions: positions, extras: extras, cursor: end + extras.length };
-    }
+  // What the word on screen shows: the typed presses compared with the target
+  // presses by position (user decision: a red letter stays where the mistake
+  // was made), so a multi-letter press counts as one on either side.
+  //   positions[i]: { status: ok | bad | untyped, group, press } (group: the
+  //                 first letter of the wrong target press, for one joined
+  //                 mark; press: a multi-letter press is involved);
+  //   extras:       letters of presses beyond the word ({ before: length, ch });
+  //   cursor:       number of rendered letters typed.
+  function displayWord(P, typed, stream) {
+    var macros = arguments[3];
+    var target = Array.from(P);
+    var flags = flagStream(stream);
+    var typedPresses = groupBy(stream.filter(function (e, i) { return flags[i] && e.ch !== ' '; }), FT.text.pressIds(
+      stream.filter(function (e, i) { return flags[i] && e.ch !== ' '; }), macros));
+    var targetIds = FT.text.targetPresses(P, macros);
+    var targetPresses = groupBy(target.map(function (ch) { return { ch: ch }; }), targetIds);
+    var positions = target.map(function () { return { status: 'untyped', group: null, press: false }; });
+    var extras = [], at = 0, cursor = 0;
+    typedPresses.forEach(function (tp, k) {
+      var want = targetPresses[k];
+      if (!want) { tp.forEach(function (e) { extras.push({ before: target.length, ch: e.ch }); }); return; }
+      var ok = tp.length === want.length && tp.every(function (e, j) { return eq(e.ch, want[j].ch); });
+      var multi = tp.length > 1 || want.length > 1;
+      want.forEach(function (_, j) { positions[at + j] = ok ? { status: 'ok', group: null, press: false } : { status: 'bad', group: at, press: multi }; });
+      at += want.length;
+    });
+    cursor = at + extras.length;
+    return { positions: positions, extras: extras, cursor: cursor };
+  }
+  // Consecutive items with the same id, in order.
+  function groupBy(items, ids) {
+    var out = [];
+    items.forEach(function (x, i) {
+      if (i > 0 && ids[i] === ids[i - 1] && ids[i] != null) out[out.length - 1].push(x);
+      else out.push([x]);
+    });
+    return out;
   }
 
   FT.align = { displayWord: displayWord, analyzeWord: analyzeWord, flagStream: flagStream };
