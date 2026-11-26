@@ -2,3 +2,4 @@ node_modules/
 .venv/
 *.pyc
 dist/
+test/fixtures/golden-profile.actual.json
