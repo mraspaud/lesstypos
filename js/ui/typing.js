@@ -9,8 +9,8 @@
   var WORDS_SHOWN = 120, WORDS_ADDED = 100;   // the DOM holds a window of the exercise's words
   var START_HINT = 'Start typing when ready. <kbd>Esc</kbd> pauses, <kbd>Tab</kbd> restarts.';
 
-  function burstRoundMs() { return app.burstRun || FT.exercises.BURST_ROUND_MS; }   // overridable for tests
-  function burstRestMs() { return app.burstRest || FT.exercises.BURST_REST_MS; }
+  function burstRoundMs() { return U.testing.burstRoundMs || FT.exercises.BURST_ROUND_MS; }
+  function burstRestMs() { return U.testing.burstRestMs || FT.exercises.BURST_REST_MS; }
   function clock(ms) {
     var s = Math.max(0, Math.ceil(ms / 1000));
     return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');

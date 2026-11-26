@@ -12,6 +12,8 @@
   ];
 
   var app = { store: null, settings: null, trainer: null, storageOk: true, notice: null, layout: null, current: 'home' };
+  // Shorter rounds and trials for the end-to-end tests; 0 keeps the real length.
+  var testing = { burstRoundMs: 0, burstRestMs: 0, benchmarkMinutes: 0 };
 
   function macros() {
     var m = (app.settings.macros || []).slice();
@@ -68,7 +70,7 @@
     });
   }
 
-  FT.ui = { app: app, EFFORT: EFFORT, macros: macros, equivalence: equivalence, analysisOptions: analysisOptions, applySettings: applySettings,
+  FT.ui = { app: app, EFFORT: EFFORT, testing: testing, macros: macros, equivalence: equivalence, analysisOptions: analysisOptions, applySettings: applySettings,
     programmeDef: programmeDef, today: today, saveSettings: saveSettings, saveRun: saveRun, saveProfile: saveProfile, storageError: storageError,
     makeTrainer: makeTrainer, reloadFromStore: reloadFromStore };
 })(globalThis.FT);

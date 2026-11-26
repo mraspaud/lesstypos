@@ -245,7 +245,7 @@ await step('a text can be added for prose', async () => {
 await step('the daily programme runs every exercise with effort ratings and ends with a summary', async () => {
   await page.evaluate(() => {
     const app = window.FT.app;
-    app.burstRun = 2500; app.burstRest = 1200;
+    Object.assign(window.FT.ui.testing, { burstRoundMs: 2500, burstRestMs: 1200 });
     app.settings.programme = { name: 'Daily training', steps: ['warmup', 'relaxed', 'bursts', 'prose', 'targeted'].map((type) => ({ type, minutes: 0.1, enabled: true })) };
   });
   await page.locator('[data-go="home"]').click();
@@ -326,7 +326,7 @@ await step('ending training with the mouse leaves no stale programme keys', asyn
 });
 
 await step('backspace is ignored during the rest between burst rounds', async () => {
-  await page.evaluate(() => { const a = window.FT.app; a.burstRun = 1500; a.burstRest = 4000; window.FT.ui.startExercise('bursts', { minutes: 0.2 }); });
+  await page.evaluate(() => { Object.assign(window.FT.ui.testing, { burstRoundMs: 1500, burstRestMs: 4000 }); window.FT.ui.startExercise('bursts', { minutes: 0.2 }); });
   await page.locator('.w').first().waitFor();
   const t0 = Date.now();
   while (!/Rest/.test(await page.locator('#timer').textContent()) && Date.now() - t0 < 10000) {
@@ -338,7 +338,7 @@ await step('backspace is ignored during the rest between burst rounds', async ()
   for (let i = 0; i < 3; i++) await page.keyboard.press('Backspace');
   assert.equal(await done(), before);
   await page.keyboard.press('Escape'); await page.keyboard.press('Delete');
-  await page.evaluate(() => { const a = window.FT.app; a.burstRun = 0; a.burstRest = 0; });
+  await page.evaluate(() => { Object.assign(window.FT.ui.testing, { burstRoundMs: 0, burstRestMs: 0 }); });
 });
 
 await step('the last words of a text can be finished, and the place moves to the end', async () => {
@@ -359,7 +359,7 @@ await step('the last words of a text can be finished, and the place moves to the
 
 await step('keys typed just after an exercise times out do not jump to other pages', async () => {
   await page.locator('[data-go="home"]').click();
-  await page.evaluate(() => { window.FT.app.benchMinutes = 0.05; });
+  await page.evaluate(() => { window.FT.ui.testing.benchmarkMinutes = 0.05; });
   await page.getByRole('button', { name: /Benchmark/ }).click();
   await page.locator('.w').first().waitFor();
   const t0 = Date.now();
@@ -371,7 +371,7 @@ await step('keys typed just after an exercise times out do not jump to other pag
 
 await step('a benchmark set runs three trials and shows the median', async () => {
   await page.locator('[data-go="home"]').click();
-  await page.evaluate(() => { window.FT.app.benchMinutes = 0.08; });
+  await page.evaluate(() => { window.FT.ui.testing.benchmarkMinutes = 0.08; });
   await page.getByRole('button', { name: /Benchmark/ }).click();
   for (let trial = 1; trial <= 3; trial++) {
     await page.locator('.w').first().waitFor();
@@ -741,14 +741,14 @@ await step('? lists what the keys do on this screen, not shortcuts it overrides'
 });
 
 await step('pausing in a burst round closes that round at the pause', async () => {
-  await page.evaluate(() => { const a = window.FT.app; a.burstRun = 4000; a.burstRest = 3000; window.FT.ui.startExercise('bursts', { minutes: 0.3 }); });
+  await page.evaluate(() => { Object.assign(window.FT.ui.testing, { burstRoundMs: 4000, burstRestMs: 3000 }); window.FT.ui.startExercise('bursts', { minutes: 0.3 }); });
   await page.locator('.w').first().waitFor();
   await typeWords(3);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');                        // resume: the rest after round 1
   await page.getByText(/Round 1: /).waitFor({ timeout: 3000 });
   await page.keyboard.press('Escape'); await page.keyboard.press('Delete');
-  await page.evaluate(() => { const a = window.FT.app; a.burstRun = 0; a.burstRest = 0; });
+  await page.evaluate(() => { Object.assign(window.FT.ui.testing, { burstRoundMs: 0, burstRestMs: 0 }); });
 });
 
 await step('wording: one name for accuracy, places named as they appear', async () => {
@@ -894,7 +894,7 @@ await step('reloading mid-exercise asks first', async () => {
 });
 
 await step('pausing in the last burst round keeps the exercise until you choose', async () => {
-  await page.evaluate(() => { const a = window.FT.app; a.burstRun = 60000; a.burstRest = 1000; window.FT.ui.startExercise('bursts', { minutes: 1.5 }); });
+  await page.evaluate(() => { Object.assign(window.FT.ui.testing, { burstRoundMs: 60000, burstRestMs: 1000 }); window.FT.ui.startExercise('bursts', { minutes: 1.5 }); });
   await page.locator('.w').first().waitFor();
   await typeWords(12);
   await page.keyboard.press('Escape');
@@ -902,7 +902,7 @@ await step('pausing in the last burst round keeps the exercise until you choose'
   assert.ok(await page.locator('#window').isVisible());
   await page.keyboard.press('Enter');                         // save
   await page.getByText(/How much effort|finished/).first().waitFor();
-  await page.evaluate(() => { const a = window.FT.app; a.burstRun = 0; a.burstRest = 0; });
+  await page.evaluate(() => { Object.assign(window.FT.ui.testing, { burstRoundMs: 0, burstRestMs: 0 }); });
   if (await page.getByText('How much effort did that take?').isVisible()) { await effortReady(); await page.keyboard.press('0'); }
 });
 
