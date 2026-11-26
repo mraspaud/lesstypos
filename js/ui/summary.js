@@ -10,6 +10,13 @@
   // The conditions of a sitting, typed as free tags and offered from the last ones.
   function tagText(tags) { return tags.map(function (t) { return '#' + t; }).join(' '); }
   function focusTags() { document.getElementById('tags').focus(); }
+  // A chip adds its tag to the box, or takes it out.
+  function toggleTag(chip) {
+    var box = document.getElementById('tags'), tags = FT.conditions.parseTags(box.value), t = chip.dataset.tag, i = tags.indexOf(t);
+    if (i >= 0) tags.splice(i, 1); else tags.push(t);
+    box.value = tagText(tags);
+    box.focus();
+  }
   function tagBox(tags) {
     var past = [], seen = {};
     app.trainer.history().slice().reverse().forEach(function (h) { (h.tags || []).forEach(function (t) { if (!seen[t]) { seen[t] = true; past.push(t); } }); });
@@ -17,31 +24,21 @@
       ' <span class="muted">(where, keyboard, hands, how you feel)</span></label>' +
       '<div class="row"><input type="text" id="tags" autocomplete="off" spellcheck="false" value="' + esc(tagText(tags)) + '" placeholder="#home #wrist-rest #tired">' +
       '<button class="btn" type="submit">Save tags <kbd>Enter</kbd></button></div>' +
-      (past.length ? '<div class="row chips">' + past.slice(0, 12).map(function (t) { return '<button type="button" class="chip" data-tag="' + esc(t) + '">#' + esc(t) + '</button>'; }).join('') + '</div>' : '') +
+      (past.length ? '<div class="row chips">' + past.slice(0, 12).map(function (t) { return '<button type="button" class="chip" data-tag="' + esc(t) + '"' + U.action(toggleTag) + '>#' + esc(t) + '</button>'; }).join('') + '</div>' : '') +
       '<p class="muted" id="tagmsg" role="status"></p></form>';
   }
   // ids: the exercises the tags belong to; next: where the focus goes once saved.
   function bindTagBox(ids, next, focus) {
     var form = document.getElementById('tagform'), box = document.getElementById('tags');
     if (!form) return;
-    form.querySelectorAll('[data-tag]').forEach(function (chip) {
-      chip.onclick = function () {
-        var tags = FT.conditions.parseTags(box.value), t = chip.dataset.tag, i = tags.indexOf(t);
-        if (i >= 0) tags.splice(i, 1); else tags.push(t);
-        box.value = tagText(tags);
-        box.focus();
-      };
-    });
-    form.addEventListener('submit', function (e) {
-      e.preventDefault();
+    U.onSubmit(form, function () {
       var tags = FT.conditions.parseTags(box.value);
       box.value = tagText(tags);
       app.trainer.tag(ids, tags);
-      var msg = document.getElementById('tagmsg');
-      Promise.all([app.store.tagSessions(ids, tags), U.saveProfile()]).then(function () {   // "saved" once it is
-        msg.textContent = tags.length ? 'Saved: ' + tagText(tags) + '.' : 'Saved without tags.';
-      }).catch(U.storageError);
       if (next) next.focus();
+      return Promise.all([app.store.tagSessions(ids, tags), U.saveProfile()]).then(U.onThisScreen(function () {   // "saved" once it is
+        document.getElementById('tagmsg').textContent = tags.length ? 'Saved: ' + tagText(tags) + '.' : 'Saved without tags.';
+      })).catch(U.storageError);
     });
     if (focus) box.focus();
   }
@@ -74,13 +71,10 @@
         U.paint('<section class="effort"><h1>How much effort did that take?</h1>' +
           '<p class="muted">Your rating lets LessTypos compare speed at the same effort, and it holds vocabulary growth when typing feels demanding.</p>' +
           '<div class="scale">' + EFFORT.map(function (e) {
-            return '<button type="button" data-effort="' + e[0] + '"><b>' + e[0] + '</b><span>' + esc(e[1]) + '</span><span class="muted">' + esc(e[2]) + '</span></button>';
+            return '<button type="button" data-effort="' + e[0] + '"' + U.action(function () { pick(e[0], true); }) + '><b>' + e[0] + '</b><span>' + esc(e[1]) + '</span><span class="muted">' + esc(e[2]) + '</span></button>';
           }).join('') + '</div>' +
           '<p class="muted" id="effortkeys">Press 1–5, or 0, Enter or Esc to skip.</p>' +
-          '<div class="row"><button class="btn" type="button" data-effort="">Skip <kbd>Enter</kbd></button></div></section>');
-        app.$view.querySelectorAll('[data-effort]').forEach(function (b) {
-          b.onclick = function () { pick(b.dataset.effort ? +b.dataset.effort : null, true); };
-        });
+          '<div class="row"><button class="btn" type="button" data-effort=""' + U.action(function () { pick(null, true); }) + '>Skip <kbd>Enter</kbd></button></div></section>');
       },
     });
   }

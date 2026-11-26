@@ -119,13 +119,13 @@
     var el = document.getElementById('cands');
     if (!el) return;
     if (!app.settings.autoMacros) { el.textContent = ''; return; }
-    app.store.listSessions().then(function (list) {
+    app.store.listSessions().then(U.onThisScreen(function (list) {
       var res = list.slice(-10).map(function (r) { return FT.timing.extract(r.words, FT.align.analyzeWords(r.words, U.analysisOptions())); });
       var c = FT.timing.macroCandidates(res).filter(function (x) { return U.macros().indexOf(x.seq) < 0; });
       el.innerHTML = c.length ? 'Possible multi-letter keys (not applied until you add them above): ' +
         c.map(function (x) { return seq(x.seq) + ' ' + pct(x.confidence, 0) + ' of ' + x.n; }).join(', ')
         : 'No candidates in your recent exercises.';
-    });
+    }));
   }
 
   // ---------- daily training ----------
@@ -148,20 +148,18 @@
     var j = i + d, same = document.getElementById((d > 0 ? 'down-' : 'up-') + j), other = document.getElementById((d > 0 ? 'up-' : 'down-') + j);
     (same && !same.disabled ? same : other).focus();
   }
+  function restoreDefault() { app.settings.programme = null; U.saveSettings(); renderProgEdit(); }
   function renderProgEdit() {
     var el = document.getElementById('progedit'), def = U.programmeDef();
     if (!el) return;
-    el.innerHTML = def.steps.map(function (st, i) {
+    U.fill(el, def.steps.map(function (st, i) {
       var name = esc(exerciseName(st.type));
       return '<div class="row progstep"><input type="checkbox" data-step="' + i + '" aria-label="Include ' + name + '"' + (st.enabled ? ' checked' : '') + '>' +
         '<span style="min-width:9rem">' + name + '</span>' +
         '<input type="number" data-step="' + i + '" min="0.5" max="30" step="0.5" value="' + esc(String(st.minutes)) + '" style="max-width:5rem" aria-label="Minutes"> <span class="muted">min</span>' +
-        '<button class="btn" type="button" id="up-' + i + '" data-up="' + i + '"' + (i ? '' : ' disabled') + ' aria-label="Move ' + name + ' up">↑</button>' +
-        '<button class="btn" type="button" id="down-' + i + '" data-down="' + i + '"' + (i < def.steps.length - 1 ? '' : ' disabled') + ' aria-label="Move ' + name + ' down">↓</button></div>';
-    }).join('') + '<p class="help">' + FT.programme.totalMinutes(def) + ' minutes in total. <button class="btn" type="button" id="progreset">Restore default</button></p>';
-    el.querySelectorAll('[data-up]').forEach(function (b) { b.onclick = function () { moveStep(+b.dataset.up, -1); }; });
-    el.querySelectorAll('[data-down]').forEach(function (b) { b.onclick = function () { moveStep(+b.dataset.down, 1); }; });
-    document.getElementById('progreset').onclick = function () { app.settings.programme = null; U.saveSettings(); renderProgEdit(); };
+        '<button class="btn" type="button" id="up-' + i + '" data-up="' + i + '"' + U.action(function () { moveStep(i, -1); }) + (i ? '' : ' disabled') + ' aria-label="Move ' + name + ' up">↑</button>' +
+        '<button class="btn" type="button" id="down-' + i + '" data-down="' + i + '"' + U.action(function () { moveStep(i, 1); }) + (i < def.steps.length - 1 ? '' : ' disabled') + ' aria-label="Move ' + name + ' down">↓</button></div>';
+    }).join('') + '<p class="help">' + FT.programme.totalMinutes(def) + ' minutes in total. <button class="btn" type="button" id="progreset"' + U.action(restoreDefault) + '>Restore default</button></p>');
   }
 
   TABS.forEach(function (tab) { U.route('settings/' + tab, function () { viewSettings(tab); }); });

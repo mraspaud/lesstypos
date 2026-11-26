@@ -397,12 +397,9 @@
       if (burst && burst.phase === 'run') endRound(pausedAt, null, true);
       var bar = document.getElementById('stopbar');
       bar.hidden = false;
-      bar.innerHTML = '<span>Paused.</span><button class="btn primary" type="button" id="fin">Finish and save <kbd>Enter</kbd></button>' +
-        '<button class="btn" type="button" id="res">Resume <kbd>Esc</kbd></button>' +
-        '<button class="btn danger" type="button" id="dis">Discard <kbd>Del</kbd></button>';
-      document.getElementById('fin').onclick = finish;
-      document.getElementById('res').onclick = resume;
-      document.getElementById('dis').onclick = discard;
+      U.fill(bar, '<span>Paused.</span><button class="btn primary" type="button" id="fin"' + U.action(finish) + '>Finish and save <kbd>Enter</kbd></button>' +
+        '<button class="btn" type="button" id="res"' + U.action(resume) + '>Resume <kbd>Esc</kbd></button>' +
+        '<button class="btn danger" type="button" id="dis"' + U.action(discard) + '>Discard <kbd>Del</kbd></button>');
       U.announce('Paused. Enter saves, Escape resumes, Delete discards.');
       focusCapture();
     }

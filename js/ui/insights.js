@@ -33,7 +33,7 @@
         ? '<p class="muted">What LessTypos is training now, most useful first. These sequences appear inside ordinary words in your exercises.</p>' +
           '<ol class="focuslist">' + top.map(function (x) {
             var c = all[x.key] || {};
-            return '<li data-key="' + esc(x.key) + '"' + (seqSel === x.key ? ' class="selected"' : '') + '><button type="button" class="rowbtn" data-row>' + seq(x.key) + '</button> ' +
+            return '<li data-key="' + esc(x.key) + '"' + (seqSel === x.key ? ' class="selected"' : '') + U.action(selectSequence) + '><button type="button" class="rowbtn" data-row>' + seq(x.key) + '</button> ' +
               FT.fmt.stagePill(x.stage) + ' <span class="muted">' + FT.fmt.focusReason(c, x.stage) + '</span></li>';
           }).join('') + '</ol>' +
           '<details><summary>What the statuses mean</summary><p class="muted">' + FT.fmt.statusLegend() + '</p></details>'
@@ -44,7 +44,7 @@
       '<p class="muted">Each sequence is the last one to four characters you typed, spaces included. It is flagged only when it is credibly worse than its shorter version in other words (for example ' + seq('str') + ' against ' + seq('tr') + '), so a single slip never flags anything.</p>' +
       '<div class="tabs" role="group">' +
       [['focus', 'Focus list'], ['kept', 'Consolidating and mastered'], ['all', 'All with enough evidence']].map(function (x) {
-        return '<button type="button" id="seqtab-' + x[0] + '" data-tab="' + x[0] + '" aria-pressed="' + (seqTab === x[0]) + '">' + esc(x[1]) + '</button>';
+        return '<button type="button" id="seqtab-' + x[0] + '" data-tab="' + x[0] + '" aria-pressed="' + (seqTab === x[0]) + '"' + U.action(chooseTab) + '>' + esc(x[1]) + '</button>';
       }).join('') + '</div>' +
       '<p class="muted num">' + keys.length + ' sequences observed; ' + counts.insufficient + ' do not have enough observations yet.</p>';
     if (!shown.length) {
@@ -59,7 +59,7 @@
           H.cell(pct(c.errorRate) + ' <span class="muted">vs ' + pct(c.parentErrorRate) + '</span>', 'num'),
           H.cell('×' + fix(c.latRel, 2), 'num')].concat(app.layout ? [H.cell(esc(movement(k)))] : [],
           [H.cell(esc(ctxs[k].examples.slice(-3).reverse().join(', ')), 'ex')]),
-          ' class="clickable' + (seqSel === k ? ' selected' : '') + '" data-key="' + esc(k) + '"');
+          ' class="clickable' + (seqSel === k ? ' selected' : '') + '" data-key="' + esc(k) + '"' + U.action(selectSequence));
       }));
     }
     html += '</details>';
@@ -69,12 +69,11 @@
     document.getElementById('allseq').addEventListener('toggle', function (e) { allOpen = e.target.open; });
     var mvd = document.getElementById('moves');
     if (mvd) mvd.addEventListener('toggle', function (e) { moveOpen = e.target.open; });
-    app.$view.querySelectorAll('.focuslist [data-key]').forEach(function (li) { li.onclick = function () { seqSel = li.dataset.key; showWhy(seqSel, true); markSel(); }; });
-    app.$view.querySelectorAll('[data-tab]').forEach(function (b) { b.onclick = function () { seqTab = b.dataset.tab; U.redraw(); }; });
-    app.$view.querySelectorAll('tr[data-key]').forEach(function (r) { r.onclick = function () { seqSel = r.dataset.key; showWhy(seqSel, true); markSel(); }; });
-    app.$view.querySelectorAll('#movement [data-key]').forEach(function (b) { b.onclick = function () { seqSel = b.dataset.key; showWhy(seqSel, true); markSel(); }; });
     if (seqSel && all[seqSel]) showWhy(seqSel);
   }
+  // A click on a sequence (in the focus list, the table or the movements) explains it.
+  function selectSequence(el) { seqSel = el.dataset.key; showWhy(seqSel, true); markSel(); }
+  function chooseTab(button) { seqTab = button.dataset.tab; U.redraw(); }
   // Letter pairs grouped by movement type on the declared layout (descriptive).
   var MOVEMENT = { alternate: 'alternation (other hand)', 'roll-in': 'inward roll', 'roll-out': 'outward roll',
     sfb: 'same finger', repeat: 'same key twice', 'full-scissor': 'full scissor', 'half-scissor': 'half scissor', lsb: 'lateral stretch' };
@@ -87,7 +86,7 @@
       H.table(['Movement', 'Share of your pairs', 'Pairs', 'Seen', 'Time vs alternation', 'Errors (first try)', 'Slowest pairs'], rows.map(function (r) {
         return H.row([H.cell(esc(MOVEMENT[r.type] || r.type) + (r.overlapping ? ' <span class="muted">(also in a row above)</span>' : '')), H.cell(pct(r.share), 'num'),
           H.cell(r.pairs, 'num'), H.cell(fix(r.n), 'num'), H.cell(r.time == null ? '–' : '×' + fix(r.time, 2), 'num'), H.cell(pct(r.errorRate), 'num'),
-          H.cell(r.worst.map(function (k) { return '<button type="button" class="linkish" data-key="' + esc(k) + '">' + seq(k) + '</button>'; }).join(' '))]);
+          H.cell(r.worst.map(function (k) { return '<button type="button" class="linkish" data-key="' + esc(k) + '"' + U.action(selectSequence) + '>' + seq(k) + '</button>'; }).join(' '))]);
       })) + '</section>';
   }
   function markSel() { app.$view.querySelectorAll('tr[data-key], .focuslist [data-key]').forEach(function (r) { r.classList.toggle('selected', r.dataset.key === seqSel); }); }
@@ -167,7 +166,7 @@
         var rel = L && FT.layout.relation(L, r.expected, r.actual);
         return H.row([H.cell('<button type="button" class="rowbtn" data-row>' + seq(r.expected) + '</button>'), H.cell(seq(r.actual))].concat(
           L ? [H.cell(esc(rel ? rel.label : ''))] : [],
-          [H.cell(pct(r.rate, 2), 'num'), H.cell(fix(r.count), 'num'), H.cell(r.opportunities, 'num'), H.cell(esc(recentContexts(r)), 'ex')]), ' class="clickable" data-i="' + i + '"');
+          [H.cell(pct(r.rate, 2), 'num'), H.cell(fix(r.count), 'num'), H.cell(r.opportunities, 'num'), H.cell(esc(recentContexts(r)), 'ex')]), ' class="clickable" data-i="' + i + '"' + U.action(function () { showExamples(r); }));
       })) + '<section id="subex"></section>';
     }
     var swaps = app.trainer.swaps({ minOpp: 10 }).filter(function (r) { return r.count >= 2; }).slice(0, 20);
@@ -180,19 +179,18 @@
     }
     U.paint(html);
     if (L) FT.chart.heatmap(document.getElementById('hmall'), FT.layout.grid(L), FT.progress.sumKeys(app.trainer.history()));
-    app.$view.querySelectorAll('tr[data-i]').forEach(function (tr) {
-      tr.onclick = function () {
-        var r = rows[+tr.dataset.i], el = document.getElementById('subex');
-        el.className = 'panel stack';
-        el.innerHTML = '<h2>' + seq(r.expected) + ' typed as ' + seq(r.actual) + '</h2>' +
-          H.table(['Word', 'Where', 'Corrected', 'Later letter', 'Exercise'], r.examples.map(function (e) {
-            return H.row([H.cell(esc(e.word)), H.cell(seq(e.context)), H.cell(e.corrected ? 'yes' : 'no'), H.cell(e.premature ? 'yes' : ''), H.cell(esc(e.exercise || ''))]);
-          })) + '<p class="muted">“Later letter” marks a typed letter that occurs later in the same word.</p>';
-        var h = el.querySelector('h2');
-        h.setAttribute('tabindex', '-1');
-        h.focus();
-      };
-    });
+  }
+  // The examples of one substitution, under the table.
+  function showExamples(r) {
+    var el = document.getElementById('subex');
+    el.className = 'panel stack';
+    U.fill(el, '<h2>' + seq(r.expected) + ' typed as ' + seq(r.actual) + '</h2>' +
+      H.table(['Word', 'Where', 'Corrected', 'Later letter', 'Exercise'], r.examples.map(function (e) {
+        return H.row([H.cell(esc(e.word)), H.cell(seq(e.context)), H.cell(e.corrected ? 'yes' : 'no'), H.cell(e.premature ? 'yes' : ''), H.cell(esc(e.exercise || ''))]);
+      })) + '<p class="muted">“Later letter” marks a typed letter that occurs later in the same word.</p>');
+    var h = el.querySelector('h2');
+    h.setAttribute('tabindex', '-1');
+    h.focus();
   }
 
   function recentContexts(r) { return r.examples.slice(0, 3).map(function (e) { return e.context; }).join(', '); }
@@ -259,14 +257,10 @@
         H.cell(esc(FT.exercises.name(x.type))), H.cell(fix(x.durationMs / 60000, 1), 'num'),
         H.cell(fix(x.wpm), 'num'), H.cell(pct(x.firstAttemptAccuracy), 'num'), H.cell(pct(x.randomFirstAttemptAccuracy), 'num'),
         H.cell(x.effort || '–', 'num'), H.cell(pct(x.hesitationRate), 'num'), H.cell(fix(x.rhythmCv, 2), 'num'),
-        H.cell(Math.round(x.frontier), 'num')], ' class="clickable"');
+        H.cell(Math.round(x.frontier), 'num')], ' class="clickable"' + U.action(function () { return openPast(x.id); }));   // the date button inside handles the keyboard
     }), { id: 'alltable' });
     U.paint(html);
     pc.draw();
-    app.$view.querySelectorAll('#alltable tbody tr').forEach(function (tr) {
-      var id = tr.querySelector('[data-past]').dataset.past;
-      tr.onclick = function () { openPast(id); };   // the date button inside handles the keyboard
-    });
   }
   // How relaxed practice differs with and without each condition (measurement only).
   function conditionsSection(history) {
@@ -284,7 +278,7 @@
   }
   // A past exercise's summary, rebuilt from its stored record (nothing is learned).
   function openPast(id) {
-    app.store.getSession(id).then(U.onThisScreen(function (raw) {
+    return app.store.getSession(id).then(U.onThisScreen(function (raw) {
       if (!raw) { U.flash('The record of this exercise is no longer stored.'); return; }
       U.viewSummary(app.trainer.summarize(raw), { past: true, opts: {} });
     })).catch(U.storageError);

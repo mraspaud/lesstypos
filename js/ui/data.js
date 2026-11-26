@@ -26,23 +26,25 @@
       a.download = 'lesstypos-' + new Date().toISOString().slice(0, 10) + '.json';
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+      return json;
+    }).then(U.onThisScreen(function (json) {
       message('expmsg', 'Backup prepared (' + (json.length / 1024).toFixed(0) + ' KB). If no download started, use “Copy backup to clipboard”.');
-    });
+    }));
   }
   function copy() {
     return backup().then(function (json) {
-      return navigator.clipboard.writeText(json).then(function () { message('expmsg', 'Backup copied to the clipboard.'); }, function () {
+      return navigator.clipboard.writeText(json).then(U.onThisScreen(function () { message('expmsg', 'Backup copied to the clipboard.'); }), U.onThisScreen(function () {
         var ta = document.getElementById('paste'); ta.value = json; ta.select();
         message('expmsg', 'Copying was refused; the backup is selected in the box below, copy it from there.');
-      });
+      }));
     });
   }
   function importBackup(text) {
     var mode = document.getElementById('impmode').value, data;
     try { data = JSON.parse(text); } catch (e) { message('impmsg', 'That is not valid JSON.'); return; }
     return app.store.importAll(data, { mode: mode }).then(function () { return U.reloadFromStore(mode === 'merge'); })
-      .then(function () { message('impmsg', 'Imported. Statistics are up to date.'); })
-      .catch(function (e) { message('impmsg', e.message); });
+      .then(U.onThisScreen(function () { message('impmsg', 'Imported. Statistics are up to date.'); }))
+      .catch(U.onThisScreen(function (e) { message('impmsg', e.message); }));
   }
   function rebuild() {
     return U.reloadFromStore(true).then(U.onThisScreen(function () { message('resetmsg', 'Statistics rebuilt from ' + app.trainer.history().length + ' exercises.'); }));
