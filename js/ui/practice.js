@@ -49,47 +49,47 @@
       if (changed) renderHome(reading);
     }));
     function renderHome(reading) {
-    var main = primaryAction(steps, run, def, reading);
-    var readingFirst = main === reading;
-    var html = '<section class="home-start">' +
-      '<h1>Daily training</h1>' +
-      (steps.length ? '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + esc(String(x.minutes)) + ' min'; }).join(' · ') + '.</p>'
-        : '<p class="lead">No exercises are switched on for the daily training.</p>') +
-      '<div class="row"><button class="btn primary" type="button" id="primary">' + esc(main.label) + ' <kbd>Enter</kbd></button>' +
-      (run ? '<button class="btn" type="button" id="restart">Start over</button>' : '') +
-      (readingFirst ? '<button class="btn" type="button" id="again">Daily training again · ' + FT.programme.totalMinutes(def) + ' min <kbd>a</kbd></button>'
-        : reading ? '<button class="btn" type="button" id="read">' + esc(reading.label) + ' <kbd>c</kbd></button>' : '') + '</div>' +
-      '<div class="row more"><span class="muted">More:</span>' +
-      '<button class="btn" type="button" id="start">Relaxed practice only · ' + esc(String(app.settings.durationMin)) + ' min <kbd>r</kbd></button>' +
-      '<button class="btn" type="button" id="bench">Benchmark · 3 × 1 min <kbd>b</kbd></button>' +
-      (first ? '<button class="btn" type="button" id="one">Practise ' + seq(first.key) + ' · 3 min <kbd>f</kbd></button>' : '') +
-      '<span class="muted">' + benchmarkDue(h) + '</span></div>' +
-      '</section>' +
-      '<section class="stack"><div class="status">' +
-      '<div><b class="num">' + Math.round(d.frontier).toLocaleString('en-US') + '</b><span>common words in use' + (d.manual ? ' (fixed)' : '') + '</span></div>' +
-      '<div><a class="num big" href="#insights/focus">' + targets.length + '</a><span>in the focus list</span></div>' +
-      '<div><b class="num">' + (last ? fix(last.wpm) + ' · ' + pct(last.faa) : '–') + '</b><span>last relaxed WPM · accuracy</span></div>' +
-      '</div></section>';
-    if (!h.length) {
-      html += '<section class="stack panel"><h2>How this works</h2>' +
-        '<p>LessTypos watches every keystroke and learns which letter sequences, including those across spaces, cost you errors or hesitation. ' +
-        'Later exercises weave those sequences into everyday words, while about a fifth of the words stay random so progress can be measured fairly.</p>' +
-        '<p>Vocabulary grows when your accuracy (first try) stays above 99.5% and typing feels comfortable. It never asks for a minimum speed.</p>' +
-        '<p class="muted">For the prose exercise, add a text you would like to read in <a href="#settings/texts">Settings: Texts</a>. If your keyboard has keys that type several letters at once (such as <span class="seq">th</span>), declare them in <a href="#settings/keyboard">Settings: Keyboard</a>. Press <kbd>?</kbd> for all shortcuts.</p></section>';
-    }
-    setView(html);
-    var relaxedOnly = function () { startExercise('relaxed'); };
-    var one = first ? function () { startExercise('targeted', { pinned: [first.key], minutes: 3 }); } : null;
-    document.getElementById('start').onclick = relaxedOnly;
-    document.getElementById('bench').onclick = startBenchmark;
-    document.getElementById('primary').onclick = main.act;
-    var restart = document.getElementById('restart');
-    if (restart) restart.onclick = function () { startProgramme(null); };
-    if (one) document.getElementById('one').onclick = one;
-    app.keys = { Enter: main.act, r: relaxedOnly, b: startBenchmark };
-    if (one) app.keys.f = one;
-    if (reading) { app.keys.c = reading.act; if (!readingFirst) document.getElementById('read').onclick = reading.act; }
-    if (readingFirst) { var train = function () { startProgramme(null); }; document.getElementById('again').onclick = train; app.keys.a = train; }
+      var main = primaryAction(steps, run, def, reading);
+      var readingFirst = main === reading;
+      var html = '<section class="home-start">' +
+        '<h1>Daily training</h1>' +
+        (steps.length ? '<p class="lead">' + steps.map(function (x) { return esc(EXERCISES[x.type].name.toLowerCase()) + ' ' + esc(String(x.minutes)) + ' min'; }).join(' · ') + '.</p>'
+          : '<p class="lead">No exercises are switched on for the daily training.</p>') +
+        '<div class="row"><button class="btn primary" type="button" id="primary">' + esc(main.label) + ' <kbd>Enter</kbd></button>' +
+        (run ? '<button class="btn" type="button" id="restart">Start over</button>' : '') +
+        (readingFirst ? '<button class="btn" type="button" id="again">Daily training again · ' + FT.programme.totalMinutes(def) + ' min <kbd>a</kbd></button>'
+          : reading ? '<button class="btn" type="button" id="read">' + esc(reading.label) + ' <kbd>c</kbd></button>' : '') + '</div>' +
+        '<div class="row more"><span class="muted">More:</span>' +
+        '<button class="btn" type="button" id="start">Relaxed practice only · ' + esc(String(app.settings.durationMin)) + ' min <kbd>r</kbd></button>' +
+        '<button class="btn" type="button" id="bench">Benchmark · 3 × 1 min <kbd>b</kbd></button>' +
+        (first ? '<button class="btn" type="button" id="one">Practise ' + seq(first.key) + ' · 3 min <kbd>f</kbd></button>' : '') +
+        '<span class="muted">' + benchmarkDue(h) + '</span></div>' +
+        '</section>' +
+        '<section class="stack"><div class="status">' +
+        '<div><b class="num">' + Math.round(d.frontier).toLocaleString('en-US') + '</b><span>common words in use' + (d.manual ? ' (fixed)' : '') + '</span></div>' +
+        '<div><a class="num big" href="#insights/focus">' + targets.length + '</a><span>in the focus list</span></div>' +
+        '<div><b class="num">' + (last ? fix(last.wpm) + ' · ' + pct(last.faa) : '–') + '</b><span>last relaxed WPM · accuracy</span></div>' +
+        '</div></section>';
+      if (!h.length) {
+        html += '<section class="stack panel"><h2>How this works</h2>' +
+          '<p>LessTypos watches every keystroke and learns which letter sequences, including those across spaces, cost you errors or hesitation. ' +
+          'Later exercises weave those sequences into everyday words, while about a fifth of the words stay random so progress can be measured fairly.</p>' +
+          '<p>Vocabulary grows when your accuracy (first try) stays above 99.5% and typing feels comfortable. It never asks for a minimum speed.</p>' +
+          '<p class="muted">For the prose exercise, add a text you would like to read in <a href="#settings/texts">Settings: Texts</a>. If your keyboard has keys that type several letters at once (such as <span class="seq">th</span>), declare them in <a href="#settings/keyboard">Settings: Keyboard</a>. Press <kbd>?</kbd> for all shortcuts.</p></section>';
+      }
+      setView(html);
+      var relaxedOnly = function () { startExercise('relaxed'); };
+      var one = first ? function () { startExercise('targeted', { pinned: [first.key], minutes: 3 }); } : null;
+      document.getElementById('start').onclick = relaxedOnly;
+      document.getElementById('bench').onclick = startBenchmark;
+      document.getElementById('primary').onclick = main.act;
+      var restart = document.getElementById('restart');
+      if (restart) restart.onclick = function () { startProgramme(null); };
+      if (one) document.getElementById('one').onclick = one;
+      app.keys = { Enter: main.act, r: relaxedOnly, b: startBenchmark };
+      if (one) app.keys.f = one;
+      if (reading) { app.keys.c = reading.act; if (!readingFirst) document.getElementById('read').onclick = reading.act; }
+      if (readingFirst) { var train = function () { startProgramme(null); }; document.getElementById('again').onclick = train; app.keys.a = train; }
     }
   }
 
