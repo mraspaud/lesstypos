@@ -12,22 +12,23 @@ const { load, plain } = require('./helpers/load');
 
 const FT = load();
 const T = FT.difficulty.TUNING;
-// First-try evidence on the easiest words: `words` words of 5 characters at
-// the given accuracy, or with the given error rate.
-const tally = (words, accuracy = 1) => ({ words, chars: 5 * words, errors: Math.round(5 * words * (1 - accuracy)) });
-const rated = (words, errorRate) => tally(words, 1 - errorRate);
-// The same on the less common words, one [rank, chars, errors] per word,
-// with the errors spread evenly.
-const perWord = (t, rank) => Array.from({ length: t.words }, (_, i) =>
-  [rank, 5, Math.floor((i + 1) * t.errors / t.words) - Math.floor(i * t.errors / t.words)]);
-const lessCommon = (words, accuracy = 1, rank = 150) => perWord(tally(words, accuracy), rank);
-const lessRated = (words, errorRate, rank = 150) => perWord(rated(words, errorRate), rank);
-const exercise = (o = {}) => Object.assign({ vocabulary: lessCommon(T.minWords, 0.995), easiest: tally(T.easiestMinWords * 4, 0.99),
+// First-try evidence, one [rank, chars, errors] per word: `words` words of 5
+// characters at the given accuracy, or with the given error rate, the
+// errors spread evenly. The easiest words have rank 50, the less common
+// ones 150 unless said.
+const perWord = (words, errors, rank) => Array.from({ length: words }, (_, i) =>
+  [rank, 5, Math.floor((i + 1) * errors / words) - Math.floor(i * errors / words)]);
+const atAccuracy = (rank) => (words, accuracy = 1) => perWord(words, Math.round(5 * words * (1 - accuracy)), rank);
+const common = atAccuracy(50);
+const commonRated = (words, errorRate) => common(words, 1 - errorRate);
+const lessCommon = (words, accuracy = 1, rank = 150) => atAccuracy(rank)(words, accuracy);
+const lessRated = (words, errorRate, rank = 150) => lessCommon(words, 1 - errorRate, rank);
+const exercise = (o = {}) => Object.assign({ vocabulary: lessCommon(T.minWords, 0.995), easiest: common(T.easiestMinWords * 4, 0.99),
   hesitationRate: 0.05, rhythmCv: 0.3, effort: null, wpm: 40 }, o);
 // The less common words with `ratio` times the errors of the easiest words,
 // which come twice as many.
 const errorsTimes = (ratio, words = 1000, easiestRate = 0.02, rank = 150) =>
-  exercise({ vocabulary: lessRated(words, ratio * easiestRate, rank), easiest: rated(2 * words, easiestRate) });
+  exercise({ vocabulary: lessRated(words, ratio * easiestRate, rank), easiest: commonRated(2 * words, easiestRate) });
 const controller = (frontier = 500, state = {}) => FT.difficulty.create(Object.assign({ frontier }, state));
 const repeat = (d, n, ex) => { let r; for (let i = 0; i < n; i++) r = d.update(ex); return r; };
 
@@ -113,9 +114,9 @@ test('the ratio of the error rates decides, however high both are', () => {
 // Two error rates near zero have no credible ratio, so a typist with almost no
 // errors on the less common words grows on that alone.
 test('less common words credibly under 0.5% errors advance, whatever the ratio', () => {
-  assert.equal(controller().update(exercise({ vocabulary: lessCommon(1000), easiest: tally(1000) })).action, 'advance');
-  assert.equal(controller().update(exercise({ vocabulary: lessRated(1000, 0.002), easiest: tally(1000) })).action, 'advance');
-  assert.equal(controller().update(exercise({ vocabulary: lessRated(1000, 0.004), easiest: rated(1000, 0.002) })).action, 'hold');
+  assert.equal(controller().update(exercise({ vocabulary: lessCommon(1000), easiest: common(1000) })).action, 'advance');
+  assert.equal(controller().update(exercise({ vocabulary: lessRated(1000, 0.002), easiest: common(1000) })).action, 'advance');
+  assert.equal(controller().update(exercise({ vocabulary: lessRated(1000, 0.004), easiest: commonRated(1000, 0.002) })).action, 'hold');
 });
 
 test('the vocabulary never goes below the 200 most common words', () => {
@@ -131,7 +132,7 @@ test('the vocabulary never goes below the 200 most common words', () => {
 
 test('without enough of the easiest words to compare with, the vocabulary waits', () => {
   const d = controller();
-  const r = d.update(exercise({ easiest: tally(T.easiestMinWords - 1, 0.99) }));
+  const r = d.update(exercise({ easiest: common(T.easiestMinWords - 1, 0.99) }));
   assert.equal(r.action, 'wait');
   assert.match(r.reasons.join(), new RegExp((T.easiestMinWords - 1) + ' of the ' + T.easiestMinWords + ' words .*100 most common'));
   assert.equal(d.state().frontier, 500);
@@ -139,16 +140,16 @@ test('without enough of the easiest words to compare with, the vocabulary waits'
 
 test('the easiest words pool across exercises and outlive a step', () => {
   const d = controller();
-  const half = tally(T.easiestMinWords / 2, 0.99);
+  const half = common(T.easiestMinWords / 2, 0.99);
   assert.equal(d.update(exercise({ easiest: half })).action, 'wait');
   assert.equal(d.update(exercise({ vocabulary: lessCommon(0), easiest: half })).action, 'advance');
-  assert.equal(d.update(exercise({ easiest: tally(0) })).action, 'advance');
+  assert.equal(d.update(exercise({ easiest: common(0) })).action, 'advance');
 });
 
 test('the easiest words kept are the most recent, up to a maximum', () => {
   const d = controller();
-  repeat(d, 10, exercise({ easiest: tally(T.easiestMinWords, 0.9) }));
-  const r = d.update(exercise({ easiest: tally(T.easiestMaxWords, 0.995) }));
+  repeat(d, 10, exercise({ easiest: common(T.easiestMinWords, 0.9) }));
+  const r = d.update(exercise({ easiest: common(T.easiestMaxWords, 0.995) }));
   assert.ok(r.reference > 0.99, String(r.reference)); // the old 90% words are gone
 });
 
@@ -217,7 +218,7 @@ test('the reasons compare the error rates, and both accuracies to two decimals',
 });
 
 test('the reasons say when the easiest words had no errors', () => {
-  const none = (vocabularyErrors) => controller().update(exercise({ vocabulary: lessCommon(300, 1 - vocabularyErrors / 1500), easiest: tally(600) })).reasons[0];
+  const none = (vocabularyErrors) => controller().update(exercise({ vocabulary: lessCommon(300, 1 - vocabularyErrors / 1500), easiest: common(600) })).reasons[0];
   assert.equal(none(0), 'no errors on the less common words or on your easiest words (fewer than 0.5% errors on them grows the vocabulary)');
   assert.match(none(15), /^errors on the less common words, none on your easiest words \(/);
 });
@@ -243,7 +244,7 @@ test('the stored state holds what was learned, not the tuning', () => {
 
 test('an exercise without vocabulary words does not count as 0% accuracy', () => {
   const d = controller();
-  assert.equal(d.update({ vocabulary: lessCommon(0), easiest: tally(0) }).action, 'wait');
+  assert.equal(d.update({ vocabulary: lessCommon(0), easiest: common(0) }).action, 'wait');
   assert.equal(d.update({ words: 200 }).action, 'wait');
   assert.equal(d.state().frontier, 500);
 });
@@ -262,11 +263,11 @@ const evidenceOf = (list) => plain(FT.difficulty.evidence(list.map((x) => x.word
 test('target and maintenance carriers never count as vocabulary evidence', () => {
   const e = evidenceOf([typed('window', 'target', 3), typed('house', 'maintenance', 2), typed('window', 'frontier')]);
   assert.deepEqual(e.vocabulary, [[900, 6, 0]]);
-  assert.deepEqual(e.easiest, { words: 0, chars: 0, errors: 0 });
+  assert.deepEqual(e.easiest, []);
 });
 
 test('the unbiased words below rank 100 are the easiest words; the others are the vocabulary', () => {
   const e = evidenceOf([typed('the', 'random', 1), typed('and', 'frontier'), typed('house', 'random', 2), typed('window', 'frontier'), typed('the', 'target', 3)]);
-  assert.deepEqual(e.easiest, { words: 2, chars: 6, errors: 1 });
+  assert.deepEqual(e.easiest, [[0, 3, 1], [1, 3, 0]]);
   assert.deepEqual(e.vocabulary, [[150, 5, 2], [900, 6, 0]]);
 });

@@ -19,14 +19,11 @@ function simulatedTypist(seed, { ratio, unbiased = 225 }) {
   const errors = (chars, p) => { let k = 0; for (let i = 0; i < chars; i++) if (rng() < p) k++; return k; };
   const rankBelow = (R) => Math.floor(rng() < 0.9 ? rng() * R : R + rng() * 0.5 * R);
   return function exercise(frontier, easiestRate) {
-    const out = Object.assign({ vocabulary: [], easiest: { words: 0, chars: 0, errors: 0 } }, feeling);
+    const out = Object.assign({ vocabulary: [], easiest: [] }, feeling);
     for (let i = 0; i < unbiased; i++) {
       const rank = rankBelow(frontier);
-      if (rank < EASIEST) {
-        out.easiest.words++; out.easiest.chars += 5; out.easiest.errors += errors(5, easiestRate);
-      } else {
-        out.vocabulary.push([rank, 7, errors(7, ratio * easiestRate)]);
-      }
+      if (rank < EASIEST) out.easiest.push([rank, 5, errors(5, easiestRate)]);
+      else out.vocabulary.push([rank, 7, errors(7, ratio * easiestRate)]);
     }
     return out;
   };

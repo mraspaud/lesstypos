@@ -51,18 +51,12 @@
       if (w.effort != null) p.effort = Math.max(p.effort || 0, w.effort);
       return p;
     }
-    // Adds an exercise's tally to a pool, then drops the oldest exercises
-    // while the others still hold at least max words.
-    function addTally(pool, t, max) {
-      if (t && t.words > 0) pool.push({ words: t.words, chars: t.chars, errors: t.errors });
-      while (pool.length > 1 && total(pool).words - pool[0].words >= max) pool.shift();
-    }
-    // Adds an exercise's less common words ([rank, chars, errors] each) to
-    // the pool, then drops the oldest exercises while the others still hold
-    // at least maxWords words, by weight.
-    function addWords(list) {
-      if (list && list.length) st.pool.push({ weight: 1, words: list.map(function (w) { return w.slice(); }) });
-      while (st.pool.length > 1 && weighted(st.pool).words - weighted([st.pool[0]]).words >= cfg.maxWords) st.pool.shift();
+    // Adds an exercise's words ([rank, chars, errors] each) to a pool, then
+    // drops the oldest exercises while the others still hold at least max
+    // words, by weight.
+    function addWords(pool, list, max) {
+      if (list && list.length) pool.push({ weight: 1, words: list.map(function (w) { return w.slice(); }) });
+      while (pool.length > 1 && weighted(pool).words - weighted([pool[0]]).words >= max) pool.shift();
     }
     // After a step, the pooled words inside both the old and the new
     // vocabulary stay, at keptAfterStep of their weight.
@@ -75,10 +69,10 @@
 
     function update(w) {
       if (st.manual) return { action: 'manual', frontier: st.frontier, reasons: ['manual vocabulary selection'] };
-      addWords(w.vocabulary);
-      addTally(st.easiest, w.easiest, cfg.easiestMaxWords);
+      addWords(st.pool, w.vocabulary, cfg.maxWords);
+      addWords(st.easiest, w.easiest, cfg.easiestMaxWords);
       st.pending = addConditions(st.pending, w, w.vocabulary ? w.vocabulary.length : 0);
-      var less = weighted(st.pool), easy = total(st.easiest);
+      var less = weighted(st.pool), easy = weighted(st.easiest);
       if (less.words < cfg.minWords) return waiting(Math.round(less.words) + ' of the ' + cfg.minWords + ' words needed');
       if (easy.words < cfg.easiestMinWords) {
         return waiting(easy.words + ' of the ' + cfg.easiestMinWords + ' words needed among the ' + EASIEST_RANKS + ' most common, to compare with');
@@ -179,9 +173,6 @@
   }
 
   function tally() { return { words: 0, chars: 0, errors: 0 }; }
-  function total(pool) {
-    return pool.reduce(function (a, t) { return { words: a.words + t.words, chars: a.chars + t.chars, errors: a.errors + t.errors }; }, tally());
-  }
   // The weighted tally of a pool of exercises' words.
   function weighted(pool) {
     var t = tally();
@@ -202,22 +193,18 @@
   function pct2(x) { return (100 * x).toFixed(2) + '%'; }
   function pct1(x) { return (100 * x).toFixed(1) + '%'; }
 
-  // The evidence an exercise gives: first-try errors per character on its
-  // unbiased words (FT.generator.UNBIASED), the easiest (rank below
-  // EASIEST_RANKS) as one tally, the less common ones (vocabulary) one
-  // [rank, chars, errors] per word. words: the typed words with their meta;
-  // analyses: FT.align's, in the same order; rankOf(word) -> rank.
+  // The evidence an exercise gives: first-try errors on its unbiased words
+  // (FT.generator.UNBIASED), one [rank, chars, errors] per word, the easiest
+  // (rank below EASIEST_RANKS) apart from the less common ones (vocabulary).
+  // words: the typed words with their meta; analyses: FT.align's, in the
+  // same order; rankOf(word) -> rank.
   function evidence(words, analyses, rankOf) {
-    var out = { vocabulary: [], easiest: tally() };
+    var out = { vocabulary: [], easiest: [] };
     words.forEach(function (w, i) {
       if (!w.meta || FT.generator.UNBIASED.indexOf(w.meta.source) < 0) return;
       var rank = rankOf(w.target), targets = analyses[i].targets;
       var errors = targets.reduce(function (n, x) { return n + x.err; }, 0);
-      if (rank >= 0 && rank < EASIEST_RANKS) {
-        out.easiest.words++; out.easiest.chars += targets.length; out.easiest.errors += errors;
-      } else {
-        out.vocabulary.push([rank, targets.length, errors]);
-      }
+      (rank >= 0 && rank < EASIEST_RANKS ? out.easiest : out.vocabulary).push([rank, targets.length, errors]);
     });
     return out;
   }
