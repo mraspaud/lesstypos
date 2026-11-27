@@ -57,7 +57,7 @@
     // drops the oldest exercises while the others still hold at least max
     // words, by weight.
     function addWords(pool, list, max) {
-      if (list && list.length) pool.push({ weight: 1, words: list.map(function (w) { return w.slice(); }) });
+      if (list && list.length) pool.push(entry(list));
       while (pool.length > 1 && weighted(pool).words - weighted([pool[0]]).words >= max) pool.shift();
     }
     // Adds an exercise's easiest words to the reference: the weight of those
@@ -68,7 +68,7 @@
       var decay = Math.pow(0.5, list.length / cfg.easiestHalfLife), forgotten = Math.pow(0.5, EASIEST_KEPT_HALF_LIVES);
       st.easiest.forEach(function (x) { x.weight *= decay; });
       st.easiest = st.easiest.filter(function (x) { return x.weight > forgotten * (1 + 1e-9); });
-      st.easiest.push({ weight: 1, words: list.map(function (w) { return w.slice(); }) });
+      st.easiest.push(entry(list));
     }
     // After a step, the pooled words inside both the old and the new
     // vocabulary stay, at keptAfterStep of their weight.
@@ -185,6 +185,8 @@
   }
 
   function tally() { return { words: 0, chars: 0, errors: 0 }; }
+  // An exercise's words in a pool, at full weight.
+  function entry(list) { return { weight: 1, words: list.map(function (w) { return w.slice(); }) }; }
   // The weighted tally of a pool of exercises' words.
   function weighted(pool) {
     var t = tally();
