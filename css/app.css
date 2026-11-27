@@ -136,7 +136,7 @@ tbody tr { cursor: default; }
 tbody tr.clickable { cursor: pointer; }
 tbody tr.clickable:hover, tbody tr.selected { background: var(--surface); }
 td.ex { color: var(--muted); max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-details.tableview summary { cursor: pointer; color: var(--muted); }
+details.tableview summary, details.about summary { cursor: pointer; color: var(--muted); }
 .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .tabs button { border: 1px solid var(--line); background: none; padding: 4px 12px; border-radius: 999px; cursor: pointer; color: var(--muted); }
 .tabs button[aria-pressed="true"], .tabs button[aria-current="page"] { background: var(--surface); color: var(--ink); border-color: var(--muted); }
@@ -248,7 +248,14 @@ details.howto[open] { display: flex; flex-direction: column; gap: 12px; }
 .why dt { color: var(--muted); }
 .why dd { margin: 0; }
 .progress-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 24px; }
+.progress-grid.headline { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
 .progress-chart { min-width: 0; }
+.progress-chart .under { gap: 4px 18px; align-items: flex-start; }
+.progress-chart .under details[open] { flex-basis: 100%; }   /* an opened table or method takes the card's width */
+details.about p { margin-top: 6px; }
+#moremeasures > summary .muted { font-weight: 400; }
+table.compact th, table.compact td { padding: 6px 6px; }
+table.compact th { letter-spacing: 0.02em; }
 .progress-chart .trend { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .progress-chart .trend.second { stroke-dasharray: 5 3; }
 .progress-chart .range { stroke-width: 2; stroke-linecap: round; opacity: 0.6; }

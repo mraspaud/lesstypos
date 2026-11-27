@@ -1,12 +1,15 @@
 // Insights: the focus list and a sequence's evidence, errors and the
 // keyboard heatmap, progress charts and the exercise log; by keyboard and mouse.
 import assert from 'node:assert/strict';
-import { step, freshPage, closePage, shots, nav, reload, saveSettings, seedExercises, practise, THORNIUM } from './harness.mjs';
+import { step, freshPage, closePage, shots, nav, reload, saveSettings, seedExercises, practise, THORNIUM, isOpen } from './harness.mjs';
 
 const SEEDED = 7;
 // The rows of a list that are not folded away, and where the focus is among them.
 const visibleRows = () => [...document.querySelectorAll('[data-row]')].filter((b) => !b.closest('details:not([open])'));
 const focusedRow = (page) => page.evaluate((v) => eval(v)().indexOf(document.activeElement), visibleRows.toString());
+const chartTitled = (page, title) => page.locator('.progress-chart', { has: page.locator('h3', { hasText: title }) });
+const headings = (page, table) => page.locator(table + ' thead th').allTextContents();
+const openMoreMeasures = async (page) => { if (!(await isOpen(page, 'moremeasures'))) await page.locator('#moremeasures > summary').click(); };
 const openAllSequences = async (page) => {
   if (!(await page.locator('#allseq[open]').count())) await page.locator('#allseq > summary').click();
   await page.getByRole('button', { name: 'All with enough evidence' }).click();
@@ -23,6 +26,23 @@ export default async function insights() {
     await page.keyboard.press('h');
     await page.locator('#alltable tbody tr').first().waitFor();
     assert.equal(await page.locator('#alltable tbody tr').count(), SEEDED);
+  });
+
+  await step('the log shows the 8 latest exercises in 6 columns; a shows them all, in every column, and back', async () => {
+    await seedExercises(page, { count: 3, words: 60, seed: 5 });   // more than the log shows at first
+    await nav(page, 'insights/progress');
+    await page.getByRole('heading', { name: 'Recent exercises' }).waitFor();
+    assert.equal(await page.locator('#alltable tbody tr').count(), 8);
+    assert.deepEqual(await headings(page, '#alltable'), ['When', 'Exercise', 'Min', 'WPM', 'Accuracy', 'Effort']);
+    await page.keyboard.press('a');
+    await page.getByRole('heading', { name: 'All exercises' }).waitFor();
+    assert.equal(await page.locator('#alltable tbody tr').count(), SEEDED + 3);
+    assert.deepEqual(await headings(page, '#alltable'), ['When', 'Exercise', 'Min', 'WPM', 'Accuracy', 'Effort', 'Random words', 'Hesitation', 'Rhythm', 'Vocabulary']);
+    await page.keyboard.press('a');
+    assert.equal(await page.locator('#alltable tbody tr').count(), 8);
+    await page.keyboard.press('?');
+    assert.match(await page.locator('#keyhelp').textContent(), /aAll exercises and columns/);
+    await page.keyboard.press('Escape');
   });
 
   await step('sequences page explains a sequence', async () => {
@@ -88,8 +108,38 @@ export default async function insights() {
     assert.match(await page.evaluate(() => document.activeElement.id || ''), /^(down|up)-1$/);
   });
 
+  await step('Progress leads with relaxed speed, accuracy and the benchmark; each keeps one sentence, its method under About this measure', async () => {
+    await nav(page, 'insights/progress');
+    assert.deepEqual(await page.locator('.progress-grid.headline .progress-chart h3').allTextContents(), ['Relaxed speed', 'Accuracy', 'Benchmark']);
+    const relaxed = chartTitled(page, 'Relaxed speed');
+    assert.equal(await relaxed.locator('p.lead').textContent(), 'Median WPM per day of relaxed practice.');
+    const about = relaxed.locator('details.about');
+    assert.equal(await about.evaluate((d) => d.open), false);
+    assert.ok(!(await about.locator('p').isVisible()));
+    await about.locator('summary').click();
+    assert.match(await about.locator('p').textContent(), /^Fill shows rated effort/);
+    await about.locator('summary').click();
+  });
+
+  await step('the other measures fold under More measures, which opens with the keyboard', async () => {
+    await nav(page, 'insights/progress');
+    assert.equal(await isOpen(page, 'moremeasures'), false);
+    assert.ok(!(await page.locator('.progress-chart h3', { hasText: 'Common-pair timing' }).isVisible()));
+    await page.locator('#moremeasures > summary').focus();
+    await page.keyboard.press('Enter');
+    for (const title of ['Common-pair timing', 'Effort signals (experimental)']) await page.locator('.progress-chart h3', { hasText: title }).waitFor();
+  });
+
+  await step('Conditions keeps its table; its method is under About this comparison', async () => {
+    await nav(page, 'insights/progress');
+    const about = page.locator('#conditionsabout');
+    assert.equal(await about.evaluate((d) => d.open), false);
+    assert.match(await about.textContent(), /bootstrap; Efron & Tibshirani 1993/);
+  });
+
   await step('History shows progress charts with tooltips and tables', async () => {
     await nav(page, 'insights/progress');
+    await openMoreMeasures(page);
     for (const title of ['Relaxed speed', 'Benchmark', 'Common-pair timing', 'Accuracy', 'Effort signals (experimental)']) {
       await page.locator('.progress-chart h3', { hasText: title }).waitFor();
     }
@@ -189,11 +239,14 @@ async function fluencyIndex() {
 
   await step('Progress shows the fluency index and checks it against the benchmark', async () => {
     await nav(page, 'insights/progress');
-    const chart = page.locator('.progress-chart', { has: page.locator('h3', { hasText: 'Fluency (experimental)' }) });
+    await openMoreMeasures(page);
+    const chart = chartTitled(page, 'Fluency (experimental)');
     await chart.locator('svg circle.pt.second').waitFor();             // one day: points, no lines
-    assert.match(await chart.locator('p.muted').first().textContent(), /experimental prediction, not a measurement/);
-    assert.match(await chart.locator('p.muted').first().textContent(), /Kalfaoğlu & Stafford 2014/);
-    assert.match(await chart.locator('p.muted').first().textContent(), /error rates still come from all your practice; only its speed scale and correction cost come from the exercises you rated effort 1–2/);
+    assert.match(await chart.locator('p.lead').textContent(), /^An experimental prediction, not a measurement/);
+    await chart.locator('details.about > summary').click();
+    const method = await chart.locator('details.about > p').first().textContent();
+    assert.match(method, /Kalfaoğlu & Stafford 2014/);
+    assert.match(method, /error rates still come from all your practice; only its speed scale and correction cost come from the exercises you rated effort 1–2/);
     assert.match(await chart.locator('#timebreakdown').textContent(),
       /^Flow speed \d+ WPM: your speed if corrections took no extra time, without pauses over 5 s · pauses over 5 s and corrections take \d+% of your typing time \(about [\d.]+ s per error\)/);
     await chart.locator('svg').scrollIntoViewIfNeeded();
@@ -203,6 +256,7 @@ async function fluencyIndex() {
     assert.ok((await chart.locator('details.tableview table tbody tr').count()) >= 1);
     const check = chart.locator('#fluencycheck');
     assert.equal(await check.locator('tbody tr').count(), 1);
+    assert.ok(await check.locator('.tablewrap').evaluate((w) => w.scrollWidth <= w.clientWidth), 'the benchmark check fits its column');
     assert.match(await check.textContent(), /Predicted speed was off by [\d.]+ WPM on average over 1 benchmark, (over|under)-predicting/);
     if (shots) await page.screenshot({ path: shots + '/fluency.png', fullPage: true });
   });

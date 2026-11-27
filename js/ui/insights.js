@@ -201,21 +201,37 @@
   var EFFORTLESS = FT.fluency.EFFORTLESS_MAX > 1 ? '1–' + FT.fluency.EFFORTLESS_MAX : '1';
   var PAUSES = 'pauses over ' + FT.timing.PAUSE_MS / 1000 + ' s';
   var EFFORTLESS_NEEDS = FT.fluency.MIN_SCALE_EXERCISES + ' relaxed exercises of ' + FT.history.MIN_WORDS + '+ words rated ' + EFFORTLESS;
+  // One chart: its title and one sentence, the chart, then its data and its
+  // method (about, and any further section) one step away.
+  function chartCard(c, i) {
+    var about = (c.about ? '<p class="muted">' + esc(c.about) + '</p>' : '') + (c.after || '');
+    return '<section class="progress-chart stack"><h3>' + esc(c.title) + '</h3><p class="muted small lead">' + esc(c.lead) + '</p>' +
+      '<div class="chart" id="pc' + i + '"></div><div class="row under">' +
+      H.tableView(H.table(c.cols, c.rows.slice().reverse().map(function (p) { return H.row(c.cells(p).map(function (v) { return H.cell(v, 'num'); })); }))) +
+      (about ? H.disclosure('About this measure', about, { className: 'about' }) : '') + '</div></section>';
+  }
   function progressCharts(history) {
     var series = FT.progress.series(history), date = function (t) { return new Date(t).toLocaleDateString(); };
+    // The headline measures first; the others fold under More measures.
+    // lead: one sentence under the title; about: the method, one step away.
     var charts = [
-      { title: 'Relaxed speed', note: 'Median WPM per day of relaxed practice. Fill shows rated effort: hollow = not rated, light = little effort, solid = maximum.',
+      { title: 'Relaxed speed', headline: true, lead: 'Median WPM per day of relaxed practice.',
+        about: 'Fill shows rated effort: hollow = not rated, light = little effort, solid = maximum.',
         label: 'Relaxed WPM', color: '--series-1', min: 1, rows: series.relaxed,
         point: function (p) { return { t: p.startedAt, y: p.wpm, fill: p.effort == null ? null : (p.effort - 1) / 4,
           tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.startedAt)) + '<br>' + p.exercises + ' session' + (p.exercises > 1 ? 's' : '') + ', effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1) + ' (' + EFFORT[Math.round(p.effort) - 1][1].toLowerCase() + ')') }; },
         cols: ['Day', 'WPM', 'Accuracy', 'Effort'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), pct(p.firstAttemptAccuracy), p.effort == null ? '–' : fix(p.effort, 1)]; } },
-      { title: 'Benchmark', note: 'Median of each complete set of 3 one-minute trials; the line shows the range of the trials.',
+      { title: 'Accuracy', headline: true, lead: 'Accuracy (first try) per day of relaxed practice: corrected errors count too.',
+        label: 'Relaxed accuracy (first try)', color: '--series-1', min: 1, yMax: 1, rows: series.relaxed, fmt: function (v) { return pct(v, 1); },
+        point: function (p) { return { t: p.startedAt, y: p.firstAttemptAccuracy, tip: '<b>' + pct(p.firstAttemptAccuracy) + '</b> · ' + esc(date(p.startedAt)) }; },
+        cols: ['Day', 'Accuracy'], cells: function (p) { return [esc(date(p.startedAt)), pct(p.firstAttemptAccuracy)]; } },
+      { title: 'Benchmark', headline: true, lead: 'Median of each complete set of 3 one-minute trials; the line shows the range of the trials.',
         label: 'Benchmark WPM', color: '--series-2', min: 1, rows: series.benchmark,
         point: function (p) { return { t: p.startedAt, y: p.wpm, lo: p.min, hi: p.max, tip: '<b>' + fix(p.wpm) + ' WPM</b> · ' + esc(date(p.startedAt)) + '<br>trials ' + fix(p.min) + '–' + fix(p.max) + ', accuracy ' + pct(p.firstAttemptAccuracy) }; },
         cols: ['Day', 'Median WPM', 'Range', 'Accuracy'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.min) + '–' + fix(p.max), pct(p.firstAttemptAccuracy)]; } },
-      { title: 'Fluency (experimental)',
-        note: 'An experimental prediction, not a measurement: the relaxed speed your current sequence statistics predict on a fixed text of ' + FT.fluency.REFERENCE_WORDS.toLocaleString('en') + ' common words. ' +
-          'Our own method (design choice), not a validated one: each keystroke takes the time your statistics give it after the letters before it, as in keystroke-level models (Card, Moran & Newell 1980) with context-dependent timing (Gentner 1983; Salthouse 1986), and each error costs what your corrections cost in your recent relaxed practice (measured below). ' +
+      { title: 'Fluency (experimental)', brief: 'fluency',
+        lead: 'An experimental prediction, not a measurement: the relaxed speed your current sequence statistics predict on a fixed text of ' + FT.fluency.REFERENCE_WORDS.toLocaleString('en') + ' common words.',
+        about: 'Our own method (design choice), not a validated one: each keystroke takes the time your statistics give it after the letters before it, as in keystroke-level models (Card, Moran & Newell 1980) with context-dependent timing (Gentner 1983; Salthouse 1986), and each error costs what your corrections cost in your recent relaxed practice (measured below). ' +
           'Errors cost time around the mistake, not just a keystroke (Salthouse 1986; post-error slowing, Kalfaoğlu & Stafford 2014), and faster typists mainly make fewer errors (Dhakal et al. 2018). ' +
           'Solid: predicted speed, at the pace of your recent relaxed practice. Dashed: effortless speed, where the error rates still come from all your practice; only its speed scale and correction cost come from the exercises you rated effort ' + EFFORTLESS + '. ' +
           'Both add your share of ' + PAUSES + ', since measured speed includes them. ' +
@@ -226,30 +242,29 @@
         second: { color: '--series-2', points: series.fluency.filter(function (p) { return p.effortlessWpm != null; }).map(function (p) { return { t: p.startedAt, y: p.effortlessWpm }; }) },
         cols: ['Day', 'Predicted WPM', 'Effortless WPM', 'Coverage'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wpm), fix(p.effortlessWpm), pct(p.coverage, 0)]; },
         after: timeBreakdownLine(FT.fluency.breakdown(history)) + fluencyCheckSection(FT.progress.fluencyCheck(history), date) },
-      { title: 'Common-pair timing', note: 'Median time between the letters of the ' + FT.timing.COMMON_PAIRS.length + ' most common pairs inside words, in relaxed practice, weighted by how many such pairs each exercise had. Lower is faster. Pairs typed with a multi-letter key (such as th) are not timed. Log scale.',
+      { title: 'Common-pair timing', brief: 'common-pair timing',
+        lead: 'Median time between the letters of the ' + FT.timing.COMMON_PAIRS.length + ' most common pairs inside words, in relaxed practice, weighted by how many such pairs each exercise had.',
+        about: 'Lower is faster. Pairs typed with a multi-letter key (such as th) are not timed. Log scale.',
         label: 'Common-pair timing in ms', color: '--series-1', min: 1, rows: series.commonPairMs, log: true, fmt: function (v) { return Math.round(v) + ''; },
         point: function (p) { return { t: p.startedAt, y: p.commonPairMs, tip: '<b>' + fix(p.commonPairMs) + ' ms</b> · ' + esc(date(p.startedAt)) }; },
         cols: ['Day', 'ms'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.commonPairMs)]; } },
-      { title: 'Accuracy', note: 'Accuracy (first try) per day of relaxed practice: corrected errors count too.',
-        label: 'Relaxed accuracy (first try)', color: '--series-1', min: 1, yMax: 1, rows: series.relaxed, fmt: function (v) { return pct(v, 1); },
-        point: function (p) { return { t: p.startedAt, y: p.firstAttemptAccuracy, tip: '<b>' + pct(p.firstAttemptAccuracy) + '</b> · ' + esc(date(p.startedAt)) }; },
-        cols: ['Day', 'Accuracy'], cells: function (p) { return [esc(date(p.startedAt)), pct(p.firstAttemptAccuracy)]; } },
-      { title: 'Effort signals (experimental)', note: 'Measured signals that tend to fall as typing becomes automatic: the extra time before the first letter of each word (charted, research: Crump et al. 2019) and how uneven your keystroke timing is (rhythm, in the table and tooltip; Kalfaoglu & Stafford 2014). They are proxies, not a validated measure of effort: compare them with your own ratings.',
+      { title: 'Effort signals (experimental)', brief: 'effort signals',
+        lead: 'Measured signals that tend to fall as typing becomes automatic: the extra time before the first letter of each word (charted, research: Crump et al. 2019) and how uneven your keystroke timing is (rhythm, in the table and tooltip; Kalfaoglu & Stafford 2014).',
+        about: 'They are proxies, not a validated measure of effort: compare them with your own ratings.',
         label: 'Extra time at word starts in ms', color: '--series-2', min: 1, rows: series.relaxed.filter(function (p) { return p.wordStartMs != null; }), fmt: function (v) { return Math.round(v) + ''; },
         point: function (p) { return { t: p.startedAt, y: p.wordStartMs, tip: '<b>+' + fix(p.wordStartMs) + ' ms</b> at word starts · ' + esc(date(p.startedAt)) + '<br>rhythm variation ' + fix(p.rhythmCv, 2) + ', rated effort ' + (p.effort == null ? 'not rated' : fix(p.effort, 1)) }; },
         cols: ['Day', 'Word starts (ms)', 'Rhythm', 'Rated effort'], cells: function (p) { return [esc(date(p.startedAt)), fix(p.wordStartMs), fix(p.rhythmCv, 2), p.effort == null ? '–' : fix(p.effort, 1)]; } },
     ];
     // charts without enough data are named once instead of shown empty
     var waiting = charts.filter(function (c) { return c.rows.length < c.min; }).map(function (c) { return c.title; });
-    var html = '<section class="stack"><h2>Progress</h2>' +
+    var shown = charts.map(function (c, i) { return c.rows.length < c.min ? null : { chart: c, html: chartCard(c, i) }; }).filter(Boolean);
+    var headline = shown.filter(function (s) { return s.chart.headline; }), others = shown.filter(function (s) { return !s.chart.headline; });
+    var cards = function (list) { return list.map(function (s) { return s.html; }).join(''); };
+    var html = '<section class="stack">' +
       (waiting.length ? '<p class="muted">Not enough data yet for: ' + esc(waiting.join(', ')) + '.</p>' : '') +
-      '<div class="progress-grid">' + charts.map(function (c, i) {
-      if (c.rows.length < c.min) return '';
-      return '<section class="progress-chart stack"><h3>' + esc(c.title) + '</h3><p class="muted">' + esc(c.note) + '</p>' +
-        '<div class="chart" id="pc' + i + '"></div>' +
-        H.tableView(H.table(c.cols, c.rows.slice().reverse().map(function (p) { return H.row(c.cells(p).map(function (v) { return H.cell(v, 'num'); })); }))) +
-        (c.after || '') + '</section>';
-    }).join('') + '</div></section>';
+      '<div class="progress-grid headline">' + cards(headline) + '</div>' +
+      (others.length ? H.disclosure('More measures <span class="muted">· ' + esc(others.map(function (s) { return s.chart.brief; }).join(', ')) + '</span>',
+        '<div class="progress-grid">' + cards(others) + '</div>', { id: 'moremeasures', className: 'stack' }) : '') + '</section>';
     return { html: html, draw: function () {
       charts.forEach(function (c, i) {
         var el = document.getElementById('pc' + i);
@@ -280,43 +295,67 @@
     }
     return '<section class="stack" id="fluencycheck"><h4>Benchmark check: predicted vs measured</h4>' +
       '<p class="muted">' + esc([typical('Predicted speed', check.fluency), typical('Effortless speed', check.effortless)].filter(Boolean).join(' ')) + '</p>' +
-      H.table(['Benchmark', 'Measured WPM', 'Predicted', 'Error', 'Effortless', 'Error'], check.rows.slice().reverse().map(function (r) {
+      H.table(['Benchmark', 'Measured', 'Predicted', 'Error', 'Effortless', 'Error'], check.rows.slice().reverse().map(function (r) {
         return H.row([H.cell(esc(date(r.startedAt)), 'num'), H.cell(fix(r.measured), 'num'), H.cell(fix(r.fluencyWpm), 'num'), H.cell(signed(r.fluencyWpm - r.measured), 'num'),
           H.cell(fix(r.effortlessWpm), 'num'), H.cell(r.effortlessWpm == null ? '–' : signed(r.effortlessWpm - r.measured), 'num')]);
-      })) + '</section>';
+      }), { className: 'compact' }) + '</section>';
   }
 
-  function viewHistory() { U.screen('insights/progress', { render: renderHistory }); }
-  function renderHistory() {
-    var newestFirst = app.trainer.history().slice().reverse();
-    var pc = progressCharts(app.trainer.history());
-    var html = '<section class="stack">' + U.sectionHead('insights') + '</section>' + pc.html +
-      conditionsSection(app.trainer.conditions()) +
-      '<section class="stack"><h2>All exercises</h2><p class="muted">Newest first; open a row for its summary. “Random words” is the unbiased sample that targeted practice never influences.</p></section>';
-    if (!newestFirst.length) html += '<p class="panel">No exercises yet.</p>';
-    else html += H.table(['When', 'Exercise', 'Min', 'WPM', 'Accuracy', 'Random words', 'Effort', 'Hesitation', 'Rhythm', 'Vocabulary'], newestFirst.map(function (entry) {
-      return H.row([H.cell('<button type="button" class="rowbtn" data-row data-past="' + esc(entry.id) + '">' +
-          esc(FT.fmt.dateTime(entry.startedAt)) + '</button>', 'num nowrap'),
-        H.cell(esc(FT.exercises.name(entry.type))), H.cell(fix(entry.durationMs / 60000, 1), 'num'),
-        H.cell(fix(entry.wpm), 'num'), H.cell(pct(entry.firstAttemptAccuracy), 'num'), H.cell(pct(entry.randomFirstAttemptAccuracy), 'num'),
-        H.cell(entry.effort || '–', 'num'), H.cell(pct(entry.hesitationRate), 'num'), H.cell(fix(entry.rhythmCv, 2), 'num'),
-        H.cell(Math.round(entry.frontier), 'num')], ' class="clickable"' + U.action(function () { return openPast(entry.id); }));   // the date button inside handles the keyboard
+  // The exercise log: the latest LOG_RECENT in the main columns, or every
+  // exercise in every column (a). Design choice: 8, about a week of practice.
+  var LOG_RECENT = 8;
+  var LOG_COLUMNS = [
+    ['When', function (e) { return H.cell('<button type="button" class="rowbtn" data-row data-past="' + esc(e.id) + '">' + esc(FT.fmt.dateTime(e.startedAt)) + '</button>', 'num nowrap'); }],
+    ['Exercise', function (e) { return H.cell(esc(FT.exercises.name(e.type))); }],
+    ['Min', function (e) { return H.cell(fix(e.durationMs / 60000, 1), 'num'); }],
+    ['WPM', function (e) { return H.cell(fix(e.wpm), 'num'); }],
+    ['Accuracy', function (e) { return H.cell(pct(e.firstAttemptAccuracy), 'num'); }],
+    ['Effort', function (e) { return H.cell(e.effort || '–', 'num'); }],
+    ['Random words', function (e) { return H.cell(pct(e.randomFirstAttemptAccuracy), 'num'); }, 'all'],
+    ['Hesitation', function (e) { return H.cell(pct(e.hesitationRate), 'num'); }, 'all'],
+    ['Rhythm', function (e) { return H.cell(fix(e.rhythmCv, 2), 'num'); }, 'all'],
+    ['Vocabulary', function (e) { return H.cell(Math.round(e.frontier), 'num'); }, 'all'],
+  ];
+  var logAll = false;
+  function viewHistory() {
+    logAll = false;
+    U.screen('insights/progress', { render: renderHistory });
+  }
+  function toggleLog() {
+    logAll = !logAll;
+    U.redraw();
+    document.getElementById('logall').focus();
+  }
+  function logSection(newestFirst) {
+    var columns = LOG_COLUMNS.filter(function (c) { return logAll || !c[2]; });
+    var entries = logAll ? newestFirst : newestFirst.slice(0, LOG_RECENT);
+    var html = '<section class="stack"><h2>' + (logAll ? 'All exercises' : 'Recent exercises') + '</h2><p class="muted">Newest first; open a row for its summary.' +
+      (logAll ? ' “Random words” is the unbiased sample that targeted practice never influences.' : '') + ' ' +
+      U.legendKey({ id: 'logall', key: 'a', onClick: toggleLog, label: logAll ? 'Recent only' : 'All ' + newestFirst.length + ' exercises, all columns',
+        help: logAll ? 'Recent exercises only' : 'All exercises and columns' }) + '</p></section>';
+    if (!newestFirst.length) return html + '<p class="panel">No exercises yet.</p>';
+    return html + H.table(columns.map(function (c) { return c[0]; }), entries.map(function (entry) {
+      return H.row(columns.map(function (c) { return c[1](entry); }), ' class="clickable"' + U.action(function () { return openPast(entry.id); }));   // the date button inside handles the keyboard
     }), { id: 'alltable' });
-    U.paint(html);
+  }
+  function renderHistory() {
+    var pc = progressCharts(app.trainer.history());
+    U.paint('<section class="stack">' + U.sectionHead('insights') + '</section>' + pc.html +
+      conditionsSection(app.trainer.conditions()) + logSection(app.trainer.history().slice().reverse()));
     pc.draw();
   }
   // How relaxed practice differs with and without each condition (measurement only).
   function conditionsSection(rows) {
     var signed = function (x, digits, unit) { return (x >= 0 ? '+' : '−') + fix(Math.abs(x), digits) + unit; };
     var interval = function (d, scale, digits, unit) { return signed(d.difference * scale, digits, unit) + ' <span class="muted">(' + signed(d.low * scale, digits, '') + ' to ' + signed(d.high * scale, digits, unit) + ')</span>'; };
-    return '<section class="stack"><h2>Conditions</h2><p class="muted">Relaxed practice with each tag of yours, or at each time of day, against the rest: the difference, and the range it lies in with ' + pct(FT.conditions.CONFIDENCE, 0) + ' confidence (bootstrap; Efron &amp; Tibshirani 1993). ' +
-      'Tags that always come together, or that changed along with your progress, cannot be told apart.</p>' +
+    return '<section class="stack"><h2>Conditions</h2><p class="muted small">Relaxed practice with each tag of yours, or at each time of day, against the rest.</p>' +
       (rows.length ? H.table(['Condition', 'Exercises with / without', 'WPM', 'Accuracy (first try)'], rows.map(function (r) {
         return H.row([H.cell(r.automatic ? esc(r.tag) + ' <span class="muted">(time of day)</span>' : '#' + esc(r.tag)), H.cell(r.with.n + ' / ' + r.without.n, 'num'),
           H.cell(interval(r.wpm, 1, 1, ''), 'num'), H.cell(interval(r.accuracy, 100, 1, ' pts'), 'num')]);
       }))
         : '<p class="panel">Not enough data yet: a condition is compared once ' + FT.conditions.MIN_EACH + ' relaxed exercises have it and ' + FT.conditions.MIN_EACH + ' do not. Add tags at the end of a sitting.</p>') +
-      '</section>';
+      H.disclosure('About this comparison', '<p class="muted">The difference, and the range it lies in with ' + pct(FT.conditions.CONFIDENCE, 0) + ' confidence (bootstrap; Efron &amp; Tibshirani 1993). ' +
+        'Tags that always come together, or that changed along with your progress, cannot be told apart.</p>', { id: 'conditionsabout', className: 'about' }) + '</section>';
   }
   // A past exercise's summary, rebuilt from its stored record (nothing is learned).
   function openPast(id) {
