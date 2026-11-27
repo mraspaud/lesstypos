@@ -117,3 +117,26 @@ test('an exercise without an accuracy figure does not count as 0% accuracy', () 
   assert.notEqual(r.action, 'retreat');
   assert.equal(d.state().frontier, 500);
 });
+
+// Functionality: the evidence for the vocabulary comes from relaxed
+// practice's unbiased words only (the random sample and the frontier words),
+// split into the easiest words (the reference) and the rest. Carriers chosen
+// for training targets never count.
+const typed = (target, source, errors = 0) => ({
+  word: { target, meta: { source } },
+  analysis: { targets: Array.from(target, (_, i) => ({ err: i < errors ? 1 : 0 })) },
+});
+const ranks = { the: 0, and: 1, house: 150, window: 900 };
+const evidenceOf = (list) => plain(FT.difficulty.evidence(list.map((x) => x.word), list.map((x) => x.analysis), (w) => (w in ranks ? ranks[w] : -1)));
+
+test('target and maintenance carriers never count as vocabulary evidence', () => {
+  const e = evidenceOf([typed('window', 'target', 3), typed('house', 'maintenance', 2), typed('window', 'frontier')]);
+  assert.deepEqual(e.vocabulary, { words: 1, chars: 6, errors: 0 });
+  assert.deepEqual(e.easiest, { words: 0, chars: 0, errors: 0 });
+});
+
+test('the unbiased words below rank 100 are the easiest words; the others are the vocabulary', () => {
+  const e = evidenceOf([typed('the', 'random', 1), typed('and', 'frontier'), typed('house', 'random', 2), typed('window', 'frontier'), typed('the', 'target', 3)]);
+  assert.deepEqual(e.easiest, { words: 2, chars: 6, errors: 1 });
+  assert.deepEqual(e.vocabulary, { words: 2, chars: 11, errors: 2 });
+});

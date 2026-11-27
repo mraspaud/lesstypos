@@ -90,5 +90,22 @@
     return { update: update, override: override, state: function () { return st; }, toJSON: function () { return st; } };
   }
 
-  FT.difficulty = { create: create, TUNING: TUNING };
+  // The evidence an exercise gives: first-try errors per character on its
+  // unbiased words (FT.generator.UNBIASED), the easiest (rank below
+  // EASIEST_RANKS) apart from the rest. words: the typed words with their
+  // meta; analyses: FT.align's, in the same order; rankOf(word) -> rank.
+  var EASIEST_RANKS = 100;
+  function evidence(words, analyses, rankOf) {
+    var out = { vocabulary: tally(), easiest: tally() };
+    words.forEach(function (w, i) {
+      if (!w.meta || FT.generator.UNBIASED.indexOf(w.meta.source) < 0) return;
+      var rank = rankOf(w.target), t = rank >= 0 && rank < EASIEST_RANKS ? out.easiest : out.vocabulary;
+      t.words++;
+      analyses[i].targets.forEach(function (x) { t.chars++; t.errors += x.err; });
+    });
+    return out;
+  }
+  function tally() { return { words: 0, chars: 0, errors: 0 }; }
+
+  FT.difficulty = { create: create, evidence: evidence, TUNING: TUNING, EASIEST_RANKS: EASIEST_RANKS };
 })(globalThis.FT);

@@ -133,5 +133,8 @@
     return { next: next };
   }
 
-  FT.generator = { create: create };
+  // The sources whose words are not chosen for a training target.
+  var UNBIASED = ['random', 'frontier'];
+
+  FT.generator = { create: create, UNBIASED: UNBIASED };
 })(globalThis.FT);
