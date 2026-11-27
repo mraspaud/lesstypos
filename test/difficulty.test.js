@@ -233,6 +233,33 @@ test('a fixed vocabulary is respected until released', () => {
   assert.equal(d.state().manual, false);
 });
 
+// Functionality: the pooled evidence belongs to the vocabulary it was typed
+// in, so fixing the vocabulary or releasing it starts the pool afresh.
+const halfPool = () => exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995) });
+test('fixing the vocabulary empties the pool of less common words', () => {
+  const d = controller();
+  d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995), effort: 5 }));
+  d.override(800);
+  d.override(null);
+  const r = d.update(halfPool());
+  assert.equal(r.action, 'wait');
+  assert.match(r.reasons[0], new RegExp('^' + T.minWords / 2 + ' of the'));
+  assert.equal(d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995), effort: 2 })).action, 'advance'); // not held by the effort before
+});
+
+test('releasing a fixed vocabulary empties the pool', () => {
+  const d = FT.difficulty.create({ frontier: 800, manual: true, pool: [{ weight: 1, words: lessCommon(T.minWords / 2, 0.995) }] });
+  d.override(null);
+  assert.deepEqual(plain(d.state().pool), []);
+});
+
+test('releasing a vocabulary that is not fixed keeps the pool', () => {
+  const d = controller();
+  d.update(halfPool());
+  d.override(null);
+  assert.equal(d.update(halfPool()).words, T.minWords);
+});
+
 // Functionality: the reasons say in plain words what decided: how many times
 // the errors of the easiest words the less common words have, and the band,
 // with both accuracies to two decimals, so a step never reads as "98.5% below

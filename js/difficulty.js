@@ -176,9 +176,13 @@
       return { action: 'hold', reasons: judged.reasons.concat(bound) };
     }
 
+    // Fixes the vocabulary at f, or releases it (f null). Either starts the
+    // pool afresh: its words belong to the vocabulary they were typed in.
     function override(f) {
-      if (f == null) { st.manual = false; return; }
-      st.manual = true; st.frontier = clamp(f);
+      if (f == null && !st.manual) return;
+      st.pool = []; st.pending = null;
+      st.manual = f != null;
+      if (st.manual) st.frontier = clamp(f);
     }
 
     return { update: update, override: override, state: function () { return st; }, toJSON: function () { return st; } };
