@@ -70,55 +70,66 @@
     function waiting(reason) { return { action: 'wait', frontier: st.frontier, reasons: [reason] }; }
 
     function decide(less, easy, at) {
-      var acc = accuracy(less), ref = accuracy(easy), p = st.pending;
-      var hes = p.hesN ? p.hes / p.hesN : null, rhy = p.rhyN ? p.rhy / p.rhyN : null;
-      var recent = st.windows.slice(-cfg.baselineN);
-      var hesBase = FT.stats.median(recent.map(function (x) { return x.hes; }).filter(function (x) { return x != null; }));
-      var rhyBase = FT.stats.median(recent.map(function (x) { return x.rhy; }).filter(function (x) { return x != null; }));
-      var pct = function (x) { return (100 * x).toFixed(1) + '%'; };
-      var both = function (link) { return 'accuracy (first try) ' + pct2(acc) + ' on the less common words' + link + pct2(ref) + ' on the ' + EASIEST_RANKS + ' most common'; };
-      var action, reasons = [];
-      if (credibly(less, easy, -cfg.retreatBelow, 'below')) {
-        action = 'retreat';
-        reasons.push(both(', clearly below your '));
-      } else if (credibly(less, easy, -cfg.advanceWithin, 'above')) {
-        action = 'advance';
-        reasons.push(both(', close to your '));
-        if (hes != null && hesBase != null && hes > hesBase * cfg.hesTol && hes - hesBase > cfg.hesAbs) {
-          action = 'hold'; reasons.push('hesitation ' + pct(hes) + ' above recent ' + pct(hesBase));
-        }
-        if (rhy != null && rhyBase != null && rhy > rhyBase * cfg.rhythmTol) {
-          action = 'hold'; reasons.push('rhythm less even than recently (CV ' + rhy.toFixed(2) + ' vs ' + rhyBase.toFixed(2) + ')');
-        }
-        if (p.effort != null && p.effort >= cfg.effortHold) {
-          action = 'hold'; reasons.push('perceived effort ' + p.effort + ' is high');
-        }
-      } else {
-        action = 'hold';
-        reasons.push(both(' against ') + ', not yet clear enough to change');
+      var felt = conditions(st.pending), judged = byAccuracy(less, easy);
+      if (judged.action === 'advance') {
+        var held = holdsBack(felt);
+        if (held.length) judged = { action: 'hold', reasons: judged.reasons.concat(held) };
       }
-      var before = st.frontier;
-      if (action === 'advance') st.frontier = clamp(st.frontier * cfg.step);
-      if (action === 'retreat') st.frontier = clamp(st.frontier / cfg.step);
-      if (action !== 'hold' && st.frontier === before) {
-        reasons.push(action === 'retreat' ? 'the vocabulary never goes below ' + cfg.min + ' words' : 'the vocabulary is the whole word list');
-        action = 'hold';
-      }
+      var before = st.frontier, stepped = step(judged);
       if (st.frontier !== before) st.pool = [];
-      st.windows.push({ hes: hes, rhy: rhy, acc: acc });
+      st.windows.push({ hes: felt.hes, rhy: felt.rhy, acc: accuracy(less) });
       if (st.windows.length > 50) st.windows.shift();
-      var rec = { action: action, from: before, to: st.frontier, accuracy: acc, reference: ref, words: less.words, reasons: reasons, at: at || null };
+      var rec = { action: stepped.action, from: before, to: st.frontier, accuracy: accuracy(less), reference: accuracy(easy),
+        words: less.words, reasons: stepped.reasons, at: at || null };
       st.history.push(rec);
       if (st.history.length > 500) st.history.shift();
       st.pending = null;
       return rec;
     }
-    // Is the less common words' accuracy credibly above (or below) the
-    // easiest words' accuracy plus margin?
-    function credibly(less, easy, margin, side) {
-      var above = FT.stats.betaDifferenceAbove(1 + less.chars - less.errors, 1 + less.errors,
-        1 + easy.chars - easy.errors, 1 + easy.errors, margin);
-      return (side === 'above' ? above : 1 - above) > cfg.credible;
+
+    // What accuracy alone says: retreat, advance or hold, with its reason.
+    function byAccuracy(less, easy) {
+      var both = function (link) {
+        return 'accuracy (first try) ' + pct2(accuracy(less)) + ' on the less common words' + link + pct2(accuracy(easy)) + ' on the ' + EASIEST_RANKS + ' most common';
+      };
+      if (1 - pAbove(less, easy, -cfg.retreatBelow) > cfg.credible) return { action: 'retreat', reasons: [both(', clearly below your ')] };
+      if (pAbove(less, easy, -cfg.advanceWithin) > cfg.credible) return { action: 'advance', reasons: [both(', close to your ')] };
+      return { action: 'hold', reasons: [both(' against ') + ', not yet clear enough to change'] };
+    }
+    // P(accuracy on the less common words > accuracy on the easiest + margin).
+    function pAbove(less, easy, margin) {
+      return FT.stats.betaDifferenceAbove(1 + less.chars - less.errors, 1 + less.errors, 1 + easy.chars - easy.errors, 1 + easy.errors, margin);
+    }
+
+    // How the exercises since the last decision felt, against the median of
+    // recent decisions.
+    function conditions(p) {
+      var recent = st.windows.slice(-cfg.baselineN);
+      var baseline = function (key) { return FT.stats.median(recent.map(function (x) { return x[key]; }).filter(function (x) { return x != null; })); };
+      return { hes: p.hesN ? p.hes / p.hesN : null, rhy: p.rhyN ? p.rhy / p.rhyN : null, effort: p.effort,
+        hesBase: baseline('hes'), rhyBase: baseline('rhy') };
+    }
+    // The reasons that hold an advance back.
+    function holdsBack(c) {
+      var pct = function (x) { return (100 * x).toFixed(1) + '%'; }, reasons = [];
+      if (c.hes != null && c.hesBase != null && c.hes > c.hesBase * cfg.hesTol && c.hes - c.hesBase > cfg.hesAbs) {
+        reasons.push('hesitation ' + pct(c.hes) + ' above recent ' + pct(c.hesBase));
+      }
+      if (c.rhy != null && c.rhyBase != null && c.rhy > c.rhyBase * cfg.rhythmTol) {
+        reasons.push('rhythm less even than recently (CV ' + c.rhy.toFixed(2) + ' vs ' + c.rhyBase.toFixed(2) + ')');
+      }
+      if (c.effort != null && c.effort >= cfg.effortHold) reasons.push('perceived effort ' + c.effort + ' is high');
+      return reasons;
+    }
+
+    // Moves the frontier as judged; a step the bounds stop is a hold.
+    function step(judged) {
+      var before = st.frontier;
+      if (judged.action === 'advance') st.frontier = clamp(st.frontier * cfg.step);
+      if (judged.action === 'retreat') st.frontier = clamp(st.frontier / cfg.step);
+      if (judged.action === 'hold' || st.frontier !== before) return judged;
+      var bound = judged.action === 'retreat' ? 'the vocabulary never goes below ' + cfg.min + ' words' : 'the vocabulary is the whole word list';
+      return { action: 'hold', reasons: judged.reasons.concat(bound) };
     }
 
     function override(f) {
