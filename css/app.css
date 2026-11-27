@@ -74,12 +74,12 @@ p { margin: 0; max-width: 65ch; }
 }
 .nav button:hover { color: var(--ink); background: var(--surface); }
 .nav button[aria-current="page"] { color: var(--ink); background: var(--surface); }
-/* quiet key hints: an outline only; on the primary button, in its colour */
+/* quiet key hints: an outline only; on the primary button, in its text colour (full strength: text contrast) */
 kbd {
   font-family: var(--font-text); font-size: 0.74em; padding: 0 4px; border: 1px solid var(--line);
   border-radius: 4px; color: var(--muted); background: transparent;
 }
-.btn.primary kbd { color: inherit; border-color: currentColor; opacity: 0.75; }
+.btn.primary kbd { color: inherit; border-color: currentColor; }
 .nav kbd { margin-left: 4px; }
 .typing-mode .bar { opacity: 0.25; transition: opacity 0.3s; }
 .typing-mode .bar:hover { opacity: 1; }

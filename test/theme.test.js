@@ -30,6 +30,25 @@ for (const [name, t] of [['light', light], ['dark', dark]]) {
     }
   });
 }
+// The key hint on the primary button is text on the accent: its colour (the
+// button's own where it inherits), seen through its opacity, reaches 4.5:1.
+function declarations(selector) {
+  const at = css.indexOf('\n' + selector + ' {');
+  assert.ok(at >= 0, selector + ' is styled');
+  const body = css.slice(css.indexOf('{', at) + 1, css.indexOf('}', at));
+  return Object.fromEntries(body.split(';').map((d) => d.split(':').map((x) => x.trim())).filter((d) => d[0]));
+}
+const tokenOf = (value) => /^var\(--([a-z0-9-]+)\)$/.exec(value)[1];
+const blend = (fg, bg, alpha) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(fg.slice(i, i + 2), 16) * alpha + parseInt(bg.slice(i, i + 2), 16) * (1 - alpha))
+  .toString(16).padStart(2, '0')).join('');
+for (const [name, t] of [['light', light], ['dark', dark]]) {
+  test(`${name} theme: the key hint on the primary button reaches 4.5:1 on the accent`, () => {
+    const button = declarations('.btn.primary'), hint = declarations('.btn.primary kbd');
+    const colour = t[tokenOf(!hint.color || hint.color === 'inherit' ? button.color : hint.color)];
+    const seen = blend(colour, t[tokenOf(button.background)], hint.opacity == null ? 1 : +hint.opacity);
+    assert.ok(ratio(seen, t[tokenOf(button.background)]) >= 4.5, `key hint on accent: ${ratio(seen, t[tokenOf(button.background)]).toFixed(2)}`);
+  });
+}
 test('both theme blocks are read', () => {
   assert.ok(light.ink && light.bg && dark.ink && dark.bg && light.bg !== dark.bg);
 });
