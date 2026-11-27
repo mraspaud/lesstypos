@@ -24,9 +24,9 @@
   }
 
   // A quiet text button for a secondary action: its key, then what it does
-  // (label, markup). help: what ? says, where that needs more words; title: its tooltip.
+  // (label, markup). help: what ? says, where that needs more words; title: its tooltip; id, if any.
   function legendKey(b) {
-    return '<button type="button" class="legendkey" id="' + b.id + '"' + (b.title ? ' title="' + esc(b.title) + '"' : '') + U.action(b.onClick) + '>' +
+    return '<button type="button" class="legendkey"' + (b.id ? ' id="' + b.id + '"' : '') + (b.title ? ' title="' + esc(b.title) + '"' : '') + U.action(b.onClick) + '>' +
       shortcut({ key: b.key, label: b.help || b.label, act: b.onClick }) + ' ' + b.label + '</button>';
   }
 
