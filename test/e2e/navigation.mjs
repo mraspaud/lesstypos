@@ -84,6 +84,19 @@ export default async function navigation() {
     await page.keyboard.press('Escape');
   });
 
+  await step('the footer shows on Train and Settings only; key hints have no fill', async () => {
+    const footerShown = () => page.locator('body > .shell > footer').isVisible();
+    for (const [route, shown] of [['home', true], ['settings/typing', true], ['settings/data', true], ['insights/focus', false], ['insights/progress', false]]) {
+      await nav(page, route);
+      assert.equal(await footerShown(), shown, route);
+    }
+    await startExercise(page, 'relaxed', { minutes: 1 });
+    assert.equal(await footerShown(), false, 'typing');
+    await page.keyboard.press('Escape');
+    await nav(page, 'home');
+    assert.equal(await page.locator('#primary kbd').evaluate((k) => getComputedStyle(k).backgroundColor), 'rgba(0, 0, 0, 0)');
+  });
+
   await step('the skip link moves focus to the content and stays on the page', async () => {
     await page.keyboard.press('q');
     await page.locator('a.skip').focus();

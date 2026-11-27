@@ -8,11 +8,12 @@
   var U = FT.ui, app = U.app;
   var esc = FT.fmt.esc;
 
-  // Three sections: Train, Insights (tabs) and Settings (tabs).
+  // Three sections: Train, Insights (tabs) and Settings (tabs). footer: the
+  // page footer (attribution, where data stays) shows on that section's pages.
   var SECTIONS = {
-    home: { name: 'Train', key: '1' },
+    home: { name: 'Train', key: '1', footer: true },
     insights: { name: 'Insights', key: '2', tabs: [['focus', 'Focus'], ['errors', 'Errors'], ['progress', 'Progress']] },
-    settings: { name: 'Settings', key: '3', tabs: [['typing', 'Typing'], ['training', 'Daily training'], ['keyboard', 'Keyboard'],
+    settings: { name: 'Settings', key: '3', footer: true, tabs: [['typing', 'Typing'], ['training', 'Daily training'], ['keyboard', 'Keyboard'],
       ['appearance', 'Appearance'], ['texts', 'Texts'], ['data', 'Data']] },
   };
   var NAV = ['home', 'insights', 'settings'].map(function (k) { return { route: k, name: SECTIONS[k].name, key: SECTIONS[k].key }; });
@@ -47,6 +48,7 @@
     if (ROUTES[name]) setAddress(name);
     document.body.classList.toggle('typing-mode', name === 'typing');
     document.body.classList.toggle('quiet-nav', name === 'typing' || name === 'effort');
+    app.$footer.hidden = !(SECTIONS[sectionOf(name)] || {}).footer;
     renderNav();
     draw();
   }

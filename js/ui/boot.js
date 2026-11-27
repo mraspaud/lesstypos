@@ -49,6 +49,7 @@
   function boot() {
     app.$view = document.getElementById('view');
     app.$nav = document.getElementById('nav');
+    app.$footer = document.getElementById('footer');
     listen();
     var ready = openStore().then(loadTrainer).then(function () {
       if (!app.storageOk) app.notice = 'This browser does not allow storage for this page, so progress will be lost when you close it. Use Settings: Data → Export to keep it.';
