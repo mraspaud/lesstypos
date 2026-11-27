@@ -150,7 +150,7 @@
           html += H.table(['Comes with the app', 'Words', ''], [H.row([H.cell(esc(bundledLabel(offer))), H.cell(offer.words.length.toLocaleString(), 'num'),
             H.cell(U.keyButton({ label: 'Type now', id: 'usebundled', onClick: function () { return addBundled().then(U.onThisScreen(typeText)).catch(U.storageError); } }))])]);
         }
-        html += H.disclosure('Add a text', textForm(), { id: 'addtext', className: 'panel stack fold', open: !list.length });   // folded once a text exists
+        html += H.foldedPanel('Add a text', textForm(), { id: 'addtext', open: !list.length });   // folded once a text exists
         U.paint(html);
         bindTextForm(U.onThisScreen(U.redraw));
         app.$view.querySelectorAll('select[data-chapter]').forEach(function (sel) {

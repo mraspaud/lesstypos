@@ -85,6 +85,7 @@ export default async function data() {
     await page.locator('#file').waitFor();
     await opensWithKeyboard(page, 'pastebox');
     assert.ok(await page.locator('#paste').isVisible());
+    await page.getByRole('heading', { name: 'Rebuild and reset' }).waitFor();   // a folded panel keeps its heading
     await opensWithKeyboard(page, 'rebuildreset');
     assert.ok(await page.locator('#rebuild').isVisible());
     await nav(page, 'settings/keyboard');

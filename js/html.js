@@ -37,6 +37,10 @@
   function disclosure(summary, body, opts) {
     return '<details' + idAndClass(opts) + (opts && opts.open ? ' open' : '') + '><summary>' + summary + '</summary>' + body + '</details>';
   }
+  // A panel folded under its title, which stays its heading; opts: id, open.
+  function foldedPanel(title, body, opts) {
+    return disclosure('<h2>' + title + '</h2>', body, { id: opts && opts.id, className: 'panel stack fold', open: opts && opts.open });
+  }
   // A chart's data, folded away under the chart.
   function tableView(tableHtml) { return disclosure('Show as table', tableHtml, { className: 'tableview' }); }
   // One dot per step, filled for the steps done.
@@ -47,5 +51,5 @@
     return '<span class="dots" role="img" aria-label="' + done + ' of ' + total + ' done">' + dots + '</span>';
   }
 
-  FT.html = { table: table, row: row, cell: cell, tiles: tiles, select: select, panel: panel, disclosure: disclosure, tableView: tableView, progressDots: progressDots };
+  FT.html = { table: table, row: row, cell: cell, tiles: tiles, select: select, panel: panel, disclosure: disclosure, foldedPanel: foldedPanel, tableView: tableView, progressDots: progressDots };
 })(globalThis.FT);

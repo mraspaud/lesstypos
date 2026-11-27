@@ -33,6 +33,7 @@ export default async function reading() {
     await nav(page, 'settings/texts');
     await rowOf(page, 'Test text').first().waitFor();
     assert.ok(!(await page.locator('#ttitle').isVisible()));
+    await page.getByRole('heading', { name: 'Add a text' }).waitFor();   // a folded panel keeps its heading
     await opensWithKeyboard(page, 'addtext');
     assert.ok(await page.locator('#ttitle').isVisible());
   });

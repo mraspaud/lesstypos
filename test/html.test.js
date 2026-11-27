@@ -55,6 +55,13 @@ test('a disclosure folds its body under a summary, closed unless asked open', ()
     '<details id="addtext" class="panel stack" open><summary>Add a text</summary></details>');
 });
 
+test('a folded panel keeps its title as a heading, in its summary', () => {
+  assert.equal(H.foldedPanel('Rebuild and reset', '<p>Rebuild</p>', { id: 'rebuildreset' }),
+    '<details id="rebuildreset" class="panel stack fold"><summary><h2>Rebuild and reset</h2></summary><p>Rebuild</p></details>');
+  assert.equal(H.foldedPanel('Add a text', '', { id: 'addtext', open: true }),
+    '<details id="addtext" class="panel stack fold" open><summary><h2>Add a text</h2></summary></details>');
+});
+
 test('tiles can be plain: the same values and labels without their boxes', () => {
   assert.equal(H.tiles([['42', 'WPM']], { plain: true }), '<div class="tiles plain"><div class="tile"><b>42</b><span>WPM</span></div></div>');
 });

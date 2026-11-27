@@ -76,9 +76,9 @@
           H.disclosure('…or paste a backup', '<textarea id="paste" class="mono" placeholder="Paste a backup here"></textarea><div class="row">' +
             button('Import pasted backup', function () { return importBackup(document.getElementById('paste').value); }, null, 'imp') + '</div>', { id: 'pastebox', className: 'stack' }) +
           '<p class="muted" id="impmsg"></p>') +
-        H.disclosure('Rebuild and reset', '<div class="row">' + button('Rebuild statistics from raw exercises', rebuild, null, 'rebuild') + '</div>' +
+        H.foldedPanel('Rebuild and reset', '<div class="row">' + button('Rebuild statistics from raw exercises', rebuild, null, 'rebuild') + '</div>' +
           '<div class="row">' + resetButton('profile', 'Reset statistics only') + resetButton('settings', 'Reset settings') + resetButton('all', 'Delete everything') + '</div>' +
-          '<p class="muted">Resetting statistics keeps raw exercises, so they can be rebuilt. Each button asks once more before acting.</p><p id="resetmsg"></p>', { id: 'rebuildreset', className: 'panel stack fold' }));
+          '<p class="muted">Resetting statistics keeps raw exercises, so they can be rebuilt. Each button asks once more before acting.</p><p id="resetmsg"></p>', { id: 'rebuildreset' }));
       showUsage();
       document.getElementById('file').onchange = function (e) {
         var f = e.target.files[0]; if (!f) return;
