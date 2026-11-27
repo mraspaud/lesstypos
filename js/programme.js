@@ -102,6 +102,19 @@
     if (o.resumable) return 'resume';
     return o.trainedToday ? 'read' : 'train';
   }
+  // Where each way to train sits on home (user decision): the one Enter
+  // starts (homeDefault's, or choosing exercises when none is switched on),
+  // a benchmark that is due beside it, and every other way under More, the
+  // one swapped out of Enter first. o: whether there are steps, reading, a
+  // chapter to go back to and a focus sequence; trainedToday, resumable,
+  // benchmarkDue. Returns the ids home draws.
+  function homeLayout(o) {
+    var choice = homeDefault(o);
+    var primary = !o.steps ? 'choose' : choice === 'read' && !o.reading ? 'train' : choice;
+    var swappedOut = primary === 'read' ? 'again' : o.reading ? 'read' : null;
+    var more = [swappedOut, o.chapterStart && 'chapterstart', 'start', !o.benchmarkDue && 'bench', o.target && 'one', o.resumable && 'restart'];
+    return { primary: primary, shown: o.benchmarkDue ? ['bench'] : [], more: more.filter(Boolean) };
+  }
 
-  FT.programme = { MIN_MINUTES: MIN_MINUTES, MAX_MINUTES: MAX_MINUTES, homeDefault: homeDefault, DEFAULT: DEFAULT, STEP_TYPES: STEP_TYPES, runner: runner, resume: resume, totalMinutes: totalMinutes, clean: clean, cleanRun: cleanRun };
+  FT.programme = { MIN_MINUTES: MIN_MINUTES, MAX_MINUTES: MAX_MINUTES, homeDefault: homeDefault, homeLayout: homeLayout, DEFAULT: DEFAULT, STEP_TYPES: STEP_TYPES, runner: runner, resume: resume, totalMinutes: totalMinutes, clean: clean, cleanRun: cleanRun };
 })(globalThis.FT);
