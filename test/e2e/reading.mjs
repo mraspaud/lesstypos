@@ -3,15 +3,13 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { step, freshPage, closePage, root, nav, startExercise, typeWords, finishWithEffort, rateEffort, seedExercises, seedText,
-  storedText, removeTexts, discard, current, openMore, openFold, opensWithKeyboard, navDrawn } from './harness.mjs';
+  storedText, removeTexts, discard, current, openMore, openFold, opensWithKeyboard, navDrawn, untilResolved, readingOffered } from './harness.mjs';
 
 const rowOf = (page, title) => page.locator('tr', { hasText: title });
 const firstWord = async (page) => (await page.locator('.w').first().textContent()).replace('¶', '');
 const numbered = (n, prefix = 'w') => Array.from({ length: n }, (_, i) => prefix + i);
 const SHORT = 'one two three four five six seven eight nine ten eleven twelve'.split(' ');
 const TWENTY = SHORT.concat('thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' '));
-// Home has drawn its way into the book (under More until today's training is done).
-const readingOffered = (page, text = /Continue reading/) => page.locator('#read', { hasText: text }).waitFor({ state: 'attached' });
 const currentPos = (page) => page.evaluate(async () => { const a = window.FT.ui.app; return (await a.store.getText(a.settings.currentText)).pos; });
 // Reads n words of the book on view, then saves without a rating.
 async function readAndSave(page, n) {
@@ -86,7 +84,7 @@ export default async function reading() {
     await page.keyboard.type('seven eight nine ten eleven twelve', { delay: 10 }); // no space after the last word
     await rateEffort(page, 2);
     await page.getByText(/Your place is saved/).waitFor();
-    await page.waitForFunction(() => window.FT.ui.app.store.getText('short').then((t) => t.pos === 12), null, { timeout: 3000 });
+    await untilResolved(page, () => window.FT.ui.app.store.getText('short').then((t) => t.pos === 12), null, { timeout: 3000 });
   });
 
   await step('a finished text offers to start over instead of an empty exercise', async () => {
@@ -108,7 +106,7 @@ export default async function reading() {
     await start.waitFor();
     assert.equal(await start.locator('option:checked').textContent(), 'Snowdrop');
     await start.selectOption({ label: 'The Pink' });
-    await page.waitForFunction(() => window.FT.ui.app.store.listTexts().then((l) => {
+    await untilResolved(page, () => window.FT.ui.app.store.listTexts().then((l) => {
       const t = l.find((x) => x.title === 'Snowdrop & Other Tales');
       return t && t.pos === t.chapters.find((c) => c.title === 'The Pink').start;
     }));
@@ -136,7 +134,7 @@ export default async function reading() {
     }
     assert.deepEqual(typed.slice(118, 123), ['w128', 'w129', 'w130', 'w131', 'w132']);
     await finishWithEffort(page, 0);
-    await page.waitForFunction(() => window.FT.ui.app.store.getText('long').then((t) => t.pos === 140));
+    await untilResolved(page, () => window.FT.ui.app.store.getText('long').then((t) => t.pos === 140));
     await page.evaluate(() => window.FT.ui.app.store.deleteText('long'));
   });
 
@@ -170,7 +168,7 @@ export default async function reading() {
     await nav(page, 'settings/texts');
     await rowOf(page, 'current').getByRole('button', { name: /Type now/ }).click();
     await readAndSave(page, 13);
-    await page.waitForFunction(() => window.FT.ui.app.store.getDraft().then((d) => !d));   // saved
+    await untilResolved(page, () => window.FT.ui.app.store.getDraft().then((d) => !d));   // saved
     const pos = await currentPos(page);
     const expected = await page.evaluate(async () => { const a = window.FT.ui.app; const t = await a.store.getText(a.settings.currentText); return t.words[t.pos]; });
     await nav(page, 'home');
@@ -185,6 +183,7 @@ export default async function reading() {
     await seedExercises(page, { run: 'run-today' });
     await nav(page, 'home');
     await page.locator('#more #again', { hasText: /Daily training again/ }).waitFor({ state: 'attached' });
+    await readingOffered(page, /Continue reading.*Alice/);
     assert.match(await page.locator('#primary').textContent(), /Continue reading/);
     await page.keyboard.press('Enter');
     await page.locator('.w').first().waitFor();
@@ -243,7 +242,7 @@ export default async function reading() {
     await rowOf(page, 'Alice').getByRole('button', { name: 'Start over' }).click();
     assert.equal((await storedText(page, 'alice')).pos, 500);   // the first press only asks
     await rowOf(page, 'Alice').getByRole('button', { name: /again to start over/ }).click();
-    await page.waitForFunction(async () => (await window.FT.ui.app.store.getText('alice')).pos === 0);
+    await untilResolved(page, async () => (await window.FT.ui.app.store.getText('alice')).pos === 0);
     await rowOf(page, 'Alice').getByText(/word 0 of/).waitFor();   // the page shows it
   });
 
@@ -257,7 +256,7 @@ export default async function reading() {
     const twoOn = options[options.indexOf(before) + 2];
     await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowDown');
-    await page.waitForFunction((p) => window.FT.ui.app.store.getText('alice').then((t) => t.pos === p), twoOn);
+    await untilResolved(page, (p) => window.FT.ui.app.store.getText('alice').then((t) => t.pos === p), twoOn);
     assert.equal(+(await page.locator('select[data-chapter="alice"]').inputValue()), twoOn);
     assert.equal(await page.evaluate(() => document.activeElement.dataset.chapter), 'alice');
   });
