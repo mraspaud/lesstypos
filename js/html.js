@@ -1,4 +1,4 @@
-// Markup shared by the views: tables, tiles, selects and panels. Pure string
+// Markup shared by the views: tables, tiles, selects, panels and disclosures. Pure string
 // builders; the stylesheet and the end-to-end checks rely on this markup.
 (function (FT) {
   'use strict';
@@ -7,17 +7,21 @@
   function attributes(attrs) {
     return Object.keys(attrs || {}).map(function (name) { return ' ' + name + '="' + esc(attrs[name]) + '"'; }).join('');
   }
-  function idAttribute(opts) { return attributes(opts && opts.id ? { id: opts.id } : null); }
+  // opts.id and opts.className, where given.
+  function idAndClass(opts) {
+    opts = opts || {};
+    return attributes(opts.id ? { id: opts.id } : null) + attributes(opts.className ? { class: opts.className } : null);
+  }
   // head: heading texts; rows: <tr> markup (see row).
   function table(head, rows, opts) {
-    return '<div class="tablewrap"><table' + idAttribute(opts) + '><thead><tr>' +
+    return '<div class="tablewrap"><table' + idAndClass(opts) + '><thead><tr>' +
       head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
   }
   function row(cells, attrs) { return '<tr' + (attrs || '') + '>' + cells.join('') + '</tr>'; }
   function cell(html, cls) { return '<td' + (cls ? ' class="' + cls + '"' : '') + '>' + html + '</td>'; }
-  // items: [value, label] pairs of markup.
-  function tiles(items) {
-    return '<div class="tiles">' + items.map(function (t) { return '<div class="tile"><b>' + t[0] + '</b><span>' + t[1] + '</span></div>'; }).join('') + '</div>';
+  // items: [value, label] pairs of markup; opts.plain: without their boxes.
+  function tiles(items, opts) {
+    return '<div class="tiles' + (opts && opts.plain ? ' plain' : '') + '">' + items.map(function (t) { return '<div class="tile"><b>' + t[0] + '</b><span>' + t[1] + '</span></div>'; }).join('') + '</div>';
   }
   // options: [value, label] pairs of text; chosen: the selected value, if any.
   function select(attrs, options, chosen) {
@@ -27,12 +31,21 @@
     }).join('') + '</select>';
   }
   function panel(title, body, opts) {
-    return '<section class="panel stack"' + idAttribute(opts) + '><h2>' + title + '</h2>' + body + '</section>';
+    return '<section class="panel stack"' + idAndClass({ id: opts && opts.id }) + '><h2>' + title + '</h2>' + body + '</section>';
+  }
+  // Markup folded under its summary (markup); opts: id, className, open.
+  function disclosure(summary, body, opts) {
+    return '<details' + idAndClass(opts) + (opts && opts.open ? ' open' : '') + '><summary>' + summary + '</summary>' + body + '</details>';
   }
   // A chart's data, folded away under the chart.
-  function tableView(tableHtml) {
-    return '<details class="tableview"><summary>Show as table</summary>' + tableHtml + '</details>';
+  function tableView(tableHtml) { return disclosure('Show as table', tableHtml, { className: 'tableview' }); }
+  // One dot per step, filled for the steps done.
+  function progressDots(done, total) {
+    done = Math.min(done, total);
+    var dots = '';
+    for (var i = 0; i < total; i++) dots += i < done ? '<i class="on"></i>' : '<i></i>';
+    return '<span class="dots" role="img" aria-label="' + done + ' of ' + total + ' done">' + dots + '</span>';
   }
 
-  FT.html = { table: table, row: row, cell: cell, tiles: tiles, select: select, panel: panel, tableView: tableView };
+  FT.html = { table: table, row: row, cell: cell, tiles: tiles, select: select, panel: panel, disclosure: disclosure, tableView: tableView, progressDots: progressDots };
 })(globalThis.FT);

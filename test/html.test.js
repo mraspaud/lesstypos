@@ -48,3 +48,22 @@ test('a table view folds a table under "Show as table"', () => {
   assert.equal(H.tableView('<div class="tablewrap"></div>'),
     '<details class="tableview"><summary>Show as table</summary><div class="tablewrap"></div></details>');
 });
+
+test('a disclosure folds its body under a summary, closed unless asked open', () => {
+  assert.equal(H.disclosure('About this measure', '<p>How</p>'), '<details><summary>About this measure</summary><p>How</p></details>');
+  assert.equal(H.disclosure('Add a text', '', { id: 'addtext', className: 'panel stack', open: true }),
+    '<details id="addtext" class="panel stack" open><summary>Add a text</summary></details>');
+});
+
+test('tiles can be plain: the same values and labels without their boxes', () => {
+  assert.equal(H.tiles([['42', 'WPM']], { plain: true }), '<div class="tiles plain"><div class="tile"><b>42</b><span>WPM</span></div></div>');
+});
+
+test('a table can carry a class', () => {
+  assert.match(H.table(['Error'], [], { id: 'check', className: 'compact' }), /^<div class="tablewrap"><table id="check" class="compact"><thead>/);
+});
+
+test('progress dots mark the steps done out of all, and name the count for assistive technology', () => {
+  assert.equal(H.progressDots(1, 3), '<span class="dots" role="img" aria-label="1 of 3 done"><i class="on"></i><i></i><i></i></span>');
+  assert.equal(H.progressDots(4, 3), '<span class="dots" role="img" aria-label="3 of 3 done"><i class="on"></i><i class="on"></i><i class="on"></i></span>');
+});
