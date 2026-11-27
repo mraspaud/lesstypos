@@ -2,11 +2,21 @@
 // key help, the dark theme, and phone screens.
 import assert from 'node:assert/strict';
 import { step, freshPage, closePage, nav, reload, seedExercises, startExercise, typeWords, effortQuestion, setProgramme, startTraining,
-  typeUntilEffort, current, PHONE, DESKTOP } from './harness.mjs';
+  typeUntilEffort, current, navDrawn, PHONE, DESKTOP } from './harness.mjs';
 
 const onSection = (page, route) => page.locator('[data-go="' + route + '"][aria-current="page"]').waitFor();
 const onTab = (page, route) => page.locator('[data-stab="' + route + '"][aria-current="page"]').waitFor();
 const background = (page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+// The fold summaries and legend keys on view, and those shorter than a 44 px touch target.
+const touchTargets = (page) => page.evaluate(() => {
+  const shown = [...document.querySelectorAll('#view summary, #view .legendkey')].filter((el) => el.checkVisibility());
+  return { shown: shown.length, small: shown.filter((el) => el.getBoundingClientRect().height < 44).map((el) => el.textContent.replace(/\s+/g, ' ').trim()) };
+});
+async function assertTouchTargets(page, where) {
+  const t = await touchTargets(page);
+  assert.ok(t.shown > 0, 'nothing to check ' + where);
+  assert.deepEqual(t.small, [], 'under 44 px ' + where);
+}
 const horizontalOverflow = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
 export default async function navigation() {
@@ -154,6 +164,26 @@ export default async function navigation() {
       await page.keyboard.press('2');
       await page.locator('#progbar').waitFor();
       assert.ok(await horizontalOverflow(page) <= 0, 'between exercises');
+      await page.keyboard.press('Escape');
+    } finally { await page.setViewportSize(DESKTOP); }
+  });
+
+  await step('phone width: every fold summary and legend key on view is at least 44 px tall', async () => {
+    const newcomer = await freshPage({ viewport: PHONE });
+    try { await assertTouchTargets(newcomer, 'on home before any exercise'); } finally { await closePage(newcomer); }
+    await page.setViewportSize(PHONE);
+    try {
+      for (const route of ['home', 'insights/progress', 'settings/keyboard', 'settings/texts', 'settings/data']) {
+        await navDrawn(page, route);
+        await assertTouchTargets(page, 'on ' + route);
+      }
+      await setProgramme(page, ['warmup', 'relaxed']);
+      await startTraining(page);
+      await typeUntilEffort(page);
+      await assertTouchTargets(page, 'on the effort question');
+      await page.keyboard.press('2');
+      await page.locator('#progbar').waitFor();
+      await assertTouchTargets(page, 'between exercises');
       await page.keyboard.press('Escape');
     } finally { await page.setViewportSize(DESKTOP); }
   });

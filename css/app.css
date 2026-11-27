@@ -110,6 +110,11 @@ textarea.mono { font-family: var(--font-text); font-size: 0.9rem; min-height: 8r
 details > summary { cursor: pointer; font-weight: 600; }
 details.fold > summary > h2 { display: inline; }   /* a folded panel: its heading, beside the fold's marker */
 details.help > summary { font-weight: 400; color: var(--muted); }
+@media (max-width: 480px) {   /* touch targets of at least 44 px; flex drops the marker, so it is drawn */
+  details > summary { min-height: 44px; display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.4em; }
+  details > summary::before { content: "▸"; }
+  details[open] > summary::before { content: "▾"; }
+}
 
 /* ---------- notices, pills, sequences ---------- */
 .notice { padding: 10px 14px; border-radius: 8px; background: var(--err-soft); color: var(--ink); }
