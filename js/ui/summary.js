@@ -17,30 +17,46 @@
     box.value = tagText(tags);
     box.focus();
   }
-  function tagBox(tags) {
+  // opts.saveButton: false where another button saves the box (the training summary's Done).
+  function tagBox(tags, opts) {
     var past = [], seen = {};
     app.trainer.history().slice().reverse().forEach(function (h) { (h.tags || []).forEach(function (t) { if (!seen[t]) { seen[t] = true; past.push(t); } }); });
     return '<form class="stack tagform" id="tagform"><label for="tags">Conditions of this sitting ' + U.shortcut({ key: '#', label: 'Conditions of this sitting', act: focusTags }) +
       ' <span class="muted">(where, keyboard, hands, how you feel)</span></label>' +
       '<div class="row"><input type="text" id="tags" autocomplete="off" spellcheck="false" value="' + esc(tagText(tags)) + '" placeholder="#home #wrist-rest #tired">' +
-      '<button class="btn" type="submit">Save tags <kbd>Enter</kbd></button></div>' +
+      (opts && opts.saveButton === false ? '' : '<button class="btn" type="submit">Save tags <kbd>Enter</kbd></button>') + '</div>' +
       (past.length ? '<div class="row chips">' + past.slice(0, 12).map(function (t) { return '<button type="button" class="chip" data-tag="' + esc(t) + '"' + U.action(toggleTag) + '>#' + esc(t) + '</button>'; }).join('') + '</div>' : '') +
       '<p class="muted" id="tagmsg" role="status"></p></form>';
+  }
+  // Saves the tags in the box to the exercises ids; resolves with them once stored.
+  function saveTags(ids) {
+    var box = document.getElementById('tags'), tags = FT.conditions.parseTags(box.value);
+    box.value = tagText(tags);
+    app.trainer.tag(ids, tags);
+    return Promise.all([app.store.tagSessions(ids, tags), U.saveProfile()]).then(function () { return tags; });
   }
   // ids: the exercises the tags belong to; next: where the focus goes once saved.
   function bindTagBox(ids, next, focus) {
     var form = document.getElementById('tagform'), box = document.getElementById('tags');
     if (!form) return;
     U.onSubmit(form, function () {
-      var tags = FT.conditions.parseTags(box.value);
-      box.value = tagText(tags);
-      app.trainer.tag(ids, tags);
+      var saved = saveTags(ids);
       if (next) next.focus();
-      return Promise.all([app.store.tagSessions(ids, tags), U.saveProfile()]).then(U.onThisScreen(function () {   // "saved" once it is
+      return saved.then(U.onThisScreen(function (tags) {   // "saved" once it is
         document.getElementById('tagmsg').textContent = tags.length ? 'Saved: ' + tagText(tags) + '.' : 'Saved without tags.';
       })).catch(U.storageError);
     });
     if (focus) box.focus();
+  }
+  // The training summary's box, saved by Done (also Enter in the box) once it
+  // has changed; Esc in the box leaves it as it was drawn, unsaved. Returns Done's action.
+  function bindDoneTagBox(ids, done) {
+    var form = document.getElementById('tagform'), box = document.getElementById('tags'), drawn = box.value;
+    var saveThenDone = function () { saveTags(ids).catch(U.storageError); done(); };
+    U.onSubmit(form, saveThenDone);
+    box.addEventListener('keydown', function (e) { if (e.key === 'Escape') box.value = drawn; });
+    box.focus();
+    return function () { if (box.value !== drawn) saveThenDone(); else done(); };
   }
 
   // ---------- effort ----------
@@ -171,5 +187,5 @@
     return html;
   }
 
-  Object.assign(U, { tagBox: tagBox, bindTagBox: bindTagBox, viewEffort: viewEffort, viewSummary: viewSummary });
+  Object.assign(U, { tagBox: tagBox, bindTagBox: bindTagBox, bindDoneTagBox: bindDoneTagBox, viewEffort: viewEffort, viewSummary: viewSummary });
 })(globalThis.FT);
