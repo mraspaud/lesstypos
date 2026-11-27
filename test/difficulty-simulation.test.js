@@ -12,7 +12,7 @@ const { load } = require('./helpers/load');
 
 const FT = load();
 const EASIEST = FT.difficulty.EASIEST_RANKS;
-const feeling = { hesitationRate: 0.05, rhythmCv: 0.3, effort: 2 };
+const feeling = { words: 300, hesitationRate: 0.05, rhythmCv: 0.3, effort: 2 };
 
 function simulatedTypist(seed, { ratio, unbiased = 225 }) {
   const rng = FT.rng(seed);

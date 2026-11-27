@@ -24,7 +24,7 @@ const common = atAccuracy(50);
 const commonRated = (words, errorRate) => common(words, 1 - errorRate);
 const lessCommon = (words, accuracy = 1, rank = 150) => atAccuracy(rank)(words, accuracy);
 const lessRated = (words, errorRate, rank = 150) => lessCommon(words, 1 - errorRate, rank);
-const exercise = (o = {}) => Object.assign({ vocabulary: lessCommon(T.minWords, 0.995), easiest: common(T.easiestMinWords * 4, 0.99),
+const exercise = (o = {}) => Object.assign({ words: 1000, vocabulary: lessCommon(T.minWords, 0.995), easiest: common(T.easiestMinWords * 4, 0.99),
   hesitationRate: 0.05, rhythmCv: 0.3, effort: null, wpm: 40 }, o);
 // The less common words with `ratio` times the errors of the easiest words,
 // which come twice as many.
@@ -197,6 +197,14 @@ test('high accuracy with less even rhythm than recently holds', () => {
   const r = d.update(exercise({ rhythmCv: 0.5 }));
   assert.equal(r.action, 'hold');
   assert.ok(r.reasons.some((x) => /rhythm/.test(x)));
+});
+
+test('hesitation and rhythm since the last decision are weighed by each exercise\'s words', () => {
+  const recently = { windows: [0.05, 0.05, 0.05].map((hes) => ({ hes, rhy: 0.3 })) };
+  const d = controller(500, recently);
+  d.update(exercise({ words: 260, vocabulary: lessCommon(250, 0.995), hesitationRate: 0.12, rhythmCv: 0.4 }));
+  const r = d.update(exercise({ words: 1000, vocabulary: lessCommon(100, 0.995), hesitationRate: 0.05, rhythmCv: 0.3 }));
+  assert.equal(r.action, 'advance', r.reasons.join('; ')); // 6.4% hesitation and a CV of 0.32 over all 1,260 words
 });
 
 test('high perceived effort holds advancement', () => {

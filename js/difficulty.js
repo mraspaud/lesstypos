@@ -44,10 +44,11 @@
     function clamp(f) { return Math.min(Math.max(f, cfg.min), cfg.max); }
     st.frontier = clamp(st.frontier);
 
-    // What the exercises felt like, pooled since the last decision.
-    function addConditions(p, w, n) {
-      if (!p) p = { words: 0, hes: 0, hesN: 0, rhy: 0, rhyN: 0, effort: null };
-      p.words += n;
+    // What the exercises felt like, pooled since the last decision, each
+    // exercise weighed by its words.
+    function addConditions(p, w) {
+      var n = w.words || 0;
+      if (!p) p = { hes: 0, hesN: 0, rhy: 0, rhyN: 0, effort: null };
       if (w.hesitationRate != null) { p.hes += w.hesitationRate * n; p.hesN += n; }
       if (w.rhythmCv != null) { p.rhy += w.rhythmCv * n; p.rhyN += n; }
       if (w.effort != null) p.effort = Math.max(p.effort || 0, w.effort);
@@ -83,7 +84,7 @@
       addEasiest(w.easiest);
       if (st.manual) return { action: 'manual', frontier: st.frontier, reasons: ['manual vocabulary selection'] };
       addWords(st.pool, w.vocabulary, cfg.maxWords);
-      st.pending = addConditions(st.pending, w, w.vocabulary ? w.vocabulary.length : 0);
+      st.pending = addConditions(st.pending, w);
       var less = weighted(st.pool), easy = weighted(st.easiest);
       if (less.words < cfg.minWords) return waiting(Math.round(less.words) + ' of the ' + cfg.minWords + ' words needed');
       if (easy.words < cfg.easiestMinWords) {
