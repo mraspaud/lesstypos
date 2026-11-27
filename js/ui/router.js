@@ -98,25 +98,41 @@
   }
 
   // Draws the screen. Focus moves to the element that had it if it is still
-  // there (same id), otherwise to the page heading, so keyboard users never
-  // land on <body>. A redraw of the same screen keeps its open folds open.
+  // there (same id, or the summary of the same fold), otherwise to the page
+  // heading, so keyboard users never land on <body>. A redraw of the same
+  // screen keeps its open folds open.
   var painted = -1;   // the generation of the screen last painted
   function paint(html) {
     var had = document.activeElement && document.activeElement.id;
-    var open = painted === active.generation ? openFolds() : [];
+    var redrawn = painted === active.generation, open = redrawn ? openFolds() : [], summaryOf = redrawn ? focusedFold() : null;
     painted = active.generation;
     app.$view.innerHTML = '<div id="notice" class="notice" hidden></div>' + html;
-    open.forEach(function (id) { var fold = document.getElementById(id); if (fold && fold.tagName === 'DETAILS') fold.open = true; });
+    folds().forEach(function (f) { if (open.indexOf(f.key) >= 0) f.fold.open = true; });
     renderNotice();
     bindActions(app.$view);
     app.$view.querySelectorAll('[data-stab]').forEach(function (b) { b.onclick = function () { perform(go, b.dataset.stab); }; });
-    var back = had && document.getElementById(had);
+    var back = (had && document.getElementById(had)) || foldSummary(summaryOf);
     var target = back && app.$view.contains(back) ? back : app.$view.querySelector('h1') || app.$view;
     if (target.tagName === 'H1' || target === app.$view) target.setAttribute('tabindex', '-1');
     target.focus({ preventScroll: target.tagName === 'H1' ? false : true });
   }
-  function openFolds() {
-    return Array.prototype.map.call(app.$view.querySelectorAll('details[open][id]'), function (fold) { return fold.id; });
+  // The folds on view, each with a key that a redraw keeps: its id, or else
+  // its place among the folds without one.
+  function folds() {
+    var unnamed = 0;
+    return Array.prototype.map.call(app.$view.querySelectorAll('details'), function (fold) {
+      return { fold: fold, key: fold.id ? '#' + fold.id : unnamed++ };
+    });
+  }
+  function openFolds() { return folds().filter(function (f) { return f.fold.open; }).map(function (f) { return f.key; }); }
+  // The key of the fold whose summary has the focus, if one has.
+  function focusedFold() {
+    var el = document.activeElement, found = folds().filter(function (f) { return f.fold.querySelector('summary') === el; })[0];
+    return found ? found.key : null;
+  }
+  function foldSummary(key) {
+    var found = key == null ? null : folds().filter(function (f) { return f.key === key; })[0];
+    return found && found.fold.querySelector('summary');
   }
   // Redraws one part of the screen.
   function fill(el, html) {

@@ -65,6 +65,13 @@ export default async function homeScreen() {
     assert.equal(await isOpen(page, 'more'), true);
   });
 
+  await step('a redraw keeps the focus on the summary of More', async () => {
+    await home(page);
+    await page.locator('#more > summary').focus();
+    await page.evaluate(() => window.FT.ui.redraw());
+    assert.ok(await page.evaluate(() => document.activeElement.matches('#more > summary')));
+  });
+
   await step('once today’s training is done, Enter continues reading, and the training again waits under More on a', async () => {
     await seedExercises(page, { run: 'run-today' });
     await home(page);

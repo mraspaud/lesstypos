@@ -227,6 +227,7 @@ export default async function insights() {
 
   await closePage(page);
   await fluencyIndex();
+  await longLog();
 }
 
 // The experimental fluency index: its chart (two series, coverage in the
@@ -259,6 +260,27 @@ async function fluencyIndex() {
     assert.ok(await check.locator('.tablewrap').evaluate((w) => w.scrollWidth <= w.clientWidth), 'the benchmark check fits its column');
     assert.match(await check.textContent(), /Predicted speed was off by [\d.]+ WPM on average over 1 benchmark, (over|under)-predicting/);
     if (shots) await page.screenshot({ path: shots + '/fluency.png', fullPage: true });
+  });
+
+  await closePage(page);
+}
+
+// A log longer than a screen: the folds opened on Progress stay as they
+// were while the page is drawn again.
+async function longLog() {
+  const page = await freshPage();
+  await seedExercises(page, { count: 21, seed: 6 });
+  const rows = (page) => page.locator('#alltable tbody tr').count();
+
+  await step('folds without an id stay open when a shows the whole log: About this measure, Show as table', async () => {
+    await nav(page, 'insights/progress');
+    const relaxed = chartTitled(page, 'Relaxed speed');
+    await relaxed.locator('details.about > summary').click();
+    await relaxed.locator('details.tableview > summary').click();
+    await page.keyboard.press('a');
+    await page.getByRole('heading', { name: 'All exercises' }).waitFor();
+    assert.ok(await relaxed.locator('details.about').evaluate((d) => d.open), 'About this measure');
+    assert.ok(await relaxed.locator('details.tableview').evaluate((d) => d.open), 'Show as table');
   });
 
   await closePage(page);
