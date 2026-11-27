@@ -80,8 +80,8 @@ test('slips in target carriers leave the vocabulary evidence untouched', () => {
   const words = typedWords(FT, targets, script, { at: 100 });
   const { summary } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: 60000, words });
   assert.ok(summary.metrics.firstAttemptAccuracy < 0.99);
-  const { pool, easiest } = plain(tr.difficulty.state());
-  const pooled = pool.concat(easiest).flatMap((x) => x.words);
+  const { pool } = plain(tr.difficulty.state());
+  const pooled = pool.flatMap((x) => x.vocabulary.concat(x.easiest));
   const unbiased = targets.filter((w) => w.source === 'random' || w.source === 'frontier').length;
   assert.equal(pooled.length, unbiased);
   assert.equal(pooled.reduce((n, w) => n + w[2], 0), 0);

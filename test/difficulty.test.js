@@ -141,39 +141,40 @@ test('without enough of the easiest words to compare with, the vocabulary waits'
   assert.equal(d.state().frontier, 500);
 });
 
-test('the easiest words pool across exercises and outlive a step', () => {
+test('the easiest words pool across exercises and outlive a step, at half weight like the rest', () => {
   const d = controller();
-  const most = common(0.6 * T.easiestMinWords, 0.99); // twice that, less the decay, is enough
-  assert.equal(d.update(exercise({ easiest: most })).action, 'wait');
-  assert.equal(d.update(exercise({ vocabulary: lessCommon(0), easiest: most })).action, 'advance');
-  assert.equal(d.update(exercise({ easiest: common(0) })).action, 'advance');
+  assert.equal(d.update(exercise({ easiest: common(100, 0.99) })).action, 'wait');
+  assert.equal(d.update(exercise({ vocabulary: lessCommon(0), easiest: common(100, 0.99) })).action, 'advance');
+  const r = d.update(exercise({ easiest: common(0) }));
+  assert.equal(r.action, 'wait');
+  assert.match(r.reasons[0], new RegExp('^100 of the ' + T.easiestMinWords + ' words'));
 });
 
-// Design choice: the reference halves the weight of the easiest words every
-// easiestHalfLife easiest words typed since, so it follows the typist's
-// recent accuracy.
-test('the weight of the easiest words halves every half-life of easiest words typed since', () => {
-  const d = controller();
-  repeat(d, 10, exercise({ easiest: common(150, 0.9) }));
-  const r = d.update(exercise({ easiest: common(500, 0.995) }));
-  const entries = Array.from({ length: 10 }, (_, k) => ({ after: 500 + 150 * (9 - k), chars: 750, errors: 75 })).concat({ after: 0, chars: 2500, errors: 13 });
-  const sum = (key) => entries.reduce((n, x) => n + Math.pow(0.5, x.after / T.easiestHalfLife) * x[key], 0);
-  near(r.reference, 1 - sum('errors') / sum('chars'), 1e-9);
-});
-
+// Design choice: the reference is the easiest words of the very exercises
+// pooled for the less common words, weighed alike, so a trend moves both
+// alike and the ratio stays fair while the typist improves.
+const holding = (errorRate, easiest = 600) => exercise({ vocabulary: lessRated(1000, 2.5 * errorRate), easiest: commonRated(easiest, errorRate) });
 test('an improved typist is compared with their recent accuracy on the easiest words', () => {
   const d = controller();
-  repeat(d, 20, exercise({ easiest: commonRated(150, 0.03) }));
-  const r = repeat(d, 4, exercise({ easiest: commonRated(150, 0.01) }));
-  const allTime = (20 * 0.03 + 4 * 0.01) / 24;
-  assert.ok(1 - r.reference < allTime - 0.005, String(1 - r.reference));
+  assert.equal(repeat(d, 3, holding(0.03)).action, 'hold');
+  const r = d.update(holding(0.01));
+  near(r.reference, 0.99, 1e-9); // the pool holds the latest exercise only
 });
 
-test('easiest words six half-lives old are forgotten', () => {
+test('with few easiest words per exercise, the pool reaches back until it holds enough of them', () => {
   const d = controller();
-  repeat(d, 40, exercise({ easiest: common(150, 0.99) }));
-  const kept = d.state().easiest.reduce((n, x) => n + x.words.length, 0);
-  assert.ok(kept <= 6 * T.easiestHalfLife + 150, String(kept));
+  let r;
+  for (let k = 0; k < 8; k++) r = d.update(holding(0.01 + 0.002 * k, 100));
+  assert.equal(r.action, 'hold');
+  assert.equal(r.words, 1000 * T.easiestKept / 100);
+  near(r.reference, 1 - (8 + 9 + 10 + 11 + 12) / 2500, 1e-9);
+});
+
+test('the pool reaches back at most 50 exercises', () => {
+  const d = controller();
+  d.override(300);
+  repeat(d, 60, exercise({ easiest: common(5) }));
+  assert.equal(d.state().pool.length, T.maxExercises);
 });
 
 test('easiest words typed with a fixed vocabulary still count in the reference', () => {
@@ -243,8 +244,8 @@ test('a fixed vocabulary is respected until released', () => {
   assert.equal(d.state().manual, false);
 });
 
-// Functionality: the pooled evidence belongs to the vocabulary it was typed
-// in, so fixing the vocabulary or releasing it starts the pool afresh.
+// Functionality: the less common words belong to the vocabulary they were
+// typed in, so fixing the vocabulary or releasing it starts their pool afresh.
 test('fixing the vocabulary empties the pool of less common words', () => {
   const d = controller();
   d.update(halfPool({ effort: 5 }));
@@ -256,10 +257,10 @@ test('fixing the vocabulary empties the pool of less common words', () => {
   assert.equal(d.update(halfPool({ effort: 2 })).action, 'advance'); // not held by the effort before
 });
 
-test('releasing a fixed vocabulary empties the pool', () => {
-  const d = FT.difficulty.create({ frontier: 800, manual: true, pool: [{ weight: 1, words: lessCommon(T.minWords / 2, 0.995) }] });
+test('releasing a fixed vocabulary empties the pool of less common words, keeping the easiest', () => {
+  const d = FT.difficulty.create({ frontier: 800, manual: true, pool: [{ weight: 1, vocabulary: lessCommon(T.minWords / 2, 0.995), easiest: common(100) }] });
   d.override(null);
-  assert.deepEqual(plain(d.state().pool), []);
+  assert.deepEqual(plain(d.state().pool.map((x) => [x.vocabulary.length, x.easiest.length])), [[0, 100]]);
 });
 
 test('releasing a vocabulary that is not fixed keeps the pool', () => {
@@ -304,7 +305,7 @@ test('decisions are logged with reasons and survive serialisation', () => {
 // comes from the code, so a change of tuning reaches stored profiles.
 test('the stored state holds what was learned, not the tuning', () => {
   const d = FT.difficulty.create({ frontier: 500, credible: 0.01, shrinkAbove: 10, windows: [], history: [] });
-  assert.deepEqual(Object.keys(plain(d.toJSON())).sort(), ['easiest', 'frontier', 'history', 'manual', 'pending', 'pool', 'windows']);
+  assert.deepEqual(Object.keys(plain(d.toJSON())).sort(), ['frontier', 'history', 'manual', 'pending', 'pool', 'windows']);
   assert.equal(d.update(errorsTimes(2.5)).action, 'hold'); // the real band, not the stored one
 });
 
