@@ -17,16 +17,20 @@
     box.value = tagText(tags);
     box.focus();
   }
-  // opts.saveButton: false where another button saves the box (the training summary's Done).
+  function submitTags() { document.getElementById('tagform').requestSubmit(); }
+  // opts.done: the box ends the sitting, saved by Done (Enter; see bindDoneTagBox)
+  // in place of Save tags; opts.beside: markup beside Done.
   function tagBox(tags, opts) {
-    var past = [], seen = {};
+    var past = [], seen = {}, done = opts && opts.done;
     app.trainer.history().slice().reverse().forEach(function (h) { (h.tags || []).forEach(function (t) { if (!seen[t]) { seen[t] = true; past.push(t); } }); });
     return '<form class="stack tagform" id="tagform"><label for="tags">Conditions of this sitting ' + U.shortcut({ key: '#', label: 'Conditions of this sitting', act: focusTags }) +
       ' <span class="muted">(where, keyboard, hands, how you feel)</span></label>' +
       '<div class="row"><input type="text" id="tags" autocomplete="off" spellcheck="false" value="' + esc(tagText(tags)) + '" placeholder="#home #wrist-rest #tired">' +
-      (opts && opts.saveButton === false ? '' : '<button class="btn" type="submit">Save tags <kbd>Enter</kbd></button>') + '</div>' +
+      (done ? '' : '<button class="btn" type="submit">Save tags <kbd>Enter</kbd></button>') + '</div>' +
       (past.length ? '<div class="row chips">' + past.slice(0, 12).map(function (t) { return '<button type="button" class="chip" data-tag="' + esc(t) + '"' + U.action(toggleTag) + '>#' + esc(t) + '</button>'; }).join('') + '</div>' : '') +
-      '<p class="muted" id="tagmsg" role="status"></p></form>';
+      '<p class="muted" id="tagmsg" role="status"></p>' +
+      (done ? '<div class="row"><button class="btn primary" type="submit" id="home">Done ' + U.shortcut({ key: 'Enter', label: 'Done', act: submitTags }) + '</button>' + (opts.beside || '') + '</div>' : '') +
+      '</form>';
   }
   // Saves the tags in the box to the exercises ids; resolves with them once stored.
   function saveTags(ids) {
@@ -48,9 +52,9 @@
     });
     if (focus) box.focus();
   }
-  // The training summary's box, saved by Done (also Enter in the box) as it
-  // stands, even untouched; Esc in the box puts it back as it was drawn and
-  // leaves it unsaved, until it is typed in again. Returns Done's action.
+  // The training summary's box (tagBox with opts.done): Done, a click or Enter,
+  // saves it as it stands, even untouched, then runs done; Esc in the box puts
+  // it back as it was drawn and leaves it unsaved, until it is typed in again.
   function bindDoneTagBox(ids, done) {
     var form = document.getElementById('tagform'), box = document.getElementById('tags'), drawn = box.value, escaped = false;
     var finish = function () { if (!escaped) saveTags(ids).catch(U.storageError); done(); };
@@ -58,7 +62,6 @@
     box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { box.value = drawn; escaped = true; } });
     box.addEventListener('input', function () { escaped = false; });
     box.focus();
-    return finish;
   }
 
   // ---------- effort ----------

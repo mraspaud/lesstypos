@@ -80,7 +80,6 @@
     app.run = null;   // today's training is over
     U.saveRun();
     U.screen('summary', { keys: HOME_KEYS, render: function () {
-      var done = goHome;   // until the tags box is bound: then it also saves the tags typed in it
       var html = '<section class="stack"><h1>Daily training finished</h1><p class="muted">' + fix(mins, 1) + ' minutes of typing across ' +
         res.filter(function (r) { return !r.skipped; }).length + ' exercises.</p></section>' +
         H.table(['Exercise', 'Min', 'WPM', 'Accuracy', 'Effort', 'Note'], res.map(function (r) {
@@ -88,11 +87,10 @@
             : [H.cell(fix(r.ms / 60000, 1), 'num'), H.cell(fix(r.wpm), 'num'), H.cell(pct(r.faa), 'num'), H.cell(r.effort || '–', 'num'), H.cell(esc(r.note || ''))]));
         })) +
         '<p class="muted">Speeds from different exercises are not comparable: warm-up and bursts use easier words, prose has capitals and punctuation.</p>' +
-        U.tagBox(FT.conditions.lastTags(app.trainer.history()), { saveButton: false }) +
-        '<div class="row">' + U.keyButton({ label: 'Done', key: 'Enter', id: 'home', kind: 'primary', onClick: function () { done(); } }) + '<a href="#insights/progress">See progress</a></div>';
+        U.tagBox(FT.conditions.lastTags(app.trainer.history()), { done: true, beside: '<a href="#insights/progress">See progress</a>' });
       U.paint(html);
       var ids = app.trainer.history().filter(function (h) { return runId && h.run === runId; }).map(function (h) { return h.id; });
-      done = U.bindDoneTagBox(ids, goHome);
+      U.bindDoneTagBox(ids, goHome);
     } });
   }
 
