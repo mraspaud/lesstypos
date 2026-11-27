@@ -265,8 +265,8 @@ async function fluencyIndex() {
   await closePage(page);
 }
 
-// A log longer than a screen: the folds opened on Progress stay as they
-// were while the page is drawn again.
+// A log longer than a screen: the whole of it, and the folds opened on
+// Progress, stay as they were while the page is drawn again.
 async function longLog() {
   const page = await freshPage();
   await seedExercises(page, { count: 21, seed: 6 });
@@ -281,6 +281,22 @@ async function longLog() {
     await page.getByRole('heading', { name: 'All exercises' }).waitFor();
     assert.ok(await relaxed.locator('details.about').evaluate((d) => d.open), 'About this measure');
     assert.ok(await relaxed.locator('details.tableview').evaluate((d) => d.open), 'Show as table');
+  });
+
+  await step('the whole log stays after the way back from a past exercise, and Progress entered anew shows the recent ones', async () => {
+    await nav(page, 'insights/progress');
+    await page.keyboard.press('a');
+    await page.getByRole('heading', { name: 'All exercises' }).waitFor();
+    await page.locator('#alltable tbody tr').nth(19).locator('[data-row]').focus();
+    await page.keyboard.press('Enter');
+    await page.locator('#backlog').waitFor();
+    await page.keyboard.press('Escape');
+    await page.getByRole('heading', { name: 'All exercises' }).waitFor();
+    assert.ok(await rows(page) >= 20);
+    await nav(page, 'home');
+    await nav(page, 'insights/progress');
+    await page.getByRole('heading', { name: 'Recent exercises' }).waitFor();
+    assert.equal(await rows(page), 8);
   });
 
   await closePage(page);

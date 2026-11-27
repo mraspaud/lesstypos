@@ -319,8 +319,10 @@
   var logAll = false;
   function viewHistory() {
     logAll = false;
-    U.screen('insights/progress', { render: renderHistory });
+    showProgress();
   }
+  // Progress with the log as it was left: the way back from a past exercise.
+  function showProgress() { U.screen('insights/progress', { render: renderHistory }); }
   function toggleLog() {
     logAll = !logAll;
     U.redraw();
@@ -361,7 +363,7 @@
   function openPast(id) {
     return app.store.getSession(id).then(U.onThisScreen(function (raw) {
       if (!raw) { U.flash('The record of this exercise is no longer stored.'); return; }
-      U.viewSummary(app.trainer.summarize(raw), { past: true, opts: {} });
+      U.viewSummary(app.trainer.summarize(raw), { past: true, back: showProgress, opts: {} });
     })).catch(U.storageError);
   }
 

@@ -99,7 +99,8 @@
   // ---------- summary ----------
   // The decision first (what next), then speed, accuracy and one sentence each
   // on vocabulary and the focus list; everything else is under Details (d).
-  // info.past: an earlier exercise reopened from the Progress log.
+  // info.past: an earlier exercise reopened from the Progress log, which
+  // info.back shows again.
   function viewSummary(s, info) {
     U.screen('summary', { render: function () { renderSummary(s, info); } });
   }
@@ -112,7 +113,7 @@
     var focusList = function () { U.go('insights/focus'); };
     var html = (inProg ? U.programmeBar() : '') +
       '<section class="stack"><h1>' + esc(exerciseName(s.type)) + (past ? ' · ' + esc(FT.fmt.dateTime(s.startedAt)) : ' finished') + '</h1>' +
-      (past ? '<div class="row">' + U.keyButton({ label: 'Back to the log', key: 'Escape', id: 'backlog', onClick: function () { U.go('insights/progress'); } }) + '</div>'
+      (past ? '<div class="row">' + U.keyButton({ label: 'Back to the log', key: 'Escape', id: 'backlog', onClick: info.back }) + '</div>'
         : inProg ? '' : '<div class="row">' + U.keyButton({ label: 'Practise again', key: 'Enter', id: 'again', kind: 'primary', onClick: again }) +
         U.keyButton({ label: 'See the focus list', key: 'q', id: 'seqs', onClick: focusList }) + '</div>') +
       H.tiles([[fix(m.wpm), 'WPM'], [pct(m.firstAttemptAccuracy), 'accuracy (first try)']], { plain: inProg }) +
