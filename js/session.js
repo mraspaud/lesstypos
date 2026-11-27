@@ -24,9 +24,8 @@
   function endsAtSeparator(w, macros, equivalence) {
     var before = Array.from(w.typed).slice(0, -1).join('');
     if (!equivalence.isPrefix(before, w.target)) return true;
-    return hasAllLetters(w) || hasAllPresses(w, macros);
+    return equivalence.sameStr(before, w.target) || hasAllPresses(w, macros);
   }
-  function hasAllLetters(w) { return Array.from(w.typed).length - 1 >= Array.from(w.target).length; }
   function hasAllPresses(w, macros) {
     if (!macros || !macros.length) return false;
     var flags = FT.align.flagStream(w.stream), ids = FT.presses.ids(w.stream, macros, Infinity), typed = {};
