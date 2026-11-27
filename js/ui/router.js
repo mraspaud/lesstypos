@@ -97,10 +97,14 @@
 
   // Draws the screen. Focus moves to the element that had it if it is still
   // there (same id), otherwise to the page heading, so keyboard users never
-  // land on <body>.
+  // land on <body>. A redraw of the same screen keeps its open folds open.
+  var painted = -1;   // the generation of the screen last painted
   function paint(html) {
     var had = document.activeElement && document.activeElement.id;
+    var open = painted === active.generation ? openFolds() : [];
+    painted = active.generation;
     app.$view.innerHTML = '<div id="notice" class="notice" hidden></div>' + html;
+    open.forEach(function (id) { var fold = document.getElementById(id); if (fold && fold.tagName === 'DETAILS') fold.open = true; });
     renderNotice();
     bindActions(app.$view);
     app.$view.querySelectorAll('[data-stab]').forEach(function (b) { b.onclick = function () { perform(go, b.dataset.stab); }; });
@@ -108,6 +112,9 @@
     var target = back && app.$view.contains(back) ? back : app.$view.querySelector('h1') || app.$view;
     if (target.tagName === 'H1' || target === app.$view) target.setAttribute('tabindex', '-1');
     target.focus({ preventScroll: target.tagName === 'H1' ? false : true });
+  }
+  function openFolds() {
+    return Array.prototype.map.call(app.$view.querySelectorAll('details[open][id]'), function (fold) { return fold.id; });
   }
   // Redraws one part of the screen.
   function fill(el, html) {

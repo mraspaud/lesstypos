@@ -50,15 +50,16 @@
     })).catch(U.storageError);
   }
   // Home's way into the book: continue the current text in free reading, or
-  // start the bundled one.
+  // start the bundled one. label and detail are text; chapterStart, once the
+  // place is past the start of its chapter, goes back to that start.
   function readingChoice() {
     return Promise.all([currentText(), bundledOffer()]).then(function (got) {
       var t = got[0], offer = got[1];
       if (t) {
         var c = FT.books.chapterAt(t, t.pos);
-        var choice = { label: 'Continue reading: ' + t.title + (c ? ' · ' + c.title : ''), act: function () { return readOn(t.id); } };
+        var choice = { label: 'Continue reading', detail: t.title + (c ? ' · ' + c.title : ''), act: function () { return readOn(t.id); } };
         if (c && t.pos > c.start) {
-          choice.chapterStart = { label: 'Start of this chapter: ' + c.title, act: function () {
+          choice.chapterStart = { label: 'Start of this chapter', detail: c.title, act: function () {
             return readOn(t.id, function (now) { now.pos = c.start; return app.store.saveText(now); });
           } };
         }

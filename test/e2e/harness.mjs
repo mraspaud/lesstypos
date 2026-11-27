@@ -57,15 +57,20 @@ export const history = (page) => page.evaluate(() => window.FT.ui.app.trainer.hi
 export const historyLength = (page) => page.evaluate(() => window.FT.ui.app.trainer.history().length);
 export const current = (page) => page.evaluate(() => window.FT.ui.app.current);
 export const activeId = (page) => page.evaluate(() => document.activeElement.id);
+// The buttons and fold summaries on view (not folded away): their ids, or their text.
+export const visibleControls = (page) => page.evaluate(() => [...document.querySelectorAll('#view button, #view summary')]
+  .filter((el) => el.checkVisibility()).map((el) => el.id || el.textContent.replace(/\s+/g, ' ').trim()));
+export const isOpen = (page, id) => page.locator('#' + id).evaluate((d) => d.open);
 export const exportBackup = (page) => page.evaluate(() => window.FT.ui.app.store.exportAll().then((d) => JSON.parse(JSON.stringify(d))));
 export async function importBackup(page, backup, mode = 'replace') {
   await page.evaluate(async ([d, m]) => { await window.FT.ui.app.store.importAll(d, { mode: m }); await window.FT.ui.reloadFromStore(m === 'merge'); }, [backup, mode]);
 }
 
 // ---------- the daily training ----------
-// After a daily training today, home offers reading first and the training
-// second; steps about the training start it with whichever is shown.
-export const START_TRAINING = /Start (daily training|over)|Daily training again/;
+// After a daily training today, home offers reading on Enter and the
+// training under More; steps about the training start it afresh with
+// whichever is there.
+export const START_TRAINING = /Start daily training|Start today's training over|Daily training again/;
 const steps = (types, minutes = 0.1) => types.map((type) => ({ type, minutes, enabled: true }));
 export async function setProgramme(page, types, minutes) {
   await saveSettings(page, { programme: { name: 'test', steps: steps(types, minutes) }, programmeRun: null });
@@ -80,7 +85,15 @@ export async function withProgramme(page, stepList, fn) {
 }
 export async function startTraining(page) {
   await nav(page, 'home');
-  await page.getByRole('button', { name: START_TRAINING }).first().click();
+  const primary = page.locator('#primary');
+  if (START_TRAINING.test(await primary.textContent())) { await primary.click(); return; }
+  await openMore(page);
+  await page.locator('#more').getByRole('button', { name: START_TRAINING }).first().click();
+}
+// Home's other ways to train, folded under More (m).
+export async function openMore(page) {
+  if (!(await isOpen(page, 'more'))) await page.keyboard.press('m');
+  await page.locator('#more[open]').waitFor();
 }
 // The training summary opens in its tags box: Escape leaves it unsaved, then Enter is Done.
 export async function leaveTrainingSummary(page) { await page.keyboard.press('Escape'); await page.keyboard.press('Enter'); }

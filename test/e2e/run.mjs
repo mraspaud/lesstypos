@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { launch, close, step, scriptErrors, results } from './harness.mjs';
 
-const THEMES = ['typing', 'pausing', 'effort', 'daily', 'bursts', 'reading', 'insights', 'navigation', 'data'];
+const THEMES = ['typing', 'pausing', 'effort', 'home', 'daily', 'bursts', 'reading', 'insights', 'navigation', 'data'];
 const chosen = process.argv.slice(2);
 const unknown = chosen.filter((t) => !THEMES.includes(t));
 if (unknown.length) { console.error('unknown theme: ' + unknown.join(', ') + ' (one of ' + THEMES.join(', ') + ')'); process.exit(2); }

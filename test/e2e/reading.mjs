@@ -3,13 +3,15 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { step, freshPage, closePage, root, nav, startExercise, typeWords, finishWithEffort, rateEffort, seedExercises, seedText,
-  storedText, removeTexts, discard, current } from './harness.mjs';
+  storedText, removeTexts, discard, current, openMore } from './harness.mjs';
 
 const rowOf = (page, title) => page.locator('tr', { hasText: title });
 const firstWord = async (page) => (await page.locator('.w').first().textContent()).replace('¶', '');
 const numbered = (n, prefix = 'w') => Array.from({ length: n }, (_, i) => prefix + i);
 const SHORT = 'one two three four five six seven eight nine ten eleven twelve'.split(' ');
 const TWENTY = SHORT.concat('thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' '));
+// Home has drawn its way into the book (under More until today's training is done).
+const readingOffered = (page, text = /Continue reading/) => page.locator('#read', { hasText: text }).waitFor({ state: 'attached' });
 const currentPos = (page) => page.evaluate(async () => { const a = window.FT.ui.app; return (await a.store.getText(a.settings.currentText)).pos; });
 // Reads n words of the book on view, then saves without a rating.
 async function readAndSave(page, n) {
@@ -139,7 +141,7 @@ export default async function reading() {
 
   await step('home continues the book with c, in free reading: no time limit, the clock counts up', async () => {
     await nav(page, 'home');
-    await page.getByRole('button', { name: /Continue reading: Alice/ }).waitFor();   // once home knows the current book
+    await readingOffered(page, /Continue reading.*Alice/);   // once home knows the current book
     await page.keyboard.press('c');
     await page.locator('.w').first().waitFor();
     assert.equal(await page.locator('#timer').textContent(), '0:00');
@@ -150,7 +152,7 @@ export default async function reading() {
 
   await step('reading from home continues exactly where the book was left, also after prose read another way', async () => {
     await nav(page, 'home');
-    await page.getByRole('button', { name: /Continue reading/ }).waitFor();
+    await readingOffered(page);
     await page.keyboard.press('c');
     await readAndSave(page, 12);   // at least 10 words are saved
     await nav(page, 'settings/texts');
@@ -160,7 +162,7 @@ export default async function reading() {
     const pos = await currentPos(page);
     const expected = await page.evaluate(async () => { const a = window.FT.ui.app; const t = await a.store.getText(a.settings.currentText); return t.words[t.pos]; });
     await nav(page, 'home');
-    await page.getByRole('button', { name: /Continue reading/ }).waitFor();
+    await readingOffered(page);
     await page.keyboard.press('c');
     await page.locator('.w').first().waitFor();
     assert.equal(await firstWord(page), expected, 'starts at word ' + pos);
@@ -170,7 +172,7 @@ export default async function reading() {
   await step('once today’s daily training is done, Enter on home continues reading; the training stays on a', async () => {
     await seedExercises(page, { run: 'run-today' });
     await nav(page, 'home');
-    await page.getByRole('button', { name: /Daily training again/ }).waitFor();
+    await page.locator('#more #again', { hasText: /Daily training again/ }).waitFor({ state: 'attached' });
     assert.match(await page.locator('#primary').textContent(), /Continue reading/);
     await page.keyboard.press('Enter');
     await page.locator('.w').first().waitFor();
@@ -184,6 +186,7 @@ export default async function reading() {
       t.pos = t.chapters[1].start + 40; await a.store.saveText(t); a.settings.currentText = 'alice';
     });
     await nav(page, 'home');
+    await openMore(page);
     const back = page.getByRole('button', { name: /Start of this chapter/ });
     await back.waitFor();
     await back.click();
@@ -201,6 +204,7 @@ export default async function reading() {
         await restore();
         await nav(page, 'settings/typing');
         await nav(page, 'home');
+        await openMore(page);
         await page.getByRole('button', { name }).waitFor();
         await page.evaluate(() => window.FT.ui.app.store.deleteText('alice'));
         await page.getByRole('button', { name }).click();

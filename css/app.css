@@ -139,14 +139,23 @@ details.tableview summary { cursor: pointer; color: var(--muted); }
 .tabs button[aria-pressed="true"], .tabs button[aria-current="page"] { background: var(--surface); color: var(--ink); border-color: var(--muted); }
 
 /* ---------- home ---------- */
-.home-start { display: flex; flex-direction: column; gap: 18px; padding-block: 24px; }
-.home-start .lead { font-size: 1.05rem; color: var(--muted); }
-.status { display: flex; gap: 28px; flex-wrap: wrap; }
-.status div { display: flex; flex-direction: column; }
-.status b { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
-.status span { color: var(--muted); font-size: 0.85rem; }
-.status a.big { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); text-decoration: none; }
-.status a.big:hover, .status a.big:focus-visible { text-decoration: underline; }
+/* one primary action; the other ways are quiet rows: key, name, detail */
+.home-start { display: flex; flex-direction: column; gap: 14px; padding-block: 9vh 8px; }
+.home-start .btn.primary { padding: 12px 20px; font-size: 1.1rem; }
+.home-start .lead { font-size: 0.9rem; color: var(--muted); margin-top: -4px; }
+.ways { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-width: 46rem; }
+.way { display: grid; grid-template-columns: 2.2rem auto 1fr; gap: 0 6px; align-items: baseline; width: 100%; text-align: left;
+  background: none; border: 0; border-radius: 6px; padding: 6px 8px; margin-left: -8px; cursor: pointer; }
+.way:hover, .way:focus-visible { background: var(--surface); }
+.way .muted { font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-left: 8px; }
+#more > summary { color: var(--muted); font-weight: 400; padding: 6px 0; width: max-content; }
+.statusline { font-size: 0.9rem; padding-top: 14px; border-top: 1px solid var(--line); max-width: none; }
+.statusline a { color: inherit; }
+details.howto[open] { display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 480px) {
+  .way { grid-template-columns: 2.2rem 1fr; min-height: 44px; align-items: center; }   /* touch targets of at least 44 px */
+  .way .muted { grid-column: 2; padding-left: 0; }
+}
 
 /* ---------- typing ---------- */
 .typing { display: flex; flex-direction: column; gap: 18px; padding-top: 8vh; }

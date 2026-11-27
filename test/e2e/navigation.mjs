@@ -70,9 +70,9 @@ export default async function navigation() {
     await page.keyboard.press('Delete');
   });
 
-  await step('home: one primary action, a few alternatives by key, three numbers', async () => {
+  await step('home: one primary action, the alternatives by key, the numbers on one line', async () => {
     await page.keyboard.press('1');
-    assert.equal(await page.locator('.status > div').count(), 3);
+    assert.equal((await page.locator('.statusline').textContent()).split(' · ').length, 3);
     await page.getByRole('button', { name: /Enter/ }).first().waitFor();       // the key hint is on the button
     await page.keyboard.press('r');
     await page.locator('.w').first().waitFor();
