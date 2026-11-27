@@ -23,6 +23,13 @@
       b.label + (b.key ? ' ' + shortcut({ key: b.key, label: b.label, act: b.onClick }) : '') + '</button>';
   }
 
+  // A quiet text button for a secondary action: its key, then what it does
+  // (label, markup). help: what ? says, where that needs more words; title: its tooltip.
+  function legendKey(b) {
+    return '<button type="button" class="legendkey" id="' + b.id + '"' + (b.title ? ' title="' + esc(b.title) + '"' : '') + U.action(b.onClick) + '>' +
+      shortcut({ key: b.key, label: b.help || b.label, act: b.onClick }) + ' ' + b.label + '</button>';
+  }
+
   // A plain button: label (markup), its click; kind: 'primary' or 'danger'.
   function button(label, onClick, kind, id) { return keyButton({ label: label, onClick: onClick, kind: kind, id: id }); }
   // A click handler that asks first: the first press arms the button, which
@@ -136,5 +143,5 @@
     if (U.navigateByKey(e.key)) e.preventDefault();
   }
 
-  Object.assign(U, { shortcut: shortcut, keyButton: keyButton, button: button, onSecondPress: onSecondPress, goHome: goHome, HOME_KEYS: HOME_KEYS, closeKeyHelp: closeKeyHelp, onGlobalKey: onGlobalKey });
+  Object.assign(U, { shortcut: shortcut, keyButton: keyButton, legendKey: legendKey, button: button, onSecondPress: onSecondPress, goHome: goHome, HOME_KEYS: HOME_KEYS, closeKeyHelp: closeKeyHelp, onGlobalKey: onGlobalKey });
 })(globalThis.FT);

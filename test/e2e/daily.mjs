@@ -97,6 +97,26 @@ export default async function daily() {
     await leaveTrainingSummary(page);
   });
 
+  await step('between exercises: progress dots, the next exercise without its goal, one Continue button and a quiet key legend', async () => {
+    await setProgramme(page, ['warmup', 'relaxed']);
+    await startTraining(page);
+    await typeStep(page);
+    const bar = page.locator('#progbar');
+    assert.equal(await bar.locator('.dots').getAttribute('aria-label'), '1 of 2 done');
+    assert.match(await bar.textContent(), /Next: Relaxed practice · 0\.1 min/);
+    const goal = await page.evaluate(() => window.FT.exercises.instructions('relaxed', window.FT.ui.app.settings).goal);
+    assert.ok(!(await bar.textContent()).includes(goal), 'the goal is on the instruction card, not here');
+    assert.deepEqual((await bar.locator('.btn').allTextContents()).map((t) => t.trim()), ['Continue Enter']);
+    assert.deepEqual(await bar.locator('.legendkey').evaluateAll((bs) => bs.map((b) => b.id + ' ' + b.textContent)),
+      ['pskip n Skip next', 'prep r Repeat', 'pend x End training', 'phome Esc Home']);
+    assert.equal(await page.locator('.tiles.plain').count(), 1);   // speed and accuracy as plain numbers
+    await page.keyboard.press('?');
+    assert.match(await page.locator('#keyhelp').textContent(), /EscHome \(today’s training stays ready to resume\)/);
+    await page.keyboard.press('Escape');
+    await bar.locator('#phome').click();
+    await page.getByRole('button', { name: /Resume/ }).waitFor();
+  });
+
   await step('ending training with the mouse leaves no stale programme keys', async () => {
     await setProgramme(page, ['warmup', 'relaxed']);
     await startTraining(page);
@@ -125,7 +145,7 @@ export default async function daily() {
     await finishWithEffort(page, 3);
     await between(page);
     await page.keyboard.press('x');
-    await page.getByText(/Press x again to end/).waitFor();
+    await page.locator('#pend.armed', { hasText: /Press again to end/ }).waitFor();
     assert.ok(await page.locator('#progbar').isVisible());
     await page.keyboard.press('x');
     await finished(page);

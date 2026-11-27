@@ -29,28 +29,27 @@
   function endEarly() { app.run.finishEarly(); U.saveRun(); viewProgrammeSummary(); }
 
   // ---------- between exercises ----------
+  // Where the training stands, the one way on (Enter) and a quiet legend of
+  // the others; the next exercise's goal is on its instruction card.
   function nextLine() {
     var c = app.run.current();
-    if (!c) return '<p>That was the last exercise.</p>';
-    return '<p><b>Next: ' + esc(exerciseName(c.type)) + '</b>, ' + esc(String(c.minutes)) + ' min. <span class="muted">' + esc(FT.exercises.instructions(c.type, app.settings).goal) + '</span></p>';
+    if (!c) return '<b>That was the last exercise.</b>';
+    return '<b>Next: ' + esc(exerciseName(c.type)) + '</b> <span class="muted">· ' + esc(String(c.minutes)) + ' min</span>';
   }
   // Ending today's training asks once (button or x).
-  var askEnd = U.onSecondPress('Press again to end <kbd>x</kbd>', function () { endEarly(); }, { id: 'pend', onArm: function () {
+  var askEnd = U.onSecondPress('<kbd>x</kbd> Press again to end', function () { endEarly(); }, { id: 'pend', onArm: function () {
     U.announce('Press x again to end today\'s training.');
-    var note = document.getElementById('endnote');
-    if (note) note.hidden = false;
   } });
   function programmeBar() {
     var r = app.run, done = r.results().length, total = done + r.upcoming().length;
-    return '<section class="panel stack" id="progbar"><h3>Daily training · ' + Math.min(done, total) + ' of ' + total + ' done</h3>' + nextLine() +
-      '<div class="row">' + (r.current()
-        ? U.keyButton({ label: 'Continue', key: 'Enter', id: 'pnext', kind: 'primary', onClick: runStep }) + U.keyButton({ label: 'Skip next', key: 'n', id: 'pskip', onClick: skip })
-        : U.keyButton({ label: 'See today\'s summary', key: 'Enter', id: 'pnext', kind: 'primary', onClick: runStep })) +
-      U.keyButton({ label: 'Repeat this one', key: 'r', id: 'prep', onClick: repeat }) +
-      U.keyButton({ label: 'End training', key: 'x', id: 'pend', onClick: askEnd }) + '</div>' +
-      '<p class="muted" id="endnote" hidden>Press x again to end today\'s training.</p>' +
-      '<p class="muted">' + U.shortcut({ key: 'Escape', label: 'Home (today\'s training stays ready to resume)', act: goHome }) +
-      ' goes home; today\'s training stays ready to resume.</p></section>';
+    return '<section class="progbar" id="progbar"><div class="row">' + H.progressDots(done, total) + '<span>' + nextLine() + '</span></div>' +
+      '<div class="row">' + U.keyButton({ label: r.current() ? 'Continue' : 'See today\'s summary', key: 'Enter', id: 'pnext', kind: 'primary', onClick: runStep }) +
+      '<span class="legend-keys">' +
+      (r.current() ? U.legendKey({ label: 'Skip next', key: 'n', id: 'pskip', onClick: skip }) : '') +
+      U.legendKey({ label: 'Repeat', key: 'r', id: 'prep', onClick: repeat, help: 'Repeat this one' }) +
+      U.legendKey({ label: 'End training', key: 'x', id: 'pend', onClick: askEnd }) +
+      U.legendKey({ label: 'Home', key: 'Escape', id: 'phome', onClick: goHome, help: 'Home (today’s training stays ready to resume)', title: 'Today’s training stays ready to resume' }) +
+      '</span></div></section>';
   }
   function viewBetween() {
     U.screen('summary', { render: function () { U.paint(programmeBar()); } });

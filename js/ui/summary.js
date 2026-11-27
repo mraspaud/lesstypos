@@ -114,7 +114,7 @@
       (past ? '<div class="row">' + U.keyButton({ label: 'Back to the log', key: 'Escape', id: 'backlog', onClick: function () { U.go('insights/progress'); } }) + '</div>'
         : inProg ? '' : '<div class="row">' + U.keyButton({ label: 'Practise again', key: 'Enter', id: 'again', kind: 'primary', onClick: again }) +
         U.keyButton({ label: 'See the focus list', key: 'q', id: 'seqs', onClick: focusList }) + '</div>') +
-      H.tiles([[fix(m.wpm), 'WPM'], [pct(m.firstAttemptAccuracy), 'accuracy (first try)']]) +
+      H.tiles([[fix(m.wpm), 'WPM'], [pct(m.firstAttemptAccuracy), 'accuracy (first try)']], { plain: inProg }) +
       (s.textProgress ? '<p>' + esc(s.textProgress.title) + ': ' + FT.fmt.textProgress(s.textProgress, s.textProgress.pos) + '. Your place is saved.</p>' : '') +
       (s.difficulty ? '<p>' + esc(FT.fmt.vocabSentence(s.difficulty, s.frontier)) + '</p>' : '') +
       (past ? '' : '<p>' + focusSentence(s, app.trainer.targets()) + '</p>') +
