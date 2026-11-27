@@ -150,17 +150,12 @@
     }
     return sum / mass;
   }
-  // P(X - Y > d) for independent X ~ Beta(a1, b1) and Y ~ Beta(a2, b2).
-  function betaDifferenceAbove(a1, b1, a2, b2, d) {
-    var support = betaSupport(a1, b1);
-    return overBeta(a2, b2, function (y) { return betaAbove(y + d, a1, b1, support); });
-  }
   // P(X > r Y) for independent X ~ Beta(a1, b1) and Y ~ Beta(a2, b2).
   function betaRatioAbove(a1, b1, a2, b2, r) {
     var support = betaSupport(a1, b1);
     return overBeta(a2, b2, function (y) { return betaAbove(r * y, a1, b1, support); });
   }
 
-  FT.stats = { lgamma: lgamma, betaCdf: betaCdf, betaDifferenceAbove: betaDifferenceAbove, betaRatioAbove: betaRatioAbove, normCdf: normCdf, vjTrim: vjTrim,
+  FT.stats = { lgamma: lgamma, betaCdf: betaCdf, betaRatioAbove: betaRatioAbove, normCdf: normCdf, vjTrim: vjTrim,
     vjCriterion: vjCriterion, recencyWeight: recencyWeight, meanSd: meanSd, median: median, mean: mean, meanLog: meanLog, logOf: logOf };
 })(globalThis.FT);

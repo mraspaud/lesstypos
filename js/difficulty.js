@@ -73,16 +73,17 @@
     function waiting(reason) { return { action: 'wait', frontier: st.frontier, reasons: [reason] }; }
 
     function decide(less, easy, at) {
-      var felt = conditions(st.pending), judged = byErrors(less, easy);
+      var felt = conditions(st.pending), measured = { accuracy: accuracy(less), reference: accuracy(easy) };
+      var judged = byErrors(less, easy, measured);
       if (judged.action === 'advance') {
         var held = holdsBack(felt);
         if (held.length) judged = { action: 'hold', reasons: judged.reasons.concat(held) };
       }
       var before = st.frontier, stepped = step(judged);
       if (st.frontier !== before) st.pool = [];
-      st.windows.push({ hes: felt.hes, rhy: felt.rhy, acc: accuracy(less) });
+      st.windows.push({ hes: felt.hes, rhy: felt.rhy, acc: measured.accuracy });
       if (st.windows.length > 50) st.windows.shift();
-      var rec = { action: stepped.action, from: before, to: st.frontier, accuracy: accuracy(less), reference: accuracy(easy),
+      var rec = { action: stepped.action, from: before, to: st.frontier, accuracy: measured.accuracy, reference: measured.reference,
         words: less.words, reasons: stepped.reasons, at: at || null };
       st.history.push(rec);
       if (st.history.length > 500) st.history.shift();
@@ -90,28 +91,37 @@
       return rec;
     }
 
+    // The rules a decision on the error rates follows, as its reasons say them.
+    var RULES = {
+      ratioGrows: cfg.growAtMost + '\u00d7 or less grows the vocabulary',
+      fewErrorsGrow: 'fewer than ' + pct1(cfg.fewErrors) + ' errors on them grows the vocabulary',
+      ratioShrinks: 'more than ' + cfg.shrinkAbove + '\u00d7 shrinks the vocabulary',
+      unclear: 'not yet clearly ' + cfg.growAtMost + '\u00d7 or less, which grows the vocabulary, or more than ' + cfg.shrinkAbove + '\u00d7, which shrinks it',
+    };
     // What the error rates alone say: retreat, advance or hold, with its
     // reasons. Neither bound can be credibly passed while P(ratio > growAtMost)
     // lies between 1 - credible and credible, so the shrink bound is checked
     // only above.
-    function byErrors(less, easy) {
-      var accuracies = 'accuracy (first try) ' + pct2(accuracy(less)) + ' on the less common words, ' + pct2(accuracy(easy)) + ' on the ' + EASIEST_RANKS + ' most common';
-      var compared = errorsCompared(less, easy), aboveGrow = pAbove(less, easy, cfg.growAtMost);
-      if (1 - aboveGrow > cfg.credible) {
-        return { action: 'advance', reasons: [compared + ' (' + cfg.growAtMost + '\u00d7 or less grows the vocabulary)', accuracies] };
-      }
-      if (FT.stats.betaCdf(cfg.fewErrors, 1 + less.errors, 1 + less.chars - less.errors) > cfg.credible) {
-        return { action: 'advance', reasons: [compared + ' (fewer than ' + pct1(cfg.fewErrors) + ' errors on them grows the vocabulary)', accuracies] };
-      }
-      if (aboveGrow > cfg.credible && pAbove(less, easy, cfg.shrinkAbove) > cfg.credible) {
-        return { action: 'retreat', reasons: [compared + ' (more than ' + cfg.shrinkAbove + '\u00d7 shrinks the vocabulary)', accuracies] };
-      }
-      return { action: 'hold', reasons: [compared + ' (not yet clearly ' + cfg.growAtMost + '\u00d7 or less, which grows the vocabulary, or more than ' +
-        cfg.shrinkAbove + '\u00d7, which shrinks it)', accuracies] };
+    function byErrors(less, easy, measured) {
+      var accuracies = 'accuracy (first try) ' + pct2(measured.accuracy) + ' on the less common words, ' + pct2(measured.reference) + ' on the ' + EASIEST_RANKS + ' most common';
+      var compared = errorsCompared(less, easy);
+      var verdict = function (action, rule) { return { action: action, reasons: [compared + ' (' + rule + ')', accuracies] }; };
+      var credibly = function (p) { return p > cfg.credible; };
+      var aboveGrow = pRatioAbove(less, easy, cfg.growAtMost);
+      if (credibly(1 - aboveGrow)) return verdict('advance', RULES.ratioGrows);
+      if (credibly(pFewErrors(less))) return verdict('advance', RULES.fewErrorsGrow);
+      if (credibly(aboveGrow) && credibly(pRatioAbove(less, easy, cfg.shrinkAbove))) return verdict('retreat', RULES.ratioShrinks);
+      return verdict('hold', RULES.unclear);
     }
     // P(error rate on the less common words > ratio * error rate on the easiest).
-    function pAbove(less, easy, ratio) {
-      return FT.stats.betaRatioAbove(1 + less.errors, 1 + less.chars - less.errors, 1 + easy.errors, 1 + easy.chars - easy.errors, ratio);
+    function pRatioAbove(less, easy, ratio) {
+      var l = errorPosterior(less), e = errorPosterior(easy);
+      return FT.stats.betaRatioAbove(l[0], l[1], e[0], e[1], ratio);
+    }
+    // P(error rate on the less common words < fewErrors).
+    function pFewErrors(less) {
+      var l = errorPosterior(less);
+      return FT.stats.betaCdf(cfg.fewErrors, l[0], l[1]);
     }
 
     // How the exercises since the last decision felt, against the median of
@@ -159,6 +169,8 @@
   }
   function accuracy(t) { return 1 - t.errors / t.chars; }
   function errorRate(t) { return t.errors / t.chars; }
+  // The beta posterior of a first-try error rate, with a uniform prior.
+  function errorPosterior(t) { return [1 + t.errors, 1 + t.chars - t.errors]; }
   function errorsCompared(less, easy) {
     if (!easy.errors) return less.errors ? 'errors on the less common words, none on your easiest words' : 'no errors on the less common words or on your easiest words';
     return 'errors on the less common words: ' + (errorRate(less) / errorRate(easy)).toFixed(1) + '\u00d7 your easiest words';

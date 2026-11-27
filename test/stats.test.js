@@ -30,18 +30,6 @@ test('recency weight follows the FSRS power-law curve shape', () => {
   assert.ok(FT.stats.recencyWeight(30, 3) < FT.stats.recencyWeight(10, 3));
 });
 
-// Functionality: how credible it is that one beta-distributed proportion
-// exceeds another by more than a margin (used to compare two accuracies).
-test('the probability that one beta proportion exceeds another by a margin', () => {
-  const above = FT.stats.betaDifferenceAbove;
-  near(above(1, 1, 1, 1, 0), 0.5, 1e-3);
-  near(above(1, 1, 1, 1, 0.5), 0.125, 1e-3); // area of the triangle x - y > 0.5
-  near(above(2, 1, 1, 1, 0), 2 / 3, 1e-3); // E[X] for X ~ Beta(2, 1)
-  near(above(30, 1470, 20, 1480, 0), 0.92, 0.02); // normal approximation of the difference
-  near(above(30, 1470, 20, 1480, 0.1), 0, 1e-6);
-  near(above(30, 1470, 20, 1480, -0.1), 1, 1e-6);
-});
-
 // Functionality: how credible it is that one beta-distributed proportion is
 // more than a multiple of another (used to compare two error rates). The
 // expected values are Monte Carlo estimates (10^6 draws, standard error at
