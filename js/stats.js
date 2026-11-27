@@ -122,39 +122,32 @@
   // Evidence weight by age in days: the FSRS forgetting-curve shape
   // R(t,S) = (1 + f t / S)^-d with f = 19/81, d = 0.5 (FSRS-4.5), so R(S) = 0.9.
   // Using it as an evidence weight is a design choice.
-  // P(X - Y > d) for independent X ~ Beta(a1, b1) and Y ~ Beta(a2, b2): the
-  // CDF of X integrated over Y's distribution, in equal steps of y across
-  // Y's mean +- BETA_GRID_SDS standard deviations (the mass outside is
-  // negligible; design choice of the grid).
-  var BETA_GRID_SDS = 8, BETA_GRID_STEPS = 400;
-  function betaDifferenceAbove(a1, b1, a2, b2, d) {
-    var n = a2 + b2, mean = a2 / n, sd = Math.sqrt(a2 * b2 / (n * n * (n + 1)));
-    var lo = Math.max(0, mean - BETA_GRID_SDS * sd), hi = Math.min(1, mean + BETA_GRID_SDS * sd);
-    var step = (hi - lo) / BETA_GRID_STEPS, p = 0, below = betaCdf(lo, a2, b2);
-    for (var i = 1; i <= BETA_GRID_STEPS; i++) {
-      var y = lo + i * step, cdf = betaCdf(y, a2, b2);
-      p += (cdf - below) * (1 - betaCdf(y - step / 2 + d, a1, b1));
-      below = cdf;
-    }
-    return p;
-  }
-
-  // P(X > r Y) for independent X ~ Beta(a1, b1) and Y ~ Beta(a2, b2), on the
-  // same grid over Y.
-  function betaRatioAbove(a1, b1, a2, b2, r) {
-    var n = a2 + b2, mean = a2 / n, sd = Math.sqrt(a2 * b2 / (n * n * (n + 1)));
-    var lo = Math.max(0, mean - BETA_GRID_SDS * sd), hi = Math.min(1, mean + BETA_GRID_SDS * sd);
-    var step = (hi - lo) / BETA_GRID_STEPS, p = 0, below = betaCdf(lo, a2, b2);
-    for (var i = 1; i <= BETA_GRID_STEPS; i++) {
-      var y = lo + i * step, cdf = betaCdf(y, a2, b2);
-      p += (cdf - below) * (1 - betaCdf(r * (y - step / 2), a1, b1));
-      below = cdf;
-    }
-    return p;
-  }
-
   function recencyWeight(ageDays, S) {
     return Math.pow(1 + (19 / 81) * Math.max(ageDays, 0) / S, -0.5);
+  }
+
+  // E[f(Y)] for Y ~ Beta(a, b): the midpoint rule over Y's mean +-
+  // BETA_GRID_SDS standard deviations, weighted by the density and
+  // normalised over the grid (the mass outside is negligible; design choice
+  // of the grid).
+  var BETA_GRID_SDS = 8, BETA_GRID_STEPS = 200;
+  function overBeta(a, b, f) {
+    var n = a + b, mean = a / n, sd = Math.sqrt(a * b / (n * n * (n + 1)));
+    var lo = Math.max(0, mean - BETA_GRID_SDS * sd), hi = Math.min(1, mean + BETA_GRID_SDS * sd);
+    var step = (hi - lo) / BETA_GRID_STEPS, logNorm = lgamma(a + b) - lgamma(a) - lgamma(b), sum = 0, mass = 0;
+    for (var i = 0; i < BETA_GRID_STEPS; i++) {
+      var y = lo + (i + 0.5) * step, w = Math.exp(logNorm + (a - 1) * Math.log(y) + (b - 1) * Math.log(1 - y));
+      sum += w * f(y); mass += w;
+    }
+    return sum / mass;
+  }
+  // P(X - Y > d) for independent X ~ Beta(a1, b1) and Y ~ Beta(a2, b2).
+  function betaDifferenceAbove(a1, b1, a2, b2, d) {
+    return overBeta(a2, b2, function (y) { return 1 - betaCdf(y + d, a1, b1); });
+  }
+  // P(X > r Y) for independent X ~ Beta(a1, b1) and Y ~ Beta(a2, b2).
+  function betaRatioAbove(a1, b1, a2, b2, r) {
+    return overBeta(a2, b2, function (y) { return 1 - betaCdf(r * y, a1, b1); });
   }
 
   FT.stats = { lgamma: lgamma, betaCdf: betaCdf, betaDifferenceAbove: betaDifferenceAbove, betaRatioAbove: betaRatioAbove, normCdf: normCdf, vjTrim: vjTrim,
