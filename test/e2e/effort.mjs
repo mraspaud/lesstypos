@@ -31,6 +31,7 @@ export default async function effort() {
     await page.keyboard.press('5');                            // still in flight: ignored
     assert.ok(await effortQuestion(page).isVisible());
     assert.equal(await page.locator('#effortkeys').textContent(), '1–5 rate · Enter skip');
+    assert.equal(await page.locator('#effortkeys .legendkey').getAttribute('id'), null);   // a legend key without an id
     await effortReady(page);
     await page.keyboard.press('2');
     await page.waitForFunction((n) => window.FT.ui.app.trainer.history().length > n, before);
@@ -46,6 +47,16 @@ export default async function effort() {
     assert.match(await page.locator('#effortwhy').textContent(), /compare speed at the same effort.*0 and Esc also skip/);
     await effortReady(page);
     await page.keyboard.press('0');
+    await page.getByText(/finished/).waitFor();
+    assert.equal(await lastEffort(page), null);
+  });
+
+  await step('skip, clicked, saves the exercise without a rating', async () => {
+    await startExercise(page, 'relaxed', { minutes: 1 });
+    await typeWords(page, 14);
+    await saveAndAsk(page);
+    await effortReady(page);
+    await page.locator('#effortkeys .legendkey').click();
     await page.getByText(/finished/).waitFor();
     assert.equal(await lastEffort(page), null);
   });

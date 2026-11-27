@@ -90,7 +90,7 @@
           '<div class="scale">' + EFFORT.map(function (e) {
             return '<button type="button" data-effort="' + e[0] + '"' + U.action(function () { pick(e[0], true); }) + '><b>' + e[0] + '</b><span>' + esc(e[1]) + '</span><span class="muted">' + esc(e[2]) + '</span></button>';
           }).join('') + '</div>' +
-          '<p class="muted" id="effortkeys"><kbd>1</kbd>–<kbd>5</kbd> rate · <button class="legendkey" type="button" data-effort=""' + U.action(function () { pick(null, true); }) + '><kbd>Enter</kbd> skip</button></p>' +
+          '<p class="muted" id="effortkeys"><kbd>1</kbd>–<kbd>5</kbd> rate · ' + U.legendKey({ label: 'skip', key: 'Enter', help: 'Skip the rating', onClick: function () { pick(null, true); } }) + '</p>' +
           '<p class="muted small" id="effortwhy">Your rating lets LessTypos compare speed at the same effort, and it holds vocabulary growth when typing feels demanding. 0 and Esc also skip.</p></section>');
       },
     });
