@@ -30,12 +30,14 @@ const exercise = (o = {}) => Object.assign({ vocabulary: lessCommon(T.minWords, 
 // which come twice as many.
 const errorsTimes = (ratio, words = 1000, easiestRate = 0.02, rank = 150) =>
   exercise({ vocabulary: lessRated(words, ratio * easiestRate, rank), easiest: commonRated(2 * words, easiestRate) });
+// Half the less common words a decision needs.
+const halfPool = (o = {}) => exercise(Object.assign({ vocabulary: lessCommon(T.minWords / 2, 0.995) }, o));
 const controller = (frontier = 500, state = {}) => FT.difficulty.create(Object.assign({ frontier }, state));
 const repeat = (d, n, ex) => { let r; for (let i = 0; i < n; i++) r = d.update(ex); return r; };
 
 test('no decision until the vocabulary words reach the minimum', () => {
   const d = controller();
-  const r = d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995) }));
+  const r = d.update(halfPool());
   assert.equal(r.action, 'wait');
   assert.match(r.reasons.join(), new RegExp(T.minWords / 2 + ' of the ' + T.minWords + ' words'));
   assert.equal(d.state().frontier, 500);
@@ -43,8 +45,8 @@ test('no decision until the vocabulary words reach the minimum', () => {
 
 test('evidence pools across exercises until there is enough', () => {
   const d = controller();
-  d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995) }));
-  const r = d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995) }));
+  d.update(halfPool());
+  const r = d.update(halfPool());
   assert.equal(r.action, 'advance');
   assert.equal(r.words, T.minWords);
 });
@@ -205,8 +207,8 @@ test('high perceived effort holds advancement', () => {
 
 test('perceived effort counts from every exercise since the last decision', () => {
   const d = controller();
-  d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995), effort: 5 }));
-  assert.equal(d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995), effort: 2 })).action, 'hold');
+  d.update(halfPool({ effort: 5 }));
+  assert.equal(d.update(halfPool({ effort: 2 })).action, 'hold');
   assert.equal(d.update(exercise({ effort: 2 })).action, 'advance');
 });
 
@@ -235,16 +237,15 @@ test('a fixed vocabulary is respected until released', () => {
 
 // Functionality: the pooled evidence belongs to the vocabulary it was typed
 // in, so fixing the vocabulary or releasing it starts the pool afresh.
-const halfPool = () => exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995) });
 test('fixing the vocabulary empties the pool of less common words', () => {
   const d = controller();
-  d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995), effort: 5 }));
+  d.update(halfPool({ effort: 5 }));
   d.override(800);
   d.override(null);
   const r = d.update(halfPool());
   assert.equal(r.action, 'wait');
   assert.match(r.reasons[0], new RegExp('^' + T.minWords / 2 + ' of the'));
-  assert.equal(d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995), effort: 2 })).action, 'advance'); // not held by the effort before
+  assert.equal(d.update(halfPool({ effort: 2 })).action, 'advance'); // not held by the effort before
 });
 
 test('releasing a fixed vocabulary empties the pool', () => {

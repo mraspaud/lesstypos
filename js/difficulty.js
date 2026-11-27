@@ -87,7 +87,7 @@
       var less = weighted(st.pool), easy = weighted(st.easiest);
       if (less.words < cfg.minWords) return waiting(Math.round(less.words) + ' of the ' + cfg.minWords + ' words needed');
       if (easy.words < cfg.easiestMinWords) {
-        return waiting(easy.words + ' of the ' + cfg.easiestMinWords + ' words needed among the ' + EASIEST_RANKS + ' most common, to compare with');
+        return waiting(Math.round(easy.words) + ' of the ' + cfg.easiestMinWords + ' words needed among the ' + EASIEST_RANKS + ' most common, to compare with');
       }
       return decide(less, easy, w.at);
     }
@@ -155,9 +155,9 @@
     }
     // The reasons that hold an advance back.
     function holdsBack(c) {
-      var pct = function (x) { return (100 * x).toFixed(1) + '%'; }, reasons = [];
+      var reasons = [];
       if (c.hes != null && c.hesBase != null && c.hes > c.hesBase * cfg.hesTol && c.hes - c.hesBase > cfg.hesAbs) {
-        reasons.push('hesitation ' + pct(c.hes) + ' above recent ' + pct(c.hesBase));
+        reasons.push('hesitation ' + pct1(c.hes) + ' above recent ' + pct1(c.hesBase));
       }
       if (c.rhy != null && c.rhyBase != null && c.rhy > c.rhyBase * cfg.rhythmTol) {
         reasons.push('rhythm less even than recently (CV ' + c.rhy.toFixed(2) + ' vs ' + c.rhyBase.toFixed(2) + ')');
