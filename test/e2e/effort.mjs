@@ -30,11 +30,24 @@ export default async function effort() {
     const before = await historyLength(page);
     await page.keyboard.press('5');                            // still in flight: ignored
     assert.ok(await effortQuestion(page).isVisible());
-    await page.getByText(/Press 1–5/).waitFor();
+    assert.equal(await page.locator('#effortkeys').textContent(), '1–5 rate · Enter skip');
     await effortReady(page);
     await page.keyboard.press('2');
     await page.waitForFunction((n) => window.FT.ui.app.trainer.history().length > n, before);
     assert.equal(await lastEffort(page), 2);
+  });
+
+  await step('the effort question shows the scale first, then its keys, then why it is asked', async () => {
+    await startExercise(page, 'relaxed', { minutes: 1 });
+    await typeWords(page, 14);
+    await saveAndAsk(page);
+    const order = await page.locator('.effort > *').evaluateAll((els) => els.map((e) => e.id || e.className || e.tagName));
+    assert.deepEqual(order, ['H1', 'scale', 'effortkeys', 'effortwhy']);
+    assert.match(await page.locator('#effortwhy').textContent(), /compare speed at the same effort.*0 and Esc also skip/);
+    await effortReady(page);
+    await page.keyboard.press('0');
+    await page.getByText(/finished/).waitFor();
+    assert.equal(await lastEffort(page), null);
   });
 
   await step('Enter on a focused effort button records that rating', async () => {

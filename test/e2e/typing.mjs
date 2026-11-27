@@ -2,7 +2,7 @@
 // keys, paragraphs, the instruction card, and what is recorded.
 import assert from 'node:assert/strict';
 import { step, freshPage, closePage, shots, PHONE, DESKTOP, nav, saveSettings, showCards, startExercise, typeWords, untypedWords,
-  typedCount, finishWithEffort, discard } from './harness.mjs';
+  typedCount, finishWithEffort, discard, openMore } from './harness.mjs';
 
 const wrongFirstLetter = (w) => (w[0] === 'z' ? 'y' : 'z') + w.slice(1);
 // The last typed copies of these words have no wrong letters.
@@ -14,6 +14,7 @@ export default async function typing() {
 
   await step('typing an exercise with a corrected error, stopping and rating effort', async () => {
     await nav(page, 'home');
+    await openMore(page);
     await page.getByRole('button', { name: /Relaxed practice only/ }).click();
     await page.locator('.w').first().waitFor();
     const words = await page.$$eval('.w', (els) => els.slice(0, 60).map((e) => e.textContent));
@@ -58,6 +59,17 @@ export default async function typing() {
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.locator('#chart .tip:not([hidden])').waitFor();
     if (shots) await page.screenshot({ path: shots + '/summary.png', fullPage: true });
+  });
+
+  await step('the goal line fades at the first keystroke; the name and the timer stay', async () => {
+    await startExercise(page, 'relaxed', { minutes: 1 });
+    const goal = page.locator('.ex-head .goal');
+    assert.ok(await goal.isVisible());
+    await page.keyboard.type((await untypedWords(page, 1))[0].slice(0, 1));
+    await goal.waitFor({ state: 'hidden' });
+    assert.ok(await page.locator('.ex-head .name').isVisible());
+    assert.ok(await page.locator('#timer').isVisible());
+    await discard(page);
   });
 
   await step('Enter on a summary practises again', async () => {

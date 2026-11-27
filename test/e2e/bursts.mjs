@@ -1,7 +1,7 @@
 // Speed bursts (rounds and rests) and the benchmark (three timed trials).
 import assert from 'node:assert/strict';
 import { step, freshPage, closePage, shots, nav, startExercise, typeWords, typeNextWord, effortQuestion, effortReady, testTimings,
-  realTimings, discard } from './harness.mjs';
+  realTimings, discard, openMore } from './harness.mjs';
 
 const resting = (page) => page.locator('#timer').evaluate((el) => /Rest/.test(el.textContent));
 const typedOk = (page) => page.evaluate(() => document.querySelectorAll('.w .ok').length);
@@ -16,6 +16,8 @@ export default async function bursts() {
       const t0 = Date.now();
       while (!(await resting(page)) && Date.now() - t0 < 10000) await typeNextWord(page, 5);
       const before = await typedOk(page);
+      assert.match(await page.locator('#hint').textContent(), /^Round 1: \d+ WPM · \d+% \(.+\)\. Target now \d+ WPM\.$/);   // the countdown is in the timer only
+      assert.match(await page.locator('#timer').textContent(), /^Rest · \d:\d\d$/);
       for (let i = 0; i < 3; i++) await page.keyboard.press('Backspace');
       assert.equal(await typedOk(page), before);
       await discard(page);
@@ -54,6 +56,7 @@ export default async function bursts() {
     await testTimings(page, { benchmarkMinutes: 0.05 });
     try {
       await nav(page, 'home');
+      await openMore(page);
       await page.getByRole('button', { name: /Benchmark/ }).click();
       await page.locator('.w').first().waitFor();
       const t0 = Date.now();
@@ -67,6 +70,7 @@ export default async function bursts() {
     await testTimings(page, { benchmarkMinutes: 0.08 });
     try {
       await nav(page, 'home');
+      await openMore(page);
       await page.getByRole('button', { name: /Benchmark/ }).click();
       for (let trial = 1; trial <= 3; trial++) {
         await page.locator('.w').first().waitFor();
@@ -83,7 +87,7 @@ export default async function bursts() {
       const n = await page.evaluate(() => { const b = window.FT.ui.app.trainer.history().filter((h) => h.type === 'benchmark'); const last = b[b.length - 1].benchmarkSet; return b.filter((h) => h.benchmarkSet === last).length; });
       assert.equal(n, 3);
       await page.keyboard.press('Enter');
-      await page.getByRole('button', { name: /Benchmark/ }).waitFor();
+      await page.locator('#bench', { hasText: /Benchmark/ }).waitFor({ state: 'attached' });
     } finally { await realTimings(page); }
   });
 

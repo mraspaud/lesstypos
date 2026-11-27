@@ -37,7 +37,7 @@
   function typingPage(type, opts, exDef, view) {
     return '<section class="typing">' +
       '<div class="ex-head"><span class="name">' + esc(exDef.name) + (opts.pinned ? ' ' + opts.pinned.map(seq).join(' ') : '') + '</span>' +
-      '<span>' + esc(exDef.goal) + '</span>' +
+      '<span class="goal" id="goal">' + esc(exDef.goal) + '</span>' +
       (type === 'prose' ? '<span class="muted">' + esc(opts.text.title) + proseChapter(opts.text) + ', ' + FT.fmt.textProgress(opts.text, opts.text.pos) + '</span>' : '') +
       '<span class="timer num" id="timer"' + (app.settings.showTimer || type === 'bursts' || view.free ? '' : ' hidden') + '>' +
         (type === 'bursts' ? 'Round 1 of ' + view.rounds : clock(view.free ? 0 : view.durationMs)) + '</span></div>' +
@@ -220,6 +220,7 @@
       firstKeyAt = t; startedAt = Date.now(); clockStart = performance.now();
       if (startKey) keys.push(startKey);
       timer = setInterval(tick, TICK_MS);
+      document.getElementById('goal').classList.add('faded');   // said once: on the card and until the first key
     }
     function beginIfNeeded(t) {
       if (burst && burst.phase === 'ready') {
@@ -287,9 +288,8 @@
       } else if (burst.phase === 'rest') {
         var left = burst.restEnd - now, last = burst.last;
         timerEl.textContent = 'Rest · ' + clock(left);
-        hint('Round ' + burst.rounds.length + ': ' + fix(last.stats.wpm) + ' WPM, ' + pct(last.stats.accuracy, 0) + ' accuracy (' +
-          (last.res.result === 'met' ? 'target met' : esc(last.res.reason)) + '). Target now ' + Math.round(burst.target) +
-          ' WPM. Relax your hands; next round in ' + Math.ceil(left / 1000) + ' s.');
+        hint('Round ' + burst.rounds.length + ': ' + fix(last.stats.wpm) + ' WPM · ' + pct(last.stats.accuracy, 0) + ' (' +
+          (last.res.result === 'met' ? 'target met' : esc(last.res.reason)) + '). Target now ' + Math.round(burst.target) + ' WPM.');   // the countdown is in the timer
         paintPace(null, burst.target);
         if (left <= 0) {
           burst.phase = 'ready';

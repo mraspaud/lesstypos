@@ -92,7 +92,7 @@ export async function startTraining(page) {
 }
 // Home's other ways to train, folded under More (m).
 export async function openMore(page) {
-  if (!(await isOpen(page, 'more'))) await page.keyboard.press('m');
+  if (!(await isOpen(page, 'more'))) await page.locator('#more > summary').click();
   await page.locator('#more[open]').waitFor();
 }
 // The training summary opens in its tags box: Escape leaves it unsaved, then Enter is Done.

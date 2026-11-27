@@ -1,7 +1,7 @@
 // Settings and data: the keyboard layout, backups (export, import by paste
 // or file, replace or merge), rebuilding and deleting.
 import assert from 'node:assert/strict';
-import { step, freshPage, closePage, nav, exportBackup, importBackup, historyLength, seedExercises, practise, THORNIUM } from './harness.mjs';
+import { step, freshPage, closePage, nav, exportBackup, importBackup, historyLength, seedExercises, practise, THORNIUM, openMore } from './harness.mjs';
 
 const importMessage = (page) => page.getByText(/^Imported/).waitFor();
 
@@ -60,7 +60,8 @@ export default async function data() {
     backup.settings.programme = { name: 'x', steps: [{ type: 'relaxed', minutes: '<b id="bold">', enabled: true }, { type: 'nope', minutes: 3, enabled: true }] };
     await importBackup(page, backup);
     await page.keyboard.press('1');
-    await page.getByRole('button', { name: /Relaxed practice only · 5 min/ }).waitFor();
+    await page.locator('#start', { hasText: /Relaxed practice only/ }).waitFor({ state: 'attached' });
+    assert.equal(await page.locator('#start .muted').textContent(), '5 min');
     assert.equal(await page.locator('#pwned, #bold').count(), 0);
     assert.equal(await page.evaluate(() => window.pwned), undefined);
     assert.match(await page.locator('.lead').textContent(), /relaxed practice 5 min\./);
@@ -89,6 +90,7 @@ export default async function data() {
 
   await step('slips of an exercise show on the Errors page by kind', async () => {
     await nav(page, 'home');
+    await openMore(page);
     await page.getByRole('button', { name: /Relaxed practice only/ }).click();
     await page.locator('.w').first().waitFor();
     const words = await page.$$eval('.w', (e) => e.slice(0, 14).map((x) => x.textContent));
