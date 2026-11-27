@@ -118,34 +118,6 @@ test('less common words credibly under 0.5% errors advance, whatever the ratio',
   assert.equal(controller().update(exercise({ vocabulary: lessRated(1000, 0.004), easiest: rated(1000, 0.002) })).action, 'hold');
 });
 
-// A seeded binomial typist: each exercise, `easiest` words of 5 characters
-// and `less` words of 7, each character a first-try error with probability
-// easiestRate, times `ratio` on the less common words.
-function binomialTypist(seed, { ratio, easiestRate = 0.018, easiest = 45, less = 180 }) {
-  const rng = FT.rng(seed);
-  const errors = (chars, p) => { let k = 0; for (let i = 0; i < chars; i++) if (rng() < p) k++; return k; };
-  const tallied = (n, len, p) => ({ words: n, chars: n * len, errors: errors(n * len, p) });
-  const perWordAt = (n, len, p) => Array.from({ length: n }, () => [150, len, errors(len, p)]);
-  return (rate = easiestRate) => exercise({ vocabulary: perWordAt(less, 7, ratio * rate), easiest: tallied(easiest, 5, rate) });
-}
-// The share of runs that step at least once in `exercises` exercises.
-function stepShare(ratio, { runs = 400, exercises = 20 } = {}) {
-  const share = { advance: 0, retreat: 0 };
-  for (let run = 0; run < runs; run++) {
-    const d = controller(), typist = binomialTypist(1 + run, { ratio });
-    for (let i = 0; i < exercises; i++) {
-      const { action } = d.update(typist());
-      if (action === 'advance' || action === 'retreat') { share[action] += 1 / runs; break; }
-    }
-  }
-  return share;
-}
-
-test('noise inside the band rarely steps: 400 typists at 2.5x the errors, 20 exercises each', () => {
-  const share = stepShare(2.5);
-  assert.ok(share.advance < 0.06 && share.retreat < 0.1, JSON.stringify(share));
-});
-
 test('the vocabulary never goes below the 200 most common words', () => {
   assert.equal(T.min, 200);
   assert.equal(controller(113).state().frontier, 200);

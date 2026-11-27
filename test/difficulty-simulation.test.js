@@ -39,6 +39,19 @@ function improving(seed, { ratio, from = 0.02, to = 0.004, exercises = 20 }) {
   for (let i = 0; i < exercises; i++) actions.push(d.update(typist(d.state().frontier, from + (to - from) * i / (exercises - 1))).action);
   return actions;
 }
+// The share of typists that step at least once in `exercises` exercises,
+// from a frontier of 500, at a constant error rate.
+function stepShare(ratio, { typists = 400, exercises = 20, easiestRate = 0.018 } = {}) {
+  const share = { advance: 0, retreat: 0 };
+  for (let seed = 1; seed <= typists; seed++) {
+    const d = FT.difficulty.create({ frontier: 500 }), typist = simulatedTypist(seed, { ratio });
+    for (let i = 0; i < exercises; i++) {
+      const { action } = d.update(typist(d.state().frontier, easiestRate));
+      if (action === 'advance' || action === 'retreat') { share[action] += 1 / typists; break; }
+    }
+  }
+  return share;
+}
 const indicesOf = (actions, action) => actions.flatMap((a, i) => (a === action ? [i] : []));
 
 test('an improving typist whose less common words have 1.5x the errors grows the vocabulary several times, never shrinking it', () => {
@@ -54,4 +67,9 @@ test('with clear evidence, one step can follow another in the next exercise', ()
     const advances = indicesOf(improving(seed, { ratio: 1.5 }), 'advance');
     assert.ok(advances.slice(1).some((x, i) => x - advances[i] === 1), seed + ': ' + advances.join(' '));
   }
+});
+
+test('noise inside the band rarely steps: 400 typists at 2.5x the errors, 20 exercises each', () => {
+  const share = stepShare(2.5);
+  assert.ok(share.advance < 0.06 && share.retreat < 0.1, JSON.stringify(share));
 });
