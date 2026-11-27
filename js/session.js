@@ -16,11 +16,18 @@
     return last.auto || last.ch === separatorOf(w) ? 'ok' : 'bad';
   }
   function isOtherSeparator(w, ch) { return isSeparator(ch) && ch !== separatorOf(w); }
-  // All the word's letters, or all its key presses (a multi-letter key is one,
-  // also when its letters are typed one by one), typed before the separator
-  // just typed, right or wrong.
-  function complete(w, macros) {
-    if (Array.from(w.typed).length - 1 >= Array.from(w.target).length) return true;
+  // Whether the separator just typed ends the word (user decisions): it does
+  // once the word has all its letters, or all its key presses (a multi-letter
+  // key is one, also when its letters are typed one by one), right or wrong;
+  // and it does after a start that is already wrong, since the typist has
+  // moved on. After a correct start it is a typo in place.
+  function endsAtSeparator(w, macros, equivalence) {
+    var before = Array.from(w.typed).slice(0, -1).join('');
+    if (!equivalence.isPrefix(before, w.target)) return true;
+    return hasAllLetters(w) || hasAllPresses(w, macros);
+  }
+  function hasAllLetters(w) { return Array.from(w.typed).length - 1 >= Array.from(w.target).length; }
+  function hasAllPresses(w, macros) {
     if (!macros || !macros.length) return false;
     var flags = FT.align.flagStream(w.stream), ids = FT.presses.ids(w.stream, macros, Infinity), typed = {};
     for (var i = 0; i < w.stream.length - 1; i++) if (flags[i] && ids[i] != null) typed[ids[i]] = true;
@@ -103,7 +110,7 @@
         var entry = { k: 'c', ch: ch, t: ev.t, g: g };
         if (ev.auto) entry.auto = true; // inserted by the app (end of a text), not typed
         w.stream.push(entry);
-        if (isSeparator(ch) && complete(w, macros)) commit();   // earlier, a space is a typo in place (user decision)
+        if (isSeparator(ch) && endsAtSeparator(w, macros, equivalence)) commit();
       }
     }
 

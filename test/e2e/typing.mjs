@@ -146,6 +146,16 @@ export default async function typing() {
     await discard(page);
   });
 
+  await step('a space after a left-out letter ends the word; the next word is typed clean', async () => {
+    const text = { id: 'omission', title: 'Omission', words: ['also', 'this', 'more', 'words', 'here'], pos: 0 };
+    await startExercise(page, 'prose', { text });
+    await page.keyboard.type('aso this ', { delay: 20 });
+    assert.ok(await page.locator('.w').nth(0).locator('.l.bad').count() > 0);
+    assert.equal(await page.locator('.w').nth(1).locator('.l.bad').count(), 0);
+    assert.equal(await page.locator('.w').nth(1).locator('.l.ok').count(), 4);
+    await discard(page);
+  });
+
   await step('in stop mode a wrong letter holds the typing until it is corrected', async () => {
     await saveSettings(page, { errorMode: 'stop' });
     try {

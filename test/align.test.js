@@ -302,3 +302,13 @@ test('after an early letter is erased, the next attempt is compared with the rig
   const r2 = A('cat ', 'ct<ax<<at ');
   assert.ok(!r2.events.some((e) => e.type !== 'none' && e.expected === ' '));
 });
+
+// Functionality: a word ended early after a wrong start (user decision) is
+// one omission, shown with its missing letters red.
+test('a word ended early after a left-out letter is one error, the left-out one', () => {
+  assert.equal(total(AP('also ', 'aso ', [])), 1);
+});
+
+test('a word ended early after a left-out letter shows the rest of the word red', () => {
+  assert.equal(statuses(DW('also', 'aso ', [])), 'ok bad bad bad');
+});

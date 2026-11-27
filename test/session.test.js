@@ -122,6 +122,28 @@ test('a space typed before the end of a word stays in the word as a wrong charac
   assert.equal(s.state().words[0].typed, 'the ');
 });
 
+// ... but a space after a start that is already wrong ends the word (user
+// decision): the typist has moved on, so the next word goes where expected.
+test('a space after a wrong start ends the word, and the next word goes where expected', () => {
+  const s = FT.session.create(['also', 'this']);
+  typist(s).type('aso this ');
+  assert.equal(s.state().wordIndex, 2);
+  assert.equal(s.state().words[0].typed, 'aso ');
+  assert.equal(s.state().words[1].typed, 'this ');
+});
+
+test('a wrong letter, then an early space, ends the word', () => {
+  const s = FT.session.create(['the', 'cat']);
+  typist(s).type('tx ');
+  assert.equal(s.state().wordIndex, 1);
+});
+
+test('an early Enter at a paragraph end after a wrong start ends the word too', () => {
+  const s = FT.session.create([{ word: 'end.', sep: '\n' }, 'Next']);
+  typist(s).type('ed\n');
+  assert.equal(s.state().wordIndex, 1);
+});
+
 test('a word with all its letters typed, right or wrong, ends at the space', () => {
   const s = FT.session.create(['the', 'cat']);
   typist(s).type('teh ');
