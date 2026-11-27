@@ -147,7 +147,7 @@ test('ordinary errors are unchanged by press grouping', () => {
 // Functionality: the word on screen compares by position, press by press
 // (user decision), so a red letter stays where the mistake was made; one mark
 // per wrong press, and extra letters at the end.
-const DW = (word, typed, macros) => plain(FT.align.displayWord(word, stream(typed), { macros }));
+const DW = (word, typed, macros, committed) => plain(FT.align.displayWord(word, stream(typed), { macros, committed }));
 const statuses = (d) => d.positions.map((x) => x.status).join(' ');
 
 test('display: th typed for y in "you" marks only y', () => {
@@ -310,5 +310,14 @@ test('a word ended early after a left-out letter is one error, the left-out one'
 });
 
 test('a word ended early after a left-out letter shows the rest of the word red', () => {
-  assert.equal(statuses(DW('also', 'aso ', [])), 'ok bad bad bad');
+  assert.equal(statuses(DW('also', 'aso ', [], true)), 'ok bad bad bad');
+});
+
+test('a word ended early shows every letter it never got red, and its separator is not a letter', () => {
+  assert.equal(statuses(DW('then', 'tx ', [], true)), 'ok bad bad bad');
+  assert.equal(statuses(DW('end.', 'ed\n', [], true)), 'ok bad bad bad');
+});
+
+test('a word still being typed keeps an early space as a typed letter', () => {
+  assert.equal(statuses(DW('the', 'th ', [], false)), 'ok ok bad');
 });

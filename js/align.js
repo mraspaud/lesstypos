@@ -391,14 +391,15 @@
   //                 mark; press: a multi-letter press is involved);
   //   extras:       letters of presses beyond the word, shown after it;
   //   cursor:       number of rendered letters typed.
-  // opts: { macros, equivalence }, as for analyzeWord.
+  // opts: { macros, equivalence } as for analyzeWord, and committed: the
+  // word has ended, so its last separator ended it and what it never got is wrong.
   function displayWord(word, stream, opts) {
     var macros = opts && opts.macros, same = equivalenceOf(opts).same;
     var target = Array.from(word);
     var flags = flagStream(stream), ids = FT.presses.ids(stream, macros);
     var alive = stream.map(function (e, i) { return i; }).filter(function (i) { return flags[i]; });
     var last = alive[alive.length - 1];
-    var endsWord = last != null && /^[ \n]$/.test(stream[last].ch) && alive.length - 1 >= target.length;
+    var endsWord = last != null && /^[ \n]$/.test(stream[last].ch) && (alive.length - 1 >= target.length || !!(opts && opts.committed));
     var shown = endsWord ? alive.slice(0, -1) : alive;   // a space before the end is a typed letter
     var typedPresses = groupBy(shown.map(function (i) { return stream[i]; }), shown.map(function (i) { return ids[i]; }));
     var targetPresses = groupBy(target.map(function (ch) { return { ch: ch }; }), FT.presses.ofTarget(word, macros));
@@ -421,6 +422,7 @@
     });
     typedPresses.slice(k).forEach(function (tp) { tp.forEach(function (e) { extras.push(e.ch); }); });
     var typed = positions.filter(function (p) { return p.status !== 'untyped'; }).length;
+    if (opts && opts.committed) positions.forEach(function (p, i) { if (p.status === 'untyped') positions[i] = { status: 'bad', group: i, press: false }; });
     return { positions: positions, extras: extras, cursor: typed + extras.length };
   }
   // Consecutive items with the same id, in order.

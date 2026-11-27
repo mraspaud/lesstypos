@@ -56,6 +56,8 @@ export default async function reading() {
 
   await step('a text file can be added: its book is read, then saved', async () => {
     await nav(page, 'settings/texts');
+    await page.locator('#tform').getByRole('button', { name: /Add text/ }).waitFor();   // the page has drawn its texts and form
+    await page.waitForFunction(() => window.FT.ui.app.current === 'settings/texts' && document.getElementById('tfile').onchange);
     await page.locator('#tfile').setInputFiles(path.join(root, 'test', 'fixtures', 'books', 'snowdrop.txt'));
     await page.getByText(/^Read: /).waitFor();
     assert.notEqual(await page.locator('#ttitle').inputValue(), '');

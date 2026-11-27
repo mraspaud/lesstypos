@@ -96,13 +96,13 @@
         return true;
       }
       if (ev.kind !== 'text') return;
-      if (stopOnError && w && !equivalence.isPrefix(w.typed, targetOf(w))) return;
       var chars = Array.from(ev.data);
       var g = ++group;
       for (var j = 0; j < chars.length; j++) {
         var ch = chars[j];
         w = current();
         if (!w) return;
+        if (stopOnError && !equivalence.isPrefix(w.typed, targetOf(w))) return;   // holds at the first error, key by key
         if (isSeparator(ch) && w.typed.length === 0) continue;
         if (stopOnError && isOtherSeparator(w, ch)) return;
         if (w.stream.length === 0) w.tStart = ev.t;

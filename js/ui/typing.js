@@ -148,7 +148,7 @@
       var w = session.state().words[i];
       el = el || els[i];
       if (!el) return;
-      var shown = FT.align.displayWord(w.target, w.stream, U.analysisOptions());
+      var shown = FT.align.displayWord(w.target, w.stream, Object.assign({ committed: w.committed }, U.analysisOptions()));
       var target = Array.from(w.target), html = '';
       var letter = function (cls, ch) { return '<span class="l' + cls + '">' + esc(ch) + '</span>'; };
       for (var p = 0; p < target.length; p++) {

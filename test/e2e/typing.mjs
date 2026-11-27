@@ -150,7 +150,8 @@ export default async function typing() {
     const text = { id: 'omission', title: 'Omission', words: ['also', 'this', 'more', 'words', 'here'], pos: 0 };
     await startExercise(page, 'prose', { text });
     await page.keyboard.type('aso this ', { delay: 20 });
-    assert.ok(await page.locator('.w').nth(0).locator('.l.bad').count() > 0);
+    assert.equal(await page.locator('.w').nth(0).locator('.l.ok').count(), 1);    // a
+    assert.equal(await page.locator('.w').nth(0).locator('.l.bad').count(), 3);   // l s o: where they were due, the left-out l onward
     assert.equal(await page.locator('.w').nth(1).locator('.l.bad').count(), 0);
     assert.equal(await page.locator('.w').nth(1).locator('.l.ok').count(), 4);
     await discard(page);

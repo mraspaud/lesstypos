@@ -134,8 +134,37 @@ test('a space after a wrong start ends the word, and the next word goes where ex
 
 test('a wrong letter, then an early space, ends the word', () => {
   const s = FT.session.create(['the', 'cat']);
-  typist(s).type('tx ');
+  typist(s).type('tx cat ');
+  assert.equal(s.state().wordIndex, 2);
+  assert.equal(s.state().words[1].typed, 'cat ');
+});
+
+test('a start that matches with accepted equivalents is a correct start', () => {
+  const withAccents = FT.session.create(['naïve', 'idea'], { equivalence: FT.text.equivalence({ accents: true }) });
+  typist(withAccents).type('nai ');
+  assert.equal(withAccents.state().wordIndex, 0);
+  const strict = FT.session.create(['naïve', 'idea'], { equivalence: FT.text.equivalence({ accents: false }) });
+  typist(strict).type('nai ');
+  assert.equal(strict.state().wordIndex, 1);
+});
+
+test('a slip of case is a wrong start: the early space ends the word', () => {
+  const s = FT.session.create(['The', 'cat']);
+  typist(s).type('th ');
   assert.equal(s.state().wordIndex, 1);
+});
+
+test('the th key pressed where t alone was due, then a space, ends the word', () => {
+  const s = FT.session.create(['tea', 'cup'], { macros: ['th'] });
+  typist(s).type('[th] ');
+  assert.equal(s.state().wordIndex, 1);
+});
+
+test('in stop mode a wrong start holds the typing, even inside one input event', () => {
+  const s = FT.session.create(['also', 'this'], { stopOnError: true });
+  typist(s).type('[aso ]');
+  assert.equal(s.state().wordIndex, 0);
+  assert.equal(s.state().words[0].typed, 'as');
 });
 
 test('an early Enter at a paragraph end after a wrong start ends the word too', () => {
