@@ -27,7 +27,7 @@
   'use strict';
   var TUNING = { min: 200, max: 30000, minWords: 300, maxWords: 1000, easiestMinWords: 150, easiestMaxWords: 1000,
     growAtMost: 2, shrinkAbove: 3, fewErrors: 0.005, credible: 0.9,
-    step: 1.1, hesTol: 1.25, hesAbs: 0.02, rhythmTol: 1.15, effortHold: 4, baselineN: 5 };
+    step: 1.1, keptAfterStep: 0.5, hesTol: 1.25, hesAbs: 0.02, rhythmTol: 1.15, effortHold: 4, baselineN: 5 };
   var START_FRONTIER = 200, EASIEST_RANKS = 100;
 
   // state: what was learned (stored in the profile); opts: { max } and tuning
@@ -57,14 +57,29 @@
       if (t && t.words > 0) pool.push({ words: t.words, chars: t.chars, errors: t.errors });
       while (pool.length > 1 && total(pool).words - pool[0].words >= max) pool.shift();
     }
+    // Adds an exercise's less common words ([rank, chars, errors] each) to
+    // the pool, then drops the oldest exercises while the others still hold
+    // at least maxWords words, by weight.
+    function addWords(list) {
+      if (list && list.length) st.pool.push({ weight: 1, words: list.map(function (w) { return w.slice(); }) });
+      while (st.pool.length > 1 && weighted(st.pool).words - weighted([st.pool[0]]).words >= cfg.maxWords) st.pool.shift();
+    }
+    // After a step, the pooled words inside both the old and the new
+    // vocabulary stay, at keptAfterStep of their weight.
+    function carryOver(before, after) {
+      var limit = Math.min(before, after);
+      st.pool = st.pool.map(function (x) {
+        return { weight: x.weight * cfg.keptAfterStep, words: x.words.filter(function (w) { return w[0] < limit; }) };
+      }).filter(function (x) { return x.words.length; });
+    }
 
     function update(w) {
       if (st.manual) return { action: 'manual', frontier: st.frontier, reasons: ['manual vocabulary selection'] };
-      addTally(st.pool, w.vocabulary, cfg.maxWords);
+      addWords(w.vocabulary);
       addTally(st.easiest, w.easiest, cfg.easiestMaxWords);
-      st.pending = addConditions(st.pending, w, w.vocabulary ? w.vocabulary.words : 0);
-      var less = total(st.pool), easy = total(st.easiest);
-      if (less.words < cfg.minWords) return waiting(less.words + ' of the ' + cfg.minWords + ' words needed');
+      st.pending = addConditions(st.pending, w, w.vocabulary ? w.vocabulary.length : 0);
+      var less = weighted(st.pool), easy = total(st.easiest);
+      if (less.words < cfg.minWords) return waiting(Math.round(less.words) + ' of the ' + cfg.minWords + ' words needed');
       if (easy.words < cfg.easiestMinWords) {
         return waiting(easy.words + ' of the ' + cfg.easiestMinWords + ' words needed among the ' + EASIEST_RANKS + ' most common, to compare with');
       }
@@ -80,7 +95,7 @@
         if (held.length) judged = { action: 'hold', reasons: judged.reasons.concat(held) };
       }
       var before = st.frontier, stepped = step(judged);
-      if (st.frontier !== before) st.pool = [];
+      if (st.frontier !== before) carryOver(before, st.frontier);
       st.windows.push({ hes: felt.hes, rhy: felt.rhy, acc: measured.accuracy });
       if (st.windows.length > 50) st.windows.shift();
       var rec = { action: stepped.action, from: before, to: st.frontier, accuracy: measured.accuracy, reference: measured.reference,
@@ -167,6 +182,14 @@
   function total(pool) {
     return pool.reduce(function (a, t) { return { words: a.words + t.words, chars: a.chars + t.chars, errors: a.errors + t.errors }; }, tally());
   }
+  // The weighted tally of a pool of exercises' words.
+  function weighted(pool) {
+    var t = tally();
+    pool.forEach(function (x) {
+      x.words.forEach(function (w) { t.words += x.weight; t.chars += x.weight * w[1]; t.errors += x.weight * w[2]; });
+    });
+    return t;
+  }
   function accuracy(t) { return 1 - t.errors / t.chars; }
   function errorRate(t) { return t.errors / t.chars; }
   // The beta posterior of a first-try error rate, with a uniform prior.
@@ -181,15 +204,20 @@
 
   // The evidence an exercise gives: first-try errors per character on its
   // unbiased words (FT.generator.UNBIASED), the easiest (rank below
-  // EASIEST_RANKS) apart from the rest. words: the typed words with their
-  // meta; analyses: FT.align's, in the same order; rankOf(word) -> rank.
+  // EASIEST_RANKS) as one tally, the less common ones (vocabulary) one
+  // [rank, chars, errors] per word. words: the typed words with their meta;
+  // analyses: FT.align's, in the same order; rankOf(word) -> rank.
   function evidence(words, analyses, rankOf) {
-    var out = { vocabulary: tally(), easiest: tally() };
+    var out = { vocabulary: [], easiest: tally() };
     words.forEach(function (w, i) {
       if (!w.meta || FT.generator.UNBIASED.indexOf(w.meta.source) < 0) return;
-      var rank = rankOf(w.target), t = rank >= 0 && rank < EASIEST_RANKS ? out.easiest : out.vocabulary;
-      t.words++;
-      analyses[i].targets.forEach(function (x) { t.chars++; t.errors += x.err; });
+      var rank = rankOf(w.target), targets = analyses[i].targets;
+      var errors = targets.reduce(function (n, x) { return n + x.err; }, 0);
+      if (rank >= 0 && rank < EASIEST_RANKS) {
+        out.easiest.words++; out.easiest.chars += targets.length; out.easiest.errors += errors;
+      } else {
+        out.vocabulary.push([rank, targets.length, errors]);
+      }
     });
     return out;
   }

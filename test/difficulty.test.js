@@ -12,22 +12,28 @@ const { load, plain } = require('./helpers/load');
 
 const FT = load();
 const T = FT.difficulty.TUNING;
-// First-try evidence: `words` words of 5 characters at the given accuracy, or
-// with the given error rate.
+// First-try evidence on the easiest words: `words` words of 5 characters at
+// the given accuracy, or with the given error rate.
 const tally = (words, accuracy = 1) => ({ words, chars: 5 * words, errors: Math.round(5 * words * (1 - accuracy)) });
 const rated = (words, errorRate) => tally(words, 1 - errorRate);
-const exercise = (o = {}) => Object.assign({ vocabulary: tally(T.minWords, 0.995), easiest: tally(T.easiestMinWords * 4, 0.99),
+// The same on the less common words, one [rank, chars, errors] per word,
+// with the errors spread evenly.
+const perWord = (t, rank) => Array.from({ length: t.words }, (_, i) =>
+  [rank, 5, Math.floor((i + 1) * t.errors / t.words) - Math.floor(i * t.errors / t.words)]);
+const lessCommon = (words, accuracy = 1, rank = 150) => perWord(tally(words, accuracy), rank);
+const lessRated = (words, errorRate, rank = 150) => perWord(rated(words, errorRate), rank);
+const exercise = (o = {}) => Object.assign({ vocabulary: lessCommon(T.minWords, 0.995), easiest: tally(T.easiestMinWords * 4, 0.99),
   hesitationRate: 0.05, rhythmCv: 0.3, effort: null, wpm: 40 }, o);
 // The less common words with `ratio` times the errors of the easiest words,
 // which come twice as many.
-const errorsTimes = (ratio, words = 1000, easiestRate = 0.02) =>
-  exercise({ vocabulary: rated(words, ratio * easiestRate), easiest: rated(2 * words, easiestRate) });
+const errorsTimes = (ratio, words = 1000, easiestRate = 0.02, rank = 150) =>
+  exercise({ vocabulary: lessRated(words, ratio * easiestRate, rank), easiest: rated(2 * words, easiestRate) });
 const controller = (frontier = 500, state = {}) => FT.difficulty.create(Object.assign({ frontier }, state));
 const repeat = (d, n, ex) => { let r; for (let i = 0; i < n; i++) r = d.update(ex); return r; };
 
 test('no decision until the vocabulary words reach the minimum', () => {
   const d = controller();
-  const r = d.update(exercise({ vocabulary: tally(T.minWords / 2, 0.995) }));
+  const r = d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995) }));
   assert.equal(r.action, 'wait');
   assert.match(r.reasons.join(), new RegExp(T.minWords / 2 + ' of the ' + T.minWords + ' words'));
   assert.equal(d.state().frontier, 500);
@@ -35,16 +41,37 @@ test('no decision until the vocabulary words reach the minimum', () => {
 
 test('evidence pools across exercises until there is enough', () => {
   const d = controller();
-  d.update(exercise({ vocabulary: tally(T.minWords / 2, 0.995) }));
-  const r = d.update(exercise({ vocabulary: tally(T.minWords / 2, 0.995) }));
+  d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995) }));
+  const r = d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995) }));
   assert.equal(r.action, 'advance');
   assert.equal(r.words, T.minWords);
 });
 
-test('a step starts a new pool: evidence from the old vocabulary does not decide the new one', () => {
+// Design choice: after a step, the pooled words inside both the old and the
+// new vocabulary stay, at half their weight, so a clear trend can step again
+// soon.
+test('an advance keeps the pooled words inside the old vocabulary, at half weight', () => {
   const d = controller();
-  assert.equal(d.update(exercise()).action, 'advance');
-  assert.equal(d.update(exercise({ vocabulary: tally(T.minWords / 2, 0.995) })).action, 'wait');
+  const inside = lessRated(600, 0.01, 300), beyond = lessRated(400, 0.01, 520);
+  assert.equal(d.update(exercise({ vocabulary: inside.concat(beyond) })).action, 'advance');
+  const r = d.update(exercise({ vocabulary: lessCommon(100, 0.995) }));
+  assert.equal(r.words, 600 / 2 + 100);
+  assert.equal(r.action, 'advance');
+});
+
+test('a retreat keeps the pooled words inside the new vocabulary, at half weight', () => {
+  const d = controller();
+  const ex = errorsTimes(3.5);
+  ex.vocabulary = lessRated(600, 0.07, 300).concat(lessRated(400, 0.07, 480));
+  assert.equal(d.update(ex).action, 'retreat');
+  assert.equal(d.update(exercise({ vocabulary: lessCommon(0) })).words, 600 / 2);
+});
+
+test('the weight halves again at every step', () => {
+  const d = controller();
+  assert.equal(d.update(errorsTimes(1.2, 1200)).action, 'advance');
+  assert.equal(d.update(errorsTimes(1.2, 0)).words, 1200 / 2);
+  assert.equal(d.update(errorsTimes(1.2, 0)).words, 1200 / 4);
 });
 
 test('a hold keeps pooling, up to the most recent words the pool keeps', () => {
@@ -86,9 +113,9 @@ test('the ratio of the error rates decides, however high both are', () => {
 // Two error rates near zero have no credible ratio, so a typist with almost no
 // errors on the less common words grows on that alone.
 test('less common words credibly under 0.5% errors advance, whatever the ratio', () => {
-  assert.equal(controller().update(exercise({ vocabulary: tally(1000), easiest: tally(1000) })).action, 'advance');
-  assert.equal(controller().update(exercise({ vocabulary: rated(1000, 0.002), easiest: tally(1000) })).action, 'advance');
-  assert.equal(controller().update(exercise({ vocabulary: rated(1000, 0.004), easiest: rated(1000, 0.002) })).action, 'hold');
+  assert.equal(controller().update(exercise({ vocabulary: lessCommon(1000), easiest: tally(1000) })).action, 'advance');
+  assert.equal(controller().update(exercise({ vocabulary: lessRated(1000, 0.002), easiest: tally(1000) })).action, 'advance');
+  assert.equal(controller().update(exercise({ vocabulary: lessRated(1000, 0.004), easiest: rated(1000, 0.002) })).action, 'hold');
 });
 
 // A seeded binomial typist: each exercise, `easiest` words of 5 characters
@@ -97,8 +124,9 @@ test('less common words credibly under 0.5% errors advance, whatever the ratio',
 function binomialTypist(seed, { ratio, easiestRate = 0.018, easiest = 45, less = 180 }) {
   const rng = FT.rng(seed);
   const errors = (chars, p) => { let k = 0; for (let i = 0; i < chars; i++) if (rng() < p) k++; return k; };
-  const words = (n, len, p) => ({ words: n, chars: n * len, errors: errors(n * len, p) });
-  return (rate = easiestRate) => exercise({ vocabulary: words(less, 7, ratio * rate), easiest: words(easiest, 5, rate) });
+  const tallied = (n, len, p) => ({ words: n, chars: n * len, errors: errors(n * len, p) });
+  const perWordAt = (n, len, p) => Array.from({ length: n }, () => [150, len, errors(len, p)]);
+  return (rate = easiestRate) => exercise({ vocabulary: perWordAt(less, 7, ratio * rate), easiest: tallied(easiest, 5, rate) });
 }
 // The share of runs that step at least once in `exercises` exercises.
 function stepShare(ratio, { runs = 400, exercises = 20 } = {}) {
@@ -141,7 +169,7 @@ test('the easiest words pool across exercises and outlive a step', () => {
   const d = controller();
   const half = tally(T.easiestMinWords / 2, 0.99);
   assert.equal(d.update(exercise({ easiest: half })).action, 'wait');
-  assert.equal(d.update(exercise({ vocabulary: tally(0), easiest: half })).action, 'advance');
+  assert.equal(d.update(exercise({ vocabulary: lessCommon(0), easiest: half })).action, 'advance');
   assert.equal(d.update(exercise({ easiest: tally(0) })).action, 'advance');
 });
 
@@ -174,8 +202,8 @@ test('high perceived effort holds advancement', () => {
 
 test('perceived effort counts from every exercise since the last decision', () => {
   const d = controller();
-  d.update(exercise({ vocabulary: tally(T.minWords / 2, 0.995), effort: 5 }));
-  assert.equal(d.update(exercise({ vocabulary: tally(T.minWords / 2, 0.995), effort: 2 })).action, 'hold');
+  d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995), effort: 5 }));
+  assert.equal(d.update(exercise({ vocabulary: lessCommon(T.minWords / 2, 0.995), effort: 2 })).action, 'hold');
   assert.equal(d.update(exercise({ effort: 2 })).action, 'advance');
 });
 
@@ -217,7 +245,7 @@ test('the reasons compare the error rates, and both accuracies to two decimals',
 });
 
 test('the reasons say when the easiest words had no errors', () => {
-  const none = (vocabularyErrors) => controller().update(exercise({ vocabulary: { words: 300, chars: 1500, errors: vocabularyErrors }, easiest: tally(600) })).reasons[0];
+  const none = (vocabularyErrors) => controller().update(exercise({ vocabulary: lessCommon(300, 1 - vocabularyErrors / 1500), easiest: tally(600) })).reasons[0];
   assert.equal(none(0), 'no errors on the less common words or on your easiest words (fewer than 0.5% errors on them grows the vocabulary)');
   assert.match(none(15), /^errors on the less common words, none on your easiest words \(/);
 });
@@ -243,7 +271,7 @@ test('the stored state holds what was learned, not the tuning', () => {
 
 test('an exercise without vocabulary words does not count as 0% accuracy', () => {
   const d = controller();
-  assert.equal(d.update({ vocabulary: tally(0), easiest: tally(0) }).action, 'wait');
+  assert.equal(d.update({ vocabulary: lessCommon(0), easiest: tally(0) }).action, 'wait');
   assert.equal(d.update({ words: 200 }).action, 'wait');
   assert.equal(d.state().frontier, 500);
 });
@@ -261,12 +289,12 @@ const evidenceOf = (list) => plain(FT.difficulty.evidence(list.map((x) => x.word
 
 test('target and maintenance carriers never count as vocabulary evidence', () => {
   const e = evidenceOf([typed('window', 'target', 3), typed('house', 'maintenance', 2), typed('window', 'frontier')]);
-  assert.deepEqual(e.vocabulary, { words: 1, chars: 6, errors: 0 });
+  assert.deepEqual(e.vocabulary, [[900, 6, 0]]);
   assert.deepEqual(e.easiest, { words: 0, chars: 0, errors: 0 });
 });
 
 test('the unbiased words below rank 100 are the easiest words; the others are the vocabulary', () => {
   const e = evidenceOf([typed('the', 'random', 1), typed('and', 'frontier'), typed('house', 'random', 2), typed('window', 'frontier'), typed('the', 'target', 3)]);
   assert.deepEqual(e.easiest, { words: 2, chars: 6, errors: 1 });
-  assert.deepEqual(e.vocabulary, { words: 2, chars: 11, errors: 2 });
+  assert.deepEqual(e.vocabulary, [[150, 5, 2], [900, 6, 0]]);
 });

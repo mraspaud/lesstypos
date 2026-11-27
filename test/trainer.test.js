@@ -81,10 +81,10 @@ test('slips in target carriers leave the vocabulary evidence untouched', () => {
   const { summary } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: 60000, words });
   assert.ok(summary.metrics.firstAttemptAccuracy < 0.99);
   const { pool, easiest } = plain(tr.difficulty.state());
-  const sum = (list) => list.reduce((a, x) => ({ words: a.words + x.words, errors: a.errors + x.errors }), { words: 0, errors: 0 });
+  const lessCommon = pool.flatMap((x) => x.words);
   const unbiased = targets.filter((w) => w.source === 'random' || w.source === 'frontier').length;
-  assert.equal(sum(pool).words + sum(easiest).words, unbiased);
-  assert.equal(sum(pool).errors + sum(easiest).errors, 0);
+  assert.equal(lessCommon.length + easiest.reduce((n, x) => n + x.words, 0), unbiased);
+  assert.equal(lessCommon.reduce((n, w) => n + w[2], 0) + easiest.reduce((n, x) => n + x.errors, 0), 0);
 });
 
 test('rebuilding replays the vocabulary decisions exactly', () => {
