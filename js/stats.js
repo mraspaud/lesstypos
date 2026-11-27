@@ -122,10 +122,27 @@
   // Evidence weight by age in days: the FSRS forgetting-curve shape
   // R(t,S) = (1 + f t / S)^-d with f = 19/81, d = 0.5 (FSRS-4.5), so R(S) = 0.9.
   // Using it as an evidence weight is a design choice.
+  // P(X - Y > d) for independent X ~ Beta(a1, b1) and Y ~ Beta(a2, b2): the
+  // CDF of X integrated over Y's distribution, in equal steps of y across
+  // Y's mean +- BETA_GRID_SDS standard deviations (the mass outside is
+  // negligible; design choice of the grid).
+  var BETA_GRID_SDS = 8, BETA_GRID_STEPS = 400;
+  function betaDifferenceAbove(a1, b1, a2, b2, d) {
+    var n = a2 + b2, mean = a2 / n, sd = Math.sqrt(a2 * b2 / (n * n * (n + 1)));
+    var lo = Math.max(0, mean - BETA_GRID_SDS * sd), hi = Math.min(1, mean + BETA_GRID_SDS * sd);
+    var step = (hi - lo) / BETA_GRID_STEPS, p = 0, below = betaCdf(lo, a2, b2);
+    for (var i = 1; i <= BETA_GRID_STEPS; i++) {
+      var y = lo + i * step, cdf = betaCdf(y, a2, b2);
+      p += (cdf - below) * (1 - betaCdf(y - step / 2 + d, a1, b1));
+      below = cdf;
+    }
+    return p;
+  }
+
   function recencyWeight(ageDays, S) {
     return Math.pow(1 + (19 / 81) * Math.max(ageDays, 0) / S, -0.5);
   }
 
-  FT.stats = { lgamma: lgamma, betaCdf: betaCdf, normCdf: normCdf, vjTrim: vjTrim,
+  FT.stats = { lgamma: lgamma, betaCdf: betaCdf, betaDifferenceAbove: betaDifferenceAbove, normCdf: normCdf, vjTrim: vjTrim,
     vjCriterion: vjCriterion, recencyWeight: recencyWeight, meanSd: meanSd, median: median, mean: mean, meanLog: meanLog, logOf: logOf };
 })(globalThis.FT);
