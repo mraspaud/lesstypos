@@ -14,8 +14,10 @@ test('the bursts card states the target, the round times and the accuracy that c
   assert.match(t.counts, new RegExp(FT.bursts.MIN_ACC * 100 + '% accuracy'));
 });
 
-test('the relaxed card states the accuracy that grows the vocabulary', () => {
-  assert.match(text('relaxed').counts, new RegExp(String(FT.difficulty.TUNING.high * 100).replace('.', '\\.') + '%'));
+test('the relaxed card states what the vocabulary is judged against, and its floor', () => {
+  const counts = text('relaxed').counts;
+  assert.match(counts, new RegExp('accuracy on the ' + FT.difficulty.EASIEST_RANKS + ' most common'));
+  assert.match(counts, new RegExp('never goes below the ' + FT.difficulty.TUNING.min + ' most common words'));
 });
 
 test('the prose card mentions unaccented letters only when they are accepted', () => {

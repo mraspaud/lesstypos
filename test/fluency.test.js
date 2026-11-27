@@ -255,9 +255,12 @@ function practise(trainer, typeText, day) {
   const words = session.state().words.filter((w) => w.committed);
   return trainer.finish({ type: 'relaxed', startedAt: DAY0 + day * DAY, durationMs: hands.t - gaps[0], words, effort: 2 });
 }
-// Days of practice; the index on the text typed last, and its measure.
+// Days of practice; the index on the text typed last, and its measure. The
+// vocabulary stays at its smallest, so the words typed do not depend on the
+// vocabulary controller.
 function inSample(seed, typeText, days = 5) {
   const tr = FT.trainer.create({ seed, settings: { macros: TH } });
+  tr.difficulty.override(FT.difficulty.TUNING.min);
   let last;
   for (let day = 0; day < days; day++) last = practise(tr, typeText, day);
   const text = FT.fluency.referenceOf(last.raw.words.map((w) => w.target), last.raw.macros);

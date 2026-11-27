@@ -193,10 +193,9 @@
       if (feeds(raw.type, 'substitutions')) subs.ingest(m.analyses, { equivalence: m.options.equivalence, exercise: raw.type, session: session, t: raw.startedAt });
       if (feeds(raw.type, 'burstTarget') && raw.rounds) outcome.rounds = bursts.apply(m.words, m.analyses, raw.rounds, history, raw.startedAt);
       if (feeds(raw.type, 'difficulty')) {
-        outcome.difficulty = difficulty.update({
-          words: m.metrics.words, firstAttemptAccuracy: m.metrics.firstAttemptAccuracy,
+        outcome.difficulty = difficulty.update(Object.assign(FT.difficulty.evidence(m.words, m.analyses, corpus.rankOf), {
           hesitationRate: description.hesitationRate, rhythmCv: description.rhythmCv, effort: raw.effort, at: raw.startedAt,
-        });
+        }));
       }
       return outcome;
     }

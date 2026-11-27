@@ -92,7 +92,8 @@
       feeds: { sequences: true, substitutions: true, difficulty: true },
       card: function () {
         return ['Your normal, comfortable pace. Look ahead, keep an even rhythm, and do not push for speed.',
-          'This exercise sets your vocabulary: it grows while your accuracy (first try) stays above ' + percent(FT.difficulty.TUNING.high) + ' and typing feels comfortable.'];
+          'This exercise sets your vocabulary: it grows while your accuracy (first try) on its less common words stays close to your accuracy on the ' +
+            FT.difficulty.EASIEST_RANKS + ' most common, and typing feels comfortable. It never goes below the ' + FT.difficulty.TUNING.min + ' most common words.'];
       },
     },
     bursts: {

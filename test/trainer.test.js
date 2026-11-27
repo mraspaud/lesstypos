@@ -2,7 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { load, plain } = require('./helpers/load');
-const { typist, typeCorrectly, correctly, slipOnTh } = require('./helpers/typing');
+const { typist, typedWords, typeCorrectly, correctly, slipOnTh } = require('./helpers/typing');
 const { near } = require('./helpers/assert');
 
 // Functionality: a relaxed exercise end to end — words are generated, typed,
@@ -63,9 +63,37 @@ test('weaknesses observed in exercises become training targets in later exercise
 
 test('difficulty decisions appear in the summary', () => {
   const tr = FT.trainer.create({ seed: 3 });
-  const { summary } = simulate(tr, 160, Date.UTC(2026, 0, 1));
+  const first = simulate(tr, 400, Date.UTC(2026, 0, 1)).summary;
+  assert.equal(first.difficulty.action, 'wait');
+  const { summary } = simulate(tr, 400, Date.UTC(2026, 0, 2));
   assert.equal(summary.difficulty.action, 'advance');
   assert.ok(summary.difficulty.reasons.length);
+});
+
+// Functionality: only relaxed practice's unbiased words decide the
+// vocabulary; the carriers chosen for training targets never do.
+test('slips in target carriers leave the vocabulary evidence untouched', () => {
+  const tr = FT.trainer.create({ seed: 31 });
+  const ex = tr.newExercise({ type: 'relaxed', pinned: ['ing'] });
+  const targets = ex.words.slice(0, 300);
+  const script = targets.map((w) => (w.source === 'target' ? 'x<' : '') + w.word + ' ').join('');
+  const words = typedWords(FT, targets, script, { at: 100 });
+  const { summary } = tr.finish({ type: 'relaxed', startedAt: Date.UTC(2026, 0, 1), durationMs: 60000, words });
+  assert.ok(summary.metrics.firstAttemptAccuracy < 0.99);
+  const { pool, easiest } = plain(tr.difficulty.state());
+  const sum = (list) => list.reduce((a, x) => ({ words: a.words + x.words, errors: a.errors + x.errors }), { words: 0, errors: 0 });
+  const unbiased = targets.filter((w) => w.source === 'random' || w.source === 'frontier').length;
+  assert.equal(sum(pool).words + sum(easiest).words, unbiased);
+  assert.equal(sum(pool).errors + sum(easiest).errors, 0);
+});
+
+test('rebuilding replays the vocabulary decisions exactly', () => {
+  const tr = FT.trainer.create({ seed: 32 });
+  const raws = [];
+  for (let i = 0; i < 4; i++) raws.push(simulate(tr, 400, Date.UTC(2026, 0, 1) + i * 864e5, { err: i % 2 === 1 }).raw);
+  assert.ok(tr.difficulty.state().history.some((h) => h.action !== 'wait'));
+  const rebuilt = FT.trainer.rebuild(JSON.parse(JSON.stringify(raws)), { seed: 32 });
+  assert.deepEqual(plain(rebuilt.profile().difficulty), plain(tr.profile().difficulty));
 });
 
 test('substitutions are recorded with context', () => {

@@ -1,8 +1,8 @@
 {
-  "sha256": "b0d220c3450478ed1930e1f2b315244f2e9dc4446f42555ddf2fedcce2a5ec92",
-  "modelVersion": 19,
+  "sha256": "3577f5668272de2db0ba438f3ef08d86b1289a4fd9b87827656a1b47ac3868fa",
+  "modelVersion": 20,
   "exercises": 17,
   "sequences": 2719,
-  "frontier": 181.8181818181818,
+  "frontier": 200,
   "burstTarget": 83.54215790738222
 }

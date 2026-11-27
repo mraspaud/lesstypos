@@ -83,7 +83,7 @@
   function howItWorks() {
     return '<p>LessTypos watches every keystroke and learns which letter sequences, including those across spaces, cost you errors or hesitation. ' +
       'Later exercises weave those sequences into everyday words, while about a fifth of the words stay random so progress can be measured fairly.</p>' +
-      '<p>Vocabulary grows when your accuracy (first try) stays above ' + pct(FT.difficulty.TUNING.high) + ' and typing feels comfortable. It never asks for a minimum speed.</p>' +
+      '<p>Vocabulary grows while your accuracy (first try) on less common words keeps up with your accuracy on the most common ones, and typing feels comfortable. It never asks for a minimum speed.</p>' +
       '<p class="muted">For the prose exercise, add a text you would like to read in <a href="#settings/texts">Settings: Texts</a>. If your keyboard has keys that type several letters at once (such as <span class="seq">th</span>), declare them in <a href="#settings/keyboard">Settings: Keyboard</a>. Press <kbd>?</kbd> for all shortcuts.</p>';
   }
 
