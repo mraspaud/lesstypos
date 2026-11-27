@@ -32,6 +32,7 @@
   function copy() {
     return backup().then(function (json) {
       return navigator.clipboard.writeText(json).then(U.onThisScreen(function () { message('expmsg', 'Backup copied to the clipboard.'); }), U.onThisScreen(function () {
+        document.getElementById('pastebox').open = true;
         var ta = document.getElementById('paste'); ta.value = json; ta.select();
         message('expmsg', 'Copying was refused; the backup is selected in the box below, copy it from there.');
       }));
@@ -72,11 +73,12 @@
           '<p class="muted" id="expmsg"></p>') +
         H.panel('Import', '<p>Restore a backup. Replacing removes the current data first. Merging adds the exercises and texts from the backup (any with the same identity are replaced, keeping the tags of both), keeps your settings and the furthest reading position, then rebuilds the statistics.</p>' +
           '<div class="row"><input type="file" id="file" accept="application/json,.json">' + H.select({ id: 'impmode' }, [['replace', 'Replace current data'], ['merge', 'Merge with current data']]) + '</div>' +
-          '<textarea id="paste" class="mono" placeholder="…or paste a backup here"></textarea><div class="row">' +
-          button('Import pasted backup', function () { return importBackup(document.getElementById('paste').value); }, null, 'imp') + '</div><p class="muted" id="impmsg"></p>') +
-        H.panel('Rebuild and reset', '<div class="row">' + button('Rebuild statistics from raw exercises', rebuild, null, 'rebuild') + '</div>' +
+          H.disclosure('…or paste a backup', '<textarea id="paste" class="mono" placeholder="Paste a backup here"></textarea><div class="row">' +
+            button('Import pasted backup', function () { return importBackup(document.getElementById('paste').value); }, null, 'imp') + '</div>', { id: 'pastebox', className: 'stack' }) +
+          '<p class="muted" id="impmsg"></p>') +
+        H.disclosure('Rebuild and reset', '<div class="row">' + button('Rebuild statistics from raw exercises', rebuild, null, 'rebuild') + '</div>' +
           '<div class="row">' + resetButton('profile', 'Reset statistics only') + resetButton('settings', 'Reset settings') + resetButton('all', 'Delete everything') + '</div>' +
-          '<p class="muted">Resetting statistics keeps raw exercises, so they can be rebuilt. Each button asks once more before acting.</p><p id="resetmsg"></p>'));
+          '<p class="muted">Resetting statistics keeps raw exercises, so they can be rebuilt. Each button asks once more before acting.</p><p id="resetmsg"></p>', { id: 'rebuildreset', className: 'panel stack fold' }));
       showUsage();
       document.getElementById('file').onchange = function (e) {
         var f = e.target.files[0]; if (!f) return;

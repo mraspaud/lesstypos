@@ -1,7 +1,7 @@
 // Settings and data: the keyboard layout, backups (export, import by paste
 // or file, replace or merge), rebuilding and deleting.
 import assert from 'node:assert/strict';
-import { step, freshPage, closePage, nav, exportBackup, importBackup, historyLength, seedExercises, practise, THORNIUM, openMore } from './harness.mjs';
+import { step, freshPage, closePage, nav, exportBackup, importBackup, historyLength, seedExercises, practise, THORNIUM, openMore, openFold, opensWithKeyboard } from './harness.mjs';
 
 const importMessage = (page) => page.getByText(/^Imported/).waitFor();
 
@@ -19,10 +19,12 @@ export default async function data() {
     });
     assert.ok(stored.length && stored.every((e) => e === 1)); // stored compact in IndexedDB
     await nav(page, 'settings/data');
+    await openFold(page, 'rebuildreset');
     await page.getByRole('button', { name: 'Delete everything' }).click();
     await page.getByRole('button', { name: 'Click again to confirm' }).click();
     await page.getByText('Done.').waitFor();
     assert.equal(await historyLength(page), 0);
+    await openFold(page, 'pastebox');
     await page.fill('#paste', JSON.stringify(backup));
     await page.getByRole('button', { name: 'Import pasted backup' }).click();
     await importMessage(page);
@@ -64,17 +66,31 @@ export default async function data() {
     assert.equal(await page.locator('#start .muted').textContent(), '5 min');
     assert.equal(await page.locator('#pwned, #bold').count(), 0);
     assert.equal(await page.evaluate(() => window.pwned), undefined);
-    assert.match(await page.locator('.lead').textContent(), /relaxed practice 5 min\./);
+    assert.match(await page.locator('.lead').textContent(), /relaxed practice 5$/);
   });
 
   await step('a rebuild finishing after you left does not touch the new screen', async () => {
     await nav(page, 'settings/data');
     await page.evaluate(() => { window.trainerBefore = window.FT.ui.app.trainer; });
+    await openFold(page, 'rebuildreset');
     await page.locator('#rebuild').click();
     await page.keyboard.press('1');
     await page.locator('[data-go="home"][aria-current="page"]').waitFor();
     await page.waitForFunction(() => window.FT.ui.app.trainer !== window.trainerBefore);   // the rebuild has finished
     assert.equal(await page.locator('#resetmsg').count(), 0);
+  });
+
+  await step('Settings fold what is rarely used: the pasted backup, rebuilding and resetting, how to write a layout', async () => {
+    await nav(page, 'settings/data');
+    await page.locator('#file').waitFor();
+    await opensWithKeyboard(page, 'pastebox');
+    assert.ok(await page.locator('#paste').isVisible());
+    await opensWithKeyboard(page, 'rebuildreset');
+    assert.ok(await page.locator('#rebuild').isVisible());
+    await nav(page, 'settings/keyboard');
+    assert.ok(await page.locator('#layoutText').isVisible());
+    await opensWithKeyboard(page, 'layouthelp');
+    assert.match(await page.locator('#layouthelp').textContent(), /finger numbers/);
   });
 
   await step('settings accept a layout and multi-letter keys', async () => {

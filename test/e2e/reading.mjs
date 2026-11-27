@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { step, freshPage, closePage, root, nav, startExercise, typeWords, finishWithEffort, rateEffort, seedExercises, seedText,
-  storedText, removeTexts, discard, current, openMore } from './harness.mjs';
+  storedText, removeTexts, discard, current, openMore, openFold, opensWithKeyboard, navDrawn } from './harness.mjs';
 
 const rowOf = (page, title) => page.locator('tr', { hasText: title });
 const firstWord = async (page) => (await page.locator('.w').first().textContent()).replace('¶', '');
@@ -31,12 +31,22 @@ export default async function reading() {
     await rowOf(page, 'Test text').first().waitFor();
   });
 
-  await step('in a text box, Esc leaves it and Ctrl+Enter submits it', async () => {
+  await step('once a text exists, Add a text is folded and opens with the keyboard', async () => {
     await nav(page, 'settings/texts');
+    await rowOf(page, 'Test text').first().waitFor();
+    assert.ok(!(await page.locator('#ttitle').isVisible()));
+    await opensWithKeyboard(page, 'addtext');
+    assert.ok(await page.locator('#ttitle').isVisible());
+  });
+
+  await step('in a text box, Esc leaves it and Ctrl+Enter submits it', async () => {
+    await navDrawn(page, 'settings/texts');
+    await openFold(page, 'addtext');
     await page.locator('#ttitle').fill('Ctrl Enter text');
     await page.locator('#tbody').fill('Some words for the prose exercise to read and type, long enough to pass the minimum of twenty words that a text needs before it is kept.');
     await page.locator('#tbody').press('Control+Enter');
     await rowOf(page, 'Ctrl Enter text').first().waitFor();
+    await openFold(page, 'addtext');
     await page.locator('#tbody').focus();
     await page.keyboard.press('Escape');
     assert.notEqual(await page.evaluate(() => document.activeElement.id), 'tbody');
@@ -57,7 +67,8 @@ export default async function reading() {
   });
 
   await step('a text file can be added: its book is read, then saved', async () => {
-    await nav(page, 'settings/texts');
+    await navDrawn(page, 'settings/texts');
+    await openFold(page, 'addtext');
     await page.locator('#tform').getByRole('button', { name: /Add text/ }).waitFor();   // the page has drawn its texts and form
     await page.waitForFunction(() => window.FT.ui.app.current === 'settings/texts' && document.getElementById('tfile').onchange);
     await page.locator('#tfile').setInputFiles(path.join(root, 'test', 'fixtures', 'books', 'snowdrop.txt'));
@@ -88,7 +99,8 @@ export default async function reading() {
   });
 
   await step('a book from an EPUB: its stories appear, and you choose where to start', async () => {
-    await nav(page, 'settings/texts');
+    await navDrawn(page, 'settings/texts');
+    await openFold(page, 'addtext');
     await page.locator('#tfile').setInputFiles(path.join(root, 'test', 'fixtures', 'books', 'snowdrop.epub'));
     await page.getByText(/2 chapters|chapters, starting at Snowdrop/).waitFor();
     await page.locator('#tsave').click();

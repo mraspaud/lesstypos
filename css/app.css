@@ -108,6 +108,8 @@ input[type="text"], input[type="number"], select, textarea {
 }
 textarea.mono { font-family: var(--font-text); font-size: 0.9rem; min-height: 8rem; }
 details > summary { cursor: pointer; font-weight: 600; }
+details.fold > summary { font-size: 1.15rem; font-weight: 700; }   /* a folded panel: its summary reads as the panel's heading */
+details.help > summary { font-weight: 400; color: var(--muted); }
 
 /* ---------- notices, pills, sequences ---------- */
 .notice { padding: 10px 14px; border-radius: 8px; background: var(--err-soft); color: var(--ink); }

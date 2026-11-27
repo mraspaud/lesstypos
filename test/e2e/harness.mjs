@@ -50,6 +50,12 @@ export async function closePage(page) { await page.context().close(); }
 export async function reload(page) { await page.reload(); await ready(page); }
 
 export const nav = (page, route) => page.evaluate((r) => window.FT.ui.go(r), route);
+// Goes to a route and waits until its screen is drawn afresh (some draw once their data has loaded).
+export async function navDrawn(page, route) {
+  await page.evaluate(() => { document.getElementById('notice').dataset.stale = '1'; });   // every drawing starts with a new notice
+  await nav(page, route);
+  await page.waitForFunction(() => document.getElementById('notice') && !document.getElementById('notice').dataset.stale);
+}
 export const showCards = (page, on) => page.evaluate(async (v) => { window.FT.ui.app.settings.showInstructions = v; await window.FT.ui.saveSettings(); }, on);
 // Settings changed and saved as the settings page would.
 export const saveSettings = (page, change) => page.evaluate(async (c) => { Object.assign(window.FT.ui.app.settings, c); await window.FT.ui.saveSettings(); }, change);
@@ -90,10 +96,19 @@ export async function startTraining(page) {
   await openMore(page);
   await page.locator('#more').getByRole('button', { name: START_TRAINING }).first().click();
 }
+// Opens the fold (a <details>) with this id, if it is closed.
+export async function openFold(page, id) {
+  if (!(await isOpen(page, id))) await page.locator('#' + id + ' > summary').click();
+  await page.locator('#' + id + '[open]').waitFor();
+}
 // Home's other ways to train, folded under More (m).
-export async function openMore(page) {
-  if (!(await isOpen(page, 'more'))) await page.locator('#more > summary').click();
-  await page.locator('#more[open]').waitFor();
+export const openMore = (page) => openFold(page, 'more');
+// A fold that is closed until its summary, focused, takes Enter.
+export async function opensWithKeyboard(page, id) {
+  if (await isOpen(page, id)) throw new Error(id + ' is open before it is asked');
+  await page.locator('#' + id + ' > summary').focus();
+  await page.keyboard.press('Enter');
+  await page.locator('#' + id + '[open]').waitFor();
 }
 // The training summary opens in its tags box: Escape leaves it unsaved, then Enter is Done.
 export async function leaveTrainingSummary(page) { await page.keyboard.press('Escape'); await page.keyboard.press('Enter'); }

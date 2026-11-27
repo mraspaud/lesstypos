@@ -52,9 +52,10 @@
     { tab: 'keyboard', label: 'Keyboard layout (optional)', input: 'layoutText',
       control: function (settings) {
         return '<div><textarea id="layoutText" class="mono" placeholder="' + LAYOUT_EXAMPLE + '">' + esc(settings.layoutText || '') + '</textarea>' +
-          '<p class="help">Rows of keys, then the same rows again as finger numbers (0 = left pinky … 3 = left index, 4 = left thumb, 5 = right thumb, 6 = right index … 9 = right pinky). ' +
+          '<p class="help" id="layoutStatus"></p>' +
+          H.disclosure('How to write a layout', '<p class="help">Rows of keys, then the same rows again as finger numbers (0 = left pinky … 3 = left index, 4 = left thumb, 5 = right thumb, 6 = right index … 9 = right pinky). ' +
           'Write a key that types several letters as one token (<span class="seq">th</span>, <span class="seq">qu</span>) and the space bar as <span class="seq">space</span>. ' +
-          'The layout is only used to describe sequences (same finger, rolls, scissors); training never depends on it. Multi-letter keys are added to the multi-letter keys above.</p><p class="help" id="layoutStatus"></p></div>';
+          'The layout is only used to describe sequences (same finger, rolls, scissors); training never depends on it. Multi-letter keys are added to the multi-letter keys above.</p>', { id: 'layouthelp', className: 'help' }) + '</div>';
       } },
     { tab: 'appearance', label: 'Theme', input: 'theme', control: function (settings) { return selectField('theme', THEMES, settings.theme); } },
     { tab: 'appearance', label: 'Text size', input: 'fontSize',
