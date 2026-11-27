@@ -92,8 +92,9 @@
       feeds: { sequences: true, substitutions: true, difficulty: true },
       card: function () {
         return ['Your normal, comfortable pace. Look ahead, keep an even rhythm, and do not push for speed.',
-          'This exercise sets your vocabulary: it grows while your accuracy (first try) on its less common words stays close to your accuracy on the ' +
-            FT.difficulty.EASIEST_RANKS + ' most common, and typing feels comfortable. It never goes below the ' + FT.difficulty.TUNING.min + ' most common words.'];
+          'This exercise sets your vocabulary: it grows while its less common words have at most ' + FT.difficulty.TUNING.growAtMost + '\u00d7 the errors of the ' +
+            FT.difficulty.EASIEST_RANKS + ' most common words (first try), and typing feels comfortable. It shrinks when they have more than ' +
+            FT.difficulty.TUNING.shrinkAbove + '\u00d7. It never goes below the ' + FT.difficulty.TUNING.min + ' most common words.'];
       },
     },
     bursts: {

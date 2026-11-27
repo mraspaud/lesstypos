@@ -16,7 +16,7 @@ test('the bursts card states the target, the round times and the accuracy that c
 
 test('the relaxed card states what the vocabulary is judged against, and its floor', () => {
   const counts = text('relaxed').counts;
-  assert.match(counts, new RegExp('accuracy on the ' + FT.difficulty.EASIEST_RANKS + ' most common'));
+  assert.match(counts, new RegExp('at most ' + FT.difficulty.TUNING.growAtMost + '\u00d7 the errors of the ' + FT.difficulty.EASIEST_RANKS + ' most common'));
   assert.match(counts, new RegExp('never goes below the ' + FT.difficulty.TUNING.min + ' most common words'));
 });
 

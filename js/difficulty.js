@@ -4,26 +4,29 @@
 //   the less common words (rank 100 and beyond) are pooled across exercises
 //   until there are minWords of them; since the last step the pool keeps the
 //   most recent exercises, about maxWords;
-//   the reference is the typist's own first-try accuracy on the 100 most
+//   the reference is the typist's own first-try error rate on the 100 most
 //   common words, the most recent easiestMaxWords of them, kept across steps;
 //   with fewer than easiestMinWords of them, nothing is decided;
-//   each first-try accuracy has a beta posterior with a uniform prior (the
+//   each first-try error rate has a beta posterior with a uniform prior (the
 //   conjugate beta-binomial model: Gelman et al. 2013, Bayesian Data
 //   Analysis, ch. 2);
-//   P(less common > easiest - advanceWithin) > credible  -> advance (R * step),
-//      unless held by hesitation or rhythm (CV of within-word IKI) clearly
-//      worse than the median of recent decisions, or by perceived effort
+//   P(less common < growAtMost x easiest) > credible, or
+//   P(less common < fewErrors) > credible   -> advance (R * step), unless
+//      held by hesitation or rhythm (CV of within-word IKI) clearly worse
+//      than the median of recent decisions, or by perceived effort
 //      >= effortHold since the last decision;
-//   P(less common < easiest - retreatBelow) > credible   -> retreat (R / step);
+//   P(less common > shrinkAbove x easiest) > credible   -> retreat (R / step);
 //   otherwise hold, and keep pooling.
-// Design choices: the band relative to the typist's own accuracy on the
-// easiest words, its bounds (0.5 and 1.5 points), the credibility (0.9), the
-// pool sizes, the step and the floor of 200 words. No WPM criterion. Every
-// decision is logged with its reasons.
+// User decisions: the ratio band against the typist's own easiest words, its
+// 2x bound for growth, the credibility (0.9), the floor of 200 words, no WPM
+// criterion. Design choices: the 3x bound for shrinking; fewErrors (0.5%,
+// the old controller's advance bound), since two error rates near zero have
+// no credible ratio; the pool sizes and the step. Every decision is logged
+// with its reasons.
 (function (FT) {
   'use strict';
   var TUNING = { min: 200, max: 30000, minWords: 300, maxWords: 1000, easiestMinWords: 150, easiestMaxWords: 1000,
-    advanceWithin: 0.005, retreatBelow: 0.015, credible: 0.9,
+    growAtMost: 2, shrinkAbove: 3, fewErrors: 0.005, credible: 0.9,
     step: 1.1, hesTol: 1.25, hesAbs: 0.02, rhythmTol: 1.15, effortHold: 4, baselineN: 5 };
   var START_FRONTIER = 200, EASIEST_RANKS = 100;
 
@@ -70,7 +73,7 @@
     function waiting(reason) { return { action: 'wait', frontier: st.frontier, reasons: [reason] }; }
 
     function decide(less, easy, at) {
-      var felt = conditions(st.pending), judged = byAccuracy(less, easy);
+      var felt = conditions(st.pending), judged = byErrors(less, easy);
       if (judged.action === 'advance') {
         var held = holdsBack(felt);
         if (held.length) judged = { action: 'hold', reasons: judged.reasons.concat(held) };
@@ -87,18 +90,28 @@
       return rec;
     }
 
-    // What accuracy alone says: retreat, advance or hold, with its reason.
-    function byAccuracy(less, easy) {
-      var both = function (link) {
-        return 'accuracy (first try) ' + pct2(accuracy(less)) + ' on the less common words' + link + pct2(accuracy(easy)) + ' on the ' + EASIEST_RANKS + ' most common';
-      };
-      if (1 - pAbove(less, easy, -cfg.retreatBelow) > cfg.credible) return { action: 'retreat', reasons: [both(', clearly below your ')] };
-      if (pAbove(less, easy, -cfg.advanceWithin) > cfg.credible) return { action: 'advance', reasons: [both(', close to your ')] };
-      return { action: 'hold', reasons: [both(' against ') + ', not yet clear enough to change'] };
+    // What the error rates alone say: retreat, advance or hold, with its
+    // reasons. Neither bound can be credibly passed while P(ratio > growAtMost)
+    // lies between 1 - credible and credible, so the shrink bound is checked
+    // only above.
+    function byErrors(less, easy) {
+      var accuracies = 'accuracy (first try) ' + pct2(accuracy(less)) + ' on the less common words, ' + pct2(accuracy(easy)) + ' on the ' + EASIEST_RANKS + ' most common';
+      var compared = errorsCompared(less, easy), aboveGrow = pAbove(less, easy, cfg.growAtMost);
+      if (1 - aboveGrow > cfg.credible) {
+        return { action: 'advance', reasons: [compared + ' (' + cfg.growAtMost + '\u00d7 or less grows the vocabulary)', accuracies] };
+      }
+      if (FT.stats.betaCdf(cfg.fewErrors, 1 + less.errors, 1 + less.chars - less.errors) > cfg.credible) {
+        return { action: 'advance', reasons: [compared + ' (fewer than ' + pct1(cfg.fewErrors) + ' errors on them grows the vocabulary)', accuracies] };
+      }
+      if (aboveGrow > cfg.credible && pAbove(less, easy, cfg.shrinkAbove) > cfg.credible) {
+        return { action: 'retreat', reasons: [compared + ' (more than ' + cfg.shrinkAbove + '\u00d7 shrinks the vocabulary)', accuracies] };
+      }
+      return { action: 'hold', reasons: [compared + ' (not yet clearly ' + cfg.growAtMost + '\u00d7 or less, which grows the vocabulary, or more than ' +
+        cfg.shrinkAbove + '\u00d7, which shrinks it)', accuracies] };
     }
-    // P(accuracy on the less common words > accuracy on the easiest + margin).
-    function pAbove(less, easy, margin) {
-      return FT.stats.betaDifferenceAbove(1 + less.chars - less.errors, 1 + less.errors, 1 + easy.chars - easy.errors, 1 + easy.errors, margin);
+    // P(error rate on the less common words > ratio * error rate on the easiest).
+    function pAbove(less, easy, ratio) {
+      return FT.stats.betaRatioAbove(1 + less.errors, 1 + less.chars - less.errors, 1 + easy.errors, 1 + easy.chars - easy.errors, ratio);
     }
 
     // How the exercises since the last decision felt, against the median of
@@ -145,8 +158,14 @@
     return pool.reduce(function (a, t) { return { words: a.words + t.words, chars: a.chars + t.chars, errors: a.errors + t.errors }; }, tally());
   }
   function accuracy(t) { return 1 - t.errors / t.chars; }
+  function errorRate(t) { return t.errors / t.chars; }
+  function errorsCompared(less, easy) {
+    if (!easy.errors) return less.errors ? 'errors on the less common words, none on your easiest words' : 'no errors on the less common words or on your easiest words';
+    return 'errors on the less common words: ' + (errorRate(less) / errorRate(easy)).toFixed(1) + '\u00d7 your easiest words';
+  }
   // Two decimals, so a decision never reads as "98.5% below 98.5%".
   function pct2(x) { return (100 * x).toFixed(2) + '%'; }
+  function pct1(x) { return (100 * x).toFixed(1) + '%'; }
 
   // The evidence an exercise gives: first-try errors per character on its
   // unbiased words (FT.generator.UNBIASED), the easiest (rank below
