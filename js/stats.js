@@ -139,10 +139,24 @@
     return p;
   }
 
+  // P(X > r Y) for independent X ~ Beta(a1, b1) and Y ~ Beta(a2, b2), on the
+  // same grid over Y.
+  function betaRatioAbove(a1, b1, a2, b2, r) {
+    var n = a2 + b2, mean = a2 / n, sd = Math.sqrt(a2 * b2 / (n * n * (n + 1)));
+    var lo = Math.max(0, mean - BETA_GRID_SDS * sd), hi = Math.min(1, mean + BETA_GRID_SDS * sd);
+    var step = (hi - lo) / BETA_GRID_STEPS, p = 0, below = betaCdf(lo, a2, b2);
+    for (var i = 1; i <= BETA_GRID_STEPS; i++) {
+      var y = lo + i * step, cdf = betaCdf(y, a2, b2);
+      p += (cdf - below) * (1 - betaCdf(r * (y - step / 2), a1, b1));
+      below = cdf;
+    }
+    return p;
+  }
+
   function recencyWeight(ageDays, S) {
     return Math.pow(1 + (19 / 81) * Math.max(ageDays, 0) / S, -0.5);
   }
 
-  FT.stats = { lgamma: lgamma, betaCdf: betaCdf, betaDifferenceAbove: betaDifferenceAbove, normCdf: normCdf, vjTrim: vjTrim,
+  FT.stats = { lgamma: lgamma, betaCdf: betaCdf, betaDifferenceAbove: betaDifferenceAbove, betaRatioAbove: betaRatioAbove, normCdf: normCdf, vjTrim: vjTrim,
     vjCriterion: vjCriterion, recencyWeight: recencyWeight, meanSd: meanSd, median: median, mean: mean, meanLog: meanLog, logOf: logOf };
 })(globalThis.FT);

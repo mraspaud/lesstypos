@@ -41,3 +41,26 @@ test('the probability that one beta proportion exceeds another by a margin', () 
   near(above(30, 1470, 20, 1480, 0.1), 0, 1e-6);
   near(above(30, 1470, 20, 1480, -0.1), 1, 1e-6);
 });
+
+// Functionality: how credible it is that one beta-distributed proportion is
+// more than a multiple of another (used to compare two error rates). The
+// expected values are Monte Carlo estimates (10^6 draws, standard error at
+// most 0.0005) or exact for uniform distributions.
+test('the probability that one beta proportion exceeds a multiple of another', () => {
+  const above = FT.stats.betaRatioAbove;
+  near(above(1, 1, 1, 1, 1), 0.5, 2e-3);
+  near(above(1, 1, 1, 1, 2), 0.25, 2e-3); // area of the triangle x > 2y
+  near(above(1, 1, 1, 1, 0.5), 0.75, 2e-3);
+  near(above(175, 5627, 79, 4323, 2), 0.1033, 3e-3);
+  near(above(175, 5627, 79, 4323, 3), 0, 1e-4);
+  near(above(61, 2941, 11, 1741, 3), 0.6209, 3e-3);
+  near(above(3, 1201, 2, 601, 2), 0.1811, 3e-3);
+});
+
+test('the probability that one beta proportion exceeds a multiple of another, with no errors or all errors', () => {
+  const above = FT.stats.betaRatioAbove;
+  near(above(1, 1501, 1, 751, 2), 0.2008, 3e-3); // no errors in either
+  near(above(1, 1501, 1, 751, 3), 0.1423, 3e-3);
+  near(above(1501, 1, 11, 741, 3), 1, 1e-4); // all errors in the first
+  near(above(11, 1491, 751, 1, 2), 0, 1e-4); // all errors in the second
+});
