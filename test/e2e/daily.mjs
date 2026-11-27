@@ -2,7 +2,7 @@
 // a text for prose, and the conditions asked at the end.
 import assert from 'node:assert/strict';
 import { step, freshPage, closePage, shots, nav, reload, setProgramme, withProgramme, startTraining, leaveTrainingSummary, typeWords,
-  typeUntilEffort, finishWithEffort, seedText, storedText, removeTexts, testTimings, realTimings, discard } from './harness.mjs';
+  typeUntilEffort, finishWithEffort, seedExercises, seedText, storedText, removeTexts, testTimings, realTimings, discard, untilResolved } from './harness.mjs';
 
 const ALL_STEPS = ['warmup', 'relaxed', 'bursts', 'prose', 'targeted'];
 const between = (page) => page.locator('#progbar').waitFor();
@@ -35,6 +35,31 @@ async function startedByTwoPresses(key, { withBook }) {
     return await page.evaluate(() => window.started);
   } finally { await closePage(page); }
 }
+
+// A two-step training, typed to its summary (whose tags box has the focus).
+async function toTrainingSummary(page) {
+  await startTraining(page);
+  await typeStep(page);
+  await page.keyboard.press('Enter');
+  await typeStep(page);
+  await page.keyboard.press('Enter');
+  await finished(page);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'tags');
+}
+// The tags of the training's two exercises, in memory and once stored.
+const trainingTags = (page) => page.evaluate(async () => {
+  const h = window.FT.ui.app.trainer.history().slice(-2);
+  return Promise.all(h.map(async (x) => [x.tags || null, (await window.FT.ui.app.store.getSession(x.id)).tags || null]));
+});
+const storedTrainingTags = (page, tags) => untilResolved(page, async (t) => {
+  const a = window.FT.ui.app, h = a.trainer.history().slice(-2);
+  const stored = await Promise.all(h.map(async (x) => JSON.stringify((await a.store.getSession(x.id)).tags || null)));
+  return stored.every((s) => s === JSON.stringify(t));
+}, tags);
+const onHome = (page) => page.locator('[data-go="home"][aria-current="page"]').waitFor();
+const HOME_WRIST = ['home', 'wrist-rest'];
+// The ways Done is pressed on the training summary.
+const PRESS_DONE = [['a click on Done', (page) => page.getByRole('button', { name: /Done/ }).click()], ['Enter', (page) => page.keyboard.press('Enter')]];
 
 export default async function daily() {
   const page = await freshPage();
@@ -72,7 +97,7 @@ export default async function daily() {
     await startTraining(page);
     await page.locator('.w').first().waitFor();
     await typeStep(page);
-    await page.waitForFunction(() => window.FT.ui.app.store.load().then((d) => d.settings.programmeRun && d.settings.programmeRun.results.length === 1));
+    await untilResolved(page, () => window.FT.ui.app.store.load().then((d) => d.settings.programmeRun && d.settings.programmeRun.results.length === 1));
     await reload(page);
     await page.getByRole('button', { name: /Resume: relaxed practice \(2 of 5\)/ }).waitFor();
     await setProgramme(page, ALL_STEPS);   // a new run next time
@@ -164,32 +189,9 @@ export default async function daily() {
     });
   });
 
-  // A two-step training, typed to its summary (whose tags box has the focus).
-  const toTrainingSummary = async () => {
-    await startTraining(page);
-    await typeStep(page);
-    await page.keyboard.press('Enter');
-    await typeStep(page);
-    await page.keyboard.press('Enter');
-    await finished(page);
-    assert.equal(await page.evaluate(() => document.activeElement.id), 'tags');
-  };
-  // The tags of the training's two exercises, in memory and once stored.
-  const trainingTags = (page) => page.evaluate(async () => {
-    const h = window.FT.ui.app.trainer.history().slice(-2);
-    return Promise.all(h.map(async (x) => [x.tags || null, (await window.FT.ui.app.store.getSession(x.id)).tags || null]));
-  });
-  const storedTrainingTags = (page, tags) => page.waitForFunction(async (t) => {
-    const a = window.FT.ui.app, h = a.trainer.history().slice(-2);
-    const stored = await Promise.all(h.map(async (x) => JSON.stringify((await a.store.getSession(x.id)).tags || null)));
-    return stored.every((s) => s === JSON.stringify(t));
-  }, tags);
-  const onHome = (page) => page.locator('[data-go="home"][aria-current="page"]').waitFor();
-  const HOME_WRIST = ['home', 'wrist-rest'];
-
   await step('the end of the daily training asks for the conditions with one button, Done; Enter in the box saves them to every exercise and finishes', async () => {
     await withProgramme(page, steps('relaxed', 'warmup'), async () => {
-      await toTrainingSummary();
+      await toTrainingSummary(page);
       assert.deepEqual((await page.locator('#view .btn').allTextContents()).map((t) => t.trim()), ['Done Enter']);
       await page.locator('#tags').fill('#Home wrist-rest');
       await page.keyboard.press('Enter');
@@ -201,7 +203,7 @@ export default async function daily() {
 
   await step('Done also saves the tags typed in the box', async () => {
     await withProgramme(page, steps('relaxed', 'warmup'), async () => {
-      await toTrainingSummary();
+      await toTrainingSummary(page);
       await page.locator('#tags').fill('#library');
       await page.getByRole('button', { name: /Done/ }).click();
       await onHome(page);
@@ -209,21 +211,40 @@ export default async function daily() {
     });
   });
 
-  await step('Escape leaves the tags box without saving; Enter then finishes', async () => {
-    await withProgramme(page, steps('relaxed', 'warmup'), async () => {
-      await toTrainingSummary();
-      const before = await trainingTags(page);   // taken over from the sitting
-      const drawn = await page.locator('#tags').inputValue();
-      await page.locator('#tags').fill('#cafe');
-      await page.keyboard.press('Escape');
-      assert.equal(await page.locator('#tags').inputValue(), drawn);
-      await page.keyboard.press('Enter');
-      await onHome(page);
-      await page.evaluate(() => new Promise((r) => setTimeout(r, 200)));   // a save, if any, has settled
-      assert.deepEqual(await trainingTags(page), before);
-      assert.ok(!JSON.stringify(before).includes('cafe'));
+  for (const [how, pressDone] of PRESS_DONE) {
+    await step(`in a new sitting, ${how} saves the last tags the box offers, untouched`, async () => {
+      const fresh = await freshPage();
+      try {
+        await seedExercises(fresh, { tags: HOME_WRIST, ago: 2 * 3600e3 });   // the last sitting, two hours ago
+        await withProgramme(fresh, steps('relaxed', 'warmup'), async () => {
+          await toTrainingSummary(fresh);
+          assert.equal(await fresh.locator('#tags').inputValue(), '#home #wrist-rest');
+          assert.ok(!JSON.stringify(await trainingTags(fresh)).includes('home'), 'a new sitting takes no tags over');
+          await pressDone(fresh);
+          await onHome(fresh);
+          await storedTrainingTags(fresh, HOME_WRIST);
+        });
+      } finally { await closePage(fresh); }
     });
-  });
+  }
+
+  for (const [how, pressDone] of PRESS_DONE) {
+    await step(`Escape leaves the tags box without saving; ${how} then finishes`, async () => {
+      await withProgramme(page, steps('relaxed', 'warmup'), async () => {
+        await toTrainingSummary(page);
+        const before = await trainingTags(page);   // taken over from the sitting
+        const drawn = await page.locator('#tags').inputValue();
+        await page.locator('#tags').fill('#cafe');
+        await page.keyboard.press('Escape');
+        assert.equal(await page.locator('#tags').inputValue(), drawn);
+        await pressDone(page);
+        await onHome(page);
+        await page.evaluate(() => new Promise((r) => setTimeout(r, 200)));   // a save, if any, has settled
+        assert.deepEqual(await trainingTags(page), before);
+        assert.ok(!JSON.stringify(before).includes('cafe'));
+      });
+    });
+  }
 
   await step('with no daily-training step enabled, Train says so and points to the setting', async () => {
     await withProgramme(page, [{ type: 'relaxed', minutes: 5, enabled: false }], async () => {

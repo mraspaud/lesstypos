@@ -49,6 +49,15 @@ export async function freshPage({ viewport = DESKTOP, colorScheme = 'light', car
 export async function closePage(page) { await page.context().close(); }
 export async function reload(page) { await page.reload(); await ready(page); }
 
+// Waits until fn, run in the page, resolves to something truthy. For waits on
+// stored state: page.waitForFunction takes a returned promise as truthy at once.
+export async function untilResolved(page, fn, arg, { timeout = 5000 } = {}) {
+  const t0 = Date.now();
+  while (!(await page.evaluate(fn, arg))) {
+    if (Date.now() - t0 > timeout) throw new Error('not resolved within ' + timeout + ' ms: ' + fn.toString().slice(0, 160));
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
 export const nav = (page, route) => page.evaluate((r) => window.FT.ui.go(r), route);
 // Goes to a route and waits until its screen is drawn afresh (some draw once their data has loaded).
 export async function navDrawn(page, route) {
@@ -113,6 +122,10 @@ export async function opensWithKeyboard(page, id) {
 // The training summary opens in its tags box: Escape leaves it unsaved, then Enter is Done.
 export async function leaveTrainingSummary(page) { await page.keyboard.press('Escape'); await page.keyboard.press('Enter'); }
 
+// Home has drawn its way into the book, wherever it is: under More until
+// today's training is done, then on Enter.
+export const readingOffered = (page, text = /Continue reading/) => page.locator('.home-start', { hasText: text }).waitFor({ state: 'attached' });
+
 // ---------- exercises ----------
 export async function startExercise(page, type, opts = {}) {
   await page.evaluate(([t, o]) => window.FT.ui.startExercise(t, o), [type, opts]);
@@ -175,9 +188,9 @@ export async function discard(page) { await page.keyboard.press('Escape'); await
 // the keyboard: words typed at an uneven pace with a few corrected slips.
 // opts: { count, type, words, slips (share of letters), slipsAfter (pairs whose
 // second letter slips half the time: weak sequences), effort, run, tags,
-// set (a benchmark set), seed }.
+// set (a benchmark set), seed, ago (how long before the last minutes they were typed, in ms) }.
 export async function seedExercises(page, opts = {}) {
-  const o = Object.assign({ count: 1, type: 'relaxed', words: 60, slips: 0.04, slipsAfter: [], effort: 2, run: null, tags: null, set: null, seed: 1 }, opts);
+  const o = Object.assign({ count: 1, type: 'relaxed', words: 60, slips: 0.04, slipsAfter: [], effort: 2, run: null, tags: null, set: null, seed: 1, ago: 0 }, opts);
   await page.evaluate(async (o) => {
     const FT = window.FT, U = FT.ui, app = FT.ui.app, rng = FT.rng(o.seed);
     const before = (await app.store.listSessions()).length;
@@ -194,7 +207,7 @@ export async function seedExercises(page, opts = {}) {
         });
         press(' ');
       }
-      const typed = { type: o.type, startedAt: Date.now() - (o.count - i) * 60e3, words: session.state().words.filter((w) => w.committed), keys: [],
+      const typed = { type: o.type, startedAt: Date.now() - o.ago - (o.count - i) * 60e3, words: session.state().words.filter((w) => w.committed), keys: [],
         firstKeyAt: 1000, pauses: [], opts: { run: o.run }, text: null, rounds: null, textFinished: false };
       const info = U.recordExercise(typed);
       if (o.tags) info.raw.tags = o.tags;

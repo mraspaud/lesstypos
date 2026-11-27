@@ -48,15 +48,17 @@
     });
     if (focus) box.focus();
   }
-  // The training summary's box, saved by Done (also Enter in the box) once it
-  // has changed; Esc in the box leaves it as it was drawn, unsaved. Returns Done's action.
+  // The training summary's box, saved by Done (also Enter in the box) as it
+  // stands, even untouched; Esc in the box puts it back as it was drawn and
+  // leaves it unsaved, until it is typed in again. Returns Done's action.
   function bindDoneTagBox(ids, done) {
-    var form = document.getElementById('tagform'), box = document.getElementById('tags'), drawn = box.value;
-    var saveThenDone = function () { saveTags(ids).catch(U.storageError); done(); };
-    U.onSubmit(form, saveThenDone);
-    box.addEventListener('keydown', function (e) { if (e.key === 'Escape') box.value = drawn; });
+    var form = document.getElementById('tagform'), box = document.getElementById('tags'), drawn = box.value, escaped = false;
+    var finish = function () { if (!escaped) saveTags(ids).catch(U.storageError); done(); };
+    U.onSubmit(form, finish);
+    box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { box.value = drawn; escaped = true; } });
+    box.addEventListener('input', function () { escaped = false; });
     box.focus();
-    return function () { if (box.value !== drawn) saveThenDone(); else done(); };
+    return finish;
   }
 
   // ---------- effort ----------
