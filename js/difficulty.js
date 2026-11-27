@@ -2,11 +2,13 @@
 // A staircase with a dead band (Levitt 1971's transformed up-down idea),
 // judged on relaxed practice's unbiased words only (evidence(), below):
 //   the less common words (rank 100 and beyond) are pooled across exercises
-//   until there are minWords of them; since the last step the pool keeps the
-//   most recent exercises, about maxWords;
+//   until there are minWords of them; the pool keeps the most recent
+//   exercises, about maxWords; after a step, the words inside both the old
+//   and the new vocabulary stay, at keptAfterStep of their weight;
 //   the reference is the typist's own first-try error rate on the 100 most
-//   common words, the most recent easiestMaxWords of them, kept across steps;
-//   with fewer than easiestMinWords of them, nothing is decided;
+//   common words, recency-weighted (halving every easiestHalfLife of them),
+//   kept across steps and collected with a fixed vocabulary too; with fewer
+//   than easiestMinWords of them by weight, nothing is decided;
 //   each first-try error rate has a beta posterior with a uniform prior (the
 //   conjugate beta-binomial model: Gelman et al. 2013, Bayesian Data
 //   Analysis, ch. 2);
@@ -21,14 +23,14 @@
 // 2x bound for growth, the credibility (0.9), the floor of 200 words, no WPM
 // criterion. Design choices: the 3x bound for shrinking; fewErrors (0.5%,
 // the old controller's advance bound), since two error rates near zero have
-// no credible ratio; the pool sizes and the step. Every decision is logged
-// with its reasons.
+// no credible ratio; the pool sizes, the half-life, how much evidence a step
+// keeps, and the step. Every decision is logged with its reasons.
 (function (FT) {
   'use strict';
-  var TUNING = { min: 200, max: 30000, minWords: 300, maxWords: 1000, easiestMinWords: 150, easiestMaxWords: 1000,
+  var TUNING = { min: 200, max: 30000, minWords: 300, maxWords: 1000, easiestMinWords: 150, easiestHalfLife: 500,
     growAtMost: 2, shrinkAbove: 3, fewErrors: 0.005, credible: 0.9,
     step: 1.1, keptAfterStep: 0.5, hesTol: 1.25, hesAbs: 0.02, rhythmTol: 1.15, effortHold: 4, baselineN: 5 };
-  var START_FRONTIER = 200, EASIEST_RANKS = 100;
+  var START_FRONTIER = 200, EASIEST_RANKS = 100, EASIEST_KEPT_HALF_LIVES = 6;
 
   // state: what was learned (stored in the profile); opts: { max } and tuning
   // overrides for tests.
@@ -58,6 +60,16 @@
       if (list && list.length) pool.push({ weight: 1, words: list.map(function (w) { return w.slice(); }) });
       while (pool.length > 1 && weighted(pool).words - weighted([pool[0]]).words >= max) pool.shift();
     }
+    // Adds an exercise's easiest words to the reference: the weight of those
+    // before halves every easiestHalfLife words; after EASIEST_KEPT_HALF_LIVES
+    // they are forgotten.
+    function addEasiest(list) {
+      if (!list || !list.length) return;
+      var decay = Math.pow(0.5, list.length / cfg.easiestHalfLife), forgotten = Math.pow(0.5, EASIEST_KEPT_HALF_LIVES);
+      st.easiest.forEach(function (x) { x.weight *= decay; });
+      st.easiest = st.easiest.filter(function (x) { return x.weight > forgotten * (1 + 1e-9); });
+      st.easiest.push({ weight: 1, words: list.map(function (w) { return w.slice(); }) });
+    }
     // After a step, the pooled words inside both the old and the new
     // vocabulary stay, at keptAfterStep of their weight.
     function carryOver(before, after) {
@@ -68,9 +80,9 @@
     }
 
     function update(w) {
+      addEasiest(w.easiest);
       if (st.manual) return { action: 'manual', frontier: st.frontier, reasons: ['manual vocabulary selection'] };
       addWords(st.pool, w.vocabulary, cfg.maxWords);
-      addWords(st.easiest, w.easiest, cfg.easiestMaxWords);
       st.pending = addConditions(st.pending, w, w.vocabulary ? w.vocabulary.length : 0);
       var less = weighted(st.pool), easy = weighted(st.easiest);
       if (less.words < cfg.minWords) return waiting(Math.round(less.words) + ' of the ' + cfg.minWords + ' words needed');
