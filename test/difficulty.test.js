@@ -59,15 +59,15 @@ test('evidence pools across exercises until there is enough', () => {
   assert.equal(r.words, T.minWords);
 });
 
-// Design choice: after a step, the pooled words inside both the old and the
-// new vocabulary stay, at half their weight, so a clear trend can step again
-// soon.
-test('an advance keeps the pooled words inside the old vocabulary, at half weight', () => {
+// Design choice: after a step, the pooled words inside the new vocabulary
+// stay, at half their weight, so a clear trend can step again soon; those of
+// its look-ahead go, as they were typed as look-ahead of the old one.
+test('an advance keeps the pooled words inside the new vocabulary, at half weight, but not its look-ahead', () => {
   const d = controller();
-  const inside = lessRated(600, 0.01, 300), beyond = lessRated(400, 0.01, 520);
-  assert.equal(d.update(exercise({ vocabulary: inside.concat(beyond) })).action, 'advance');
+  const inside = lessRated(600, 0.01, 300), aheadOfOld = lessRated(200, 0.01, 520), aheadOfNew = lessRated(200, 0.01, 560);
+  assert.equal(d.update(exercise({ vocabulary: inside.concat(aheadOfOld, aheadOfNew) })).action, 'advance');
   const r = d.update(exercise({ vocabulary: lessCommon(100, 0.995) }));
-  assert.equal(r.words, 600 / 2 + 100);
+  assert.equal(r.words, (600 + 200) / 2 + 100);
   assert.equal(r.action, 'advance');
 });
 

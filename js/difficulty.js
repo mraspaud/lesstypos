@@ -6,7 +6,7 @@
 //   words (rank 100 and beyond) and easiestKept of the 100 most common, by
 //   weight, and never more than maxExercises; after a step, every exercise
 //   stays at keptAfterStep of its weight, with only its less common words
-//   inside both the old and the new vocabulary;
+//   inside the new vocabulary (not its look-ahead);
 //   the reference is the typist's own first-try error rate on the 100 most
 //   common words of the same exercises, weighed alike, so a trend moves both
 //   alike; they are collected with a fixed vocabulary too;
@@ -68,13 +68,12 @@
       while (st.pool.length > cfg.maxExercises || (st.pool.length > 1 && enough(st.pool.slice(1)))) st.pool.shift();
     }
     // After a step, the pooled words stay at keptAfterStep of their weight;
-    // of the less common ones, only those inside both the old and the new
-    // vocabulary.
-    function carryOver(before, after) {
-      var limit = Math.min(before, after);
+    // of the less common ones, only those inside the new vocabulary, not its
+    // look-ahead.
+    function carryOver(after) {
       st.pool.forEach(function (x) {
         x.weight *= cfg.keptAfterStep;
-        x.vocabulary = x.vocabulary.filter(function (w) { return w[0] < limit; });
+        x.vocabulary = x.vocabulary.filter(function (w) { return w[0] < after; });
       });
     }
 
@@ -99,7 +98,7 @@
         if (held.length) judged = { action: 'hold', reasons: judged.reasons.concat(held) };
       }
       var before = st.frontier, stepped = step(judged);
-      if (st.frontier !== before) carryOver(before, st.frontier);
+      if (st.frontier !== before) carryOver(st.frontier);
       st.windows.push({ hes: felt.hes, rhy: felt.rhy, acc: measured.accuracy });
       if (st.windows.length > 50) st.windows.shift();
       var rec = { action: stepped.action, from: before, to: st.frontier, accuracy: measured.accuracy, reference: measured.reference,
