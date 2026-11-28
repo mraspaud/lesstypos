@@ -141,7 +141,7 @@
     var rows = app.trainer.substitutions({ minOpp: 30 }).filter(function (r) { return r.count >= 2; }).slice(0, 40);
     var html = '<section class="stack">' + U.sectionHead('insights') + '<h2>Recurring substitutions</h2>' +
       '<p class="muted">Which key comes out when another was intended. Rates are per press of the intended key (a multi-letter key is a key of its own) and include errors you corrected. ' +
-      'The list is ordered by a rate shrunk toward your overall rate, so a one-off does not top it. Confirmed: credibly above your overall rate, in 2 sessions or more.</p></section>';
+      'The list is ordered by a rate shrunk toward your overall rate, so a one-off does not top it. Confirmed: credibly above your overall rate, in ' + FT.subs.MIN_SESSIONS + ' sessions or more.</p></section>';
     var layout = app.layout;
     if (layout) html += '<section class="stack"><h3>Errors by key</h3><p class="muted">All your exercises, on your layout.</p><div class="heatmap" id="hmall"></div></section>';
     if (layout) {

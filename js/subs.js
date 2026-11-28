@@ -145,5 +145,5 @@
     return { ingest: ingest, matrix: matrix, premature: premature, confirmedPairs: confirmedPairs, swaps: swaps, toJSON: function () { return st; } };
   }
 
-  FT.subs = { create: create };
+  FT.subs = { create: create, MIN_SESSIONS: MIN_SESSIONS };
 })(globalThis.FT);
