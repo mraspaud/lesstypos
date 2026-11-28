@@ -2,14 +2,17 @@
 // A staircase with a dead band (Levitt 1971's transformed up-down idea),
 // judged on relaxed practice's unbiased words only (evidence(), below),
 // pooled across exercises:
-//   the pool keeps the most recent exercises that hold maxWords less common
-//   words (rank 100 and beyond) and easiestKept of the 100 most common, by
-//   weight, and never more than maxExercises; after a step, every exercise
-//   stays at keptAfterStep of its weight, with only its less common words
-//   inside the new vocabulary (not its look-ahead);
+//   the pool keeps the less common words (rank 100 and beyond) of the most
+//   recent exercises that hold maxWords of them, by weight, and never more
+//   than maxExercises; after a step, every exercise stays at keptAfterStep
+//   of its weight, with only its words inside the new vocabulary (not its
+//   look-ahead);
 //   the reference is the typist's own first-try error rate on the 100 most
-//   common words of the same exercises, weighed alike, so a trend moves both
-//   alike; they are collected with a fixed vocabulary too;
+//   common words of the same exercises, so a trend moves both alike; where
+//   those hold fewer than easiestKept, it reaches further back until it does,
+//   so at a large vocabulary, where an exercise holds few of them, it still
+//   fills; the easiest words keep their full weight over a step and are
+//   collected with a fixed vocabulary too;
 //   with fewer than minWords less common words or easiestMinWords easiest
 //   words, nothing is decided;
 //   each first-try error rate has a beta posterior with a uniform prior (the
@@ -22,15 +25,22 @@
 //      >= effortHold since the last decision;
 //   P(less common > shrinkAbove x easiest) > credible   -> retreat (R / step);
 //   otherwise hold, and keep pooling.
+// The pool is large enough for evidence, not chance, to step: a typist with
+// exactly 1.7x the errors reaches P > 0.9 after about 11 exercises of relaxed
+// practice at 220 words. Design choice, and its cost: every exercise tests
+// the pool again, so a typist exactly on a bound steps across it far more
+// often than the 1 in 10 of a single test: within 20 exercises, about 4 in 10
+// typists on the 2x bound grow the vocabulary, and about 1 in 3 on the 3x
+// bound shrink it (test/difficulty-simulation.test.js).
 // User decisions: the ratio band against the typist's own easiest words, its
-// 2x bound for growth, the credibility (0.9), the floor of 200 words, no WPM
-// criterion. Design choices: the 3x bound for shrinking; fewErrors (0.5%,
-// the old controller's advance bound), since two error rates near zero have
-// no credible ratio; one pool for both; its sizes, how much evidence a step
-// keeps, and the step. Every decision is logged with its reasons.
+// 2x bound for growth, under 0.5% errors growing too, the credibility (0.9),
+// the floor of 200 words, no WPM criterion. Design choices: the 3x bound for
+// shrinking; fewErrors at the old controller's advance bound, since two error
+// rates near zero have no credible ratio; the pool sizes, how much evidence a
+// step keeps, and the step. Every decision is logged with its reasons.
 (function (FT) {
   'use strict';
-  var TUNING = { min: 200, max: 30000, minWords: 300, maxWords: 1000, easiestMinWords: 150, easiestKept: 500, maxExercises: 50,
+  var TUNING = { min: 200, max: 30000, minWords: 300, maxWords: 2000, easiestMinWords: 150, easiestKept: 500, maxExercises: 50,
     growAtMost: 2, shrinkAbove: 3, fewErrors: 0.005, credible: 0.9,
     step: 1.1, keptAfterStep: 0.5, hesTol: 1.25, hesAbs: 0.02, rhythmTol: 1.15, effortHold: 4, baselineN: 5 };
   var START_FRONTIER = 200, EASIEST_RANKS = 100;
@@ -41,7 +51,7 @@
     var init = state || {};
     var cfg = Object.assign({}, TUNING, opts || {});
     var st = { frontier: init.frontier != null ? init.frontier : START_FRONTIER, manual: !!init.manual,
-      history: init.history || [], windows: init.windows || [], pending: init.pending || null, pool: init.pool || [] };
+      history: init.history || [], windows: init.windows || [], pending: init.pending || null, pool: init.pool || [], easiest: init.easiest || [] };
 
     function clamp(f) { return Math.min(Math.max(f, cfg.min), cfg.max); }
     st.frontier = clamp(st.frontier);
@@ -56,20 +66,22 @@
       if (w.effort != null) p.effort = Math.max(p.effort || 0, w.effort);
       return p;
     }
-    // Adds an exercise's unbiased words to the pool: the less common ones
-    // (none with a fixed vocabulary) and the easiest, one [rank, chars,
-    // errors] each. Then drops the oldest exercises while the others still
-    // hold maxWords less common words and easiestKept easiest words, by
-    // weight, or while there are more than maxExercises.
+    // Adds an exercise's unbiased words: the less common ones to the pool
+    // (none with a fixed vocabulary), one [rank, chars, errors] each, and the
+    // tally [words, chars, errors] of the easiest to their own list. Then
+    // drops the oldest exercises of the pool while the others still hold
+    // maxWords less common words, by weight, or while there are more than
+    // maxExercises; and the easiest words of the oldest exercises the pool
+    // no longer holds, while the others still hold easiestKept.
     function addExercise(vocabulary, easiest) {
       if (!vocabulary.length && !easiest.length) return;
-      st.pool.push({ weight: 1, vocabulary: copy(vocabulary), easiest: copy(easiest) });
-      var enough = function (rest) { return weighted(rest, 'vocabulary').words >= cfg.maxWords && weighted(rest, 'easiest').words >= cfg.easiestKept; };
-      while (st.pool.length > cfg.maxExercises || (st.pool.length > 1 && enough(st.pool.slice(1)))) st.pool.shift();
+      if (!st.manual) st.pool.push({ weight: 1, vocabulary: copy(vocabulary) });
+      st.easiest.push(easiestTally(easiest));
+      while (st.pool.length > cfg.maxExercises || (st.pool.length > 1 && weighted(st.pool.slice(1)).words >= cfg.maxWords)) st.pool.shift();
+      while (st.easiest.length > Math.max(st.pool.length, 1) && reference(st.easiest.slice(1)).words >= cfg.easiestKept) st.easiest.shift();
     }
-    // After a step, the pooled words stay at keptAfterStep of their weight;
-    // of the less common ones, only those inside the new vocabulary, not its
-    // look-ahead.
+    // After a step, the pooled less common words stay at keptAfterStep of
+    // their weight, only those inside the new vocabulary, not its look-ahead.
     function carryOver(after) {
       st.pool.forEach(function (x) {
         x.weight *= cfg.keptAfterStep;
@@ -81,7 +93,7 @@
       addExercise(st.manual ? [] : w.vocabulary || [], w.easiest || []);
       if (st.manual) return { action: 'manual', frontier: st.frontier, reasons: ['manual vocabulary selection'] };
       st.pending = addConditions(st.pending, w);
-      var less = weighted(st.pool, 'vocabulary'), easy = weighted(st.pool, 'easiest');
+      var less = weighted(st.pool), easy = reference(st.easiest);
       if (less.words < cfg.minWords) return waiting(Math.floor(less.words) + ' of the ' + cfg.minWords + ' words needed');
       if (easy.words < cfg.easiestMinWords) {
         return waiting(Math.floor(easy.words) + ' of the ' + cfg.easiestMinWords + ' words needed among the ' + EASIEST_RANKS + ' most common, to compare with');
@@ -178,7 +190,7 @@
     // were typed in.
     function override(f) {
       if (f == null && !st.manual) return;
-      st.pool.forEach(function (x) { x.vocabulary = []; });
+      st.pool = [];
       st.pending = null;
       st.manual = f != null;
       if (st.manual) st.frontier = clamp(f);
@@ -189,14 +201,21 @@
 
   function tally() { return { words: 0, chars: 0, errors: 0 }; }
   function copy(list) { return list.map(function (w) { return w.slice(); }); }
-  // The weighted tally of the pooled exercises' words of one kind
-  // ('vocabulary' or 'easiest').
-  function weighted(pool, kind) {
+  // The weighted tally of the pooled less common words.
+  function weighted(pool) {
     var t = tally();
     pool.forEach(function (x) {
-      x[kind].forEach(function (w) { t.words += x.weight; t.chars += x.weight * w[1]; t.errors += x.weight * w[2]; });
+      x.vocabulary.forEach(function (w) { t.words += x.weight; t.chars += x.weight * w[1]; t.errors += x.weight * w[2]; });
     });
     return t;
+  }
+  // An exercise's easiest words as one [words, chars, errors].
+  function easiestTally(words) {
+    return words.reduce(function (t, w) { return [t[0] + 1, t[1] + w[1], t[2] + w[2]]; }, [0, 0, 0]);
+  }
+  // The tally of the easiest words of the exercises listed.
+  function reference(list) {
+    return list.reduce(function (t, x) { t.words += x[0]; t.chars += x[1]; t.errors += x[2]; return t; }, tally());
   }
   function accuracy(t) { return 1 - t.errors / t.chars; }
   function errorRate(t) { return t.errors / t.chars; }

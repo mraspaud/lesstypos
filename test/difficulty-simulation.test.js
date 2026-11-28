@@ -71,3 +71,36 @@ test('noise inside the band rarely steps: 400 typists at 2.5x the errors, 20 exe
   const share = stepShare(2.5);
   assert.ok(share.advance < 0.06 && share.retreat < 0.1, JSON.stringify(share));
 });
+
+// On a bound, every exercise tests the pool again, so a typist steps across
+// it far more often than the 1 in 10 of a single test (difficulty.js).
+test('on the growth bound, 2x the errors, 3 to 5 in 10 typists grow the vocabulary within 20 exercises, almost none shrink it', () => {
+  const share = stepShare(2);
+  assert.ok(share.advance > 0.3 && share.advance < 0.5 && share.retreat < 0.02, JSON.stringify(share));
+});
+
+test('on the shrink bound, 3x the errors, 2.5 to 4.5 in 10 typists shrink the vocabulary within 20 exercises, almost none grow it', () => {
+  const share = stepShare(3);
+  assert.ok(share.retreat > 0.25 && share.retreat < 0.45 && share.advance < 0.02, JSON.stringify(share));
+});
+
+// At a large vocabulary an exercise holds few of the easiest words: at 10,000
+// words, about 2 of its 225 unbiased words (0.9 x 100 / 10,000), so the
+// reference takes some 75 exercises to collect from scratch.
+const decisions = (d, typist, exercises) => Array.from({ length: exercises }, () => d.update(typist(d.state().frontier, 0.016)).action);
+test('from scratch at a vocabulary of 10,000 words, typists with 5x the errors shrink it once enough of the easiest words are in', () => {
+  for (const seed of SEEDS) {
+    const actions = decisions(FT.difficulty.create({ frontier: 10000 }), simulatedTypist(seed, { ratio: 5 }), 110);
+    const first = actions.findIndex((a) => a !== 'wait'), shrunk = actions.indexOf('retreat');
+    assert.ok(first > 60 && first < 90 && shrunk >= first && shrunk < first + 20, seed + ': ' + actions.join(' '));
+  }
+});
+
+test('a typist who brings the easiest words along to a vocabulary of 10,000 words, with 5x the errors, shrinks it within 2 exercises', () => {
+  const d = FT.difficulty.create({ frontier: 200 }), typist = simulatedTypist(2, { ratio: 5 });
+  d.override(200);
+  decisions(d, typist, 3);
+  d.override(10000);
+  d.override(null);
+  assert.deepEqual(decisions(d, typist, 2), ['wait', 'retreat']);
+});
