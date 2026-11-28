@@ -112,7 +112,7 @@ test('less common words with exactly 1.7x the errors of the easiest words advanc
   const d = controller(220), next = exactTypist(1.7);
   const actions = Array.from({ length: 20 }, () => d.update(next()).action);
   const first = actions.indexOf('advance');
-  assert.ok(first > 0, actions.join(' '));
+  assert.ok(first >= 8 && first < 15, actions.join(' ')); // the 12th exercise
   assert.ok(actions.slice(0, first).every((a) => a === 'wait' || a === 'hold'), actions.join(' '));
 });
 

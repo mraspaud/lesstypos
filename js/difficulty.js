@@ -26,7 +26,7 @@
 //   P(less common > shrinkAbove x easiest) > credible   -> retreat (R / step);
 //   otherwise hold, and keep pooling.
 // The pool is large enough for evidence, not chance, to step: a typist with
-// exactly 1.7x the errors reaches P > 0.9 after about 11 exercises of relaxed
+// exactly 1.7x the errors reaches P > 0.9 after 12 exercises of relaxed
 // practice at 220 words. Design choice, and its cost: every exercise tests
 // the pool again, so a typist exactly on a bound steps across it far more
 // often than the 1 in 10 of a single test: within 20 exercises, about 4 in 10
