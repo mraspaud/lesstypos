@@ -24,6 +24,10 @@ const benchmarkDaysAgo = (page, days) => page.evaluate((ms) => {
 
 export default async function homeScreen() {
   const page = await freshPage();
+  await step('on a new profile, How this works says when the vocabulary grows, with fewer than 0.5% errors too', async () => {
+    await home(page);
+    assert.match(await page.locator('.howto').textContent(), /at most twice the errors of your 100 most common words, or fewer than 0\.5% errors, and typing feels comfortable/);
+  });
   await seedExercises(page, { count: 4, words: 120, slips: 0.03, slipsAfter: ['th', 'in', 're', 'an', 'er', 'on'] });
   await page.waitForFunction(() => window.FT.ui.app.trainer.targets().length > 0);
 

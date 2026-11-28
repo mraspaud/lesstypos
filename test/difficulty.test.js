@@ -160,7 +160,7 @@ test('without enough of the easiest words to compare with, the vocabulary waits'
   const d = controller();
   const r = d.update(exercise({ easiest: common(T.easiestMinWords - 1, 0.99) }));
   assert.equal(r.action, 'wait');
-  assert.match(r.reasons.join(), new RegExp((T.easiestMinWords - 1) + ' of the ' + T.easiestMinWords + ' words .*100 most common'));
+  assert.equal(r.reasons[0], (T.easiestMinWords - 1) + ' of the ' + T.easiestMinWords + ' words needed among your 100 most common words, to compare with');
   assert.equal(d.state().frontier, 500);
 });
 
@@ -305,23 +305,39 @@ test('releasing a vocabulary that is not fixed keeps the pool', () => {
 });
 
 // Functionality: the reasons say in plain words what decided: how many times
-// the errors of the easiest words the less common words have, and the band,
-// with both accuracies to two decimals, so a step never reads as "98.5% below
-// 98.5%".
+// the errors of the typist's 100 most common words the less common words
+// have, and the band, with both accuracies to two decimals, so a step never
+// reads as "98.5% below 98.5%".
 test('the reasons compare the error rates, and both accuracies to two decimals', () => {
   const advance = controller().update(errorsTimes(1.7));
-  assert.deepEqual(plain(advance.reasons), ['errors on the less common words: 1.7\u00d7 your easiest words (2\u00d7 or less grows the vocabulary)',
-    'accuracy (first try) 96.60% on the less common words, 98.00% on the 100 most common']);
+  assert.deepEqual(plain(advance.reasons), ['the less common words had 1.7\u00d7 the errors of your 100 most common words (2\u00d7 or less grows the vocabulary)',
+    'accuracy (first try) 96.60% on the less common words, 98.00% on your 100 most common words']);
   const retreat = controller().update(errorsTimes(3.5));
-  assert.equal(retreat.reasons[0], 'errors on the less common words: 3.5\u00d7 your easiest words (more than 3\u00d7 shrinks the vocabulary)');
+  assert.equal(retreat.reasons[0], 'the less common words had 3.5\u00d7 the errors of your 100 most common words (more than 3\u00d7 shrinks the vocabulary)');
   const hold = controller().update(errorsTimes(2.5));
-  assert.equal(hold.reasons[0], 'errors on the less common words: 2.5\u00d7 your easiest words (not yet clearly 2\u00d7 or less, which grows the vocabulary, or more than 3\u00d7, which shrinks it)');
+  assert.equal(hold.reasons[0], 'the less common words had 2.5\u00d7 the errors of your 100 most common words (not yet clearly 2\u00d7 or less, which grows the vocabulary, or more than 3\u00d7, which shrinks it)');
 });
 
 test('the reasons say when the easiest words had no errors', () => {
   const none = (vocabularyErrors) => controller().update(exercise({ vocabulary: lessCommon(300, 1 - vocabularyErrors / 1500), easiest: common(600) })).reasons[0];
-  assert.equal(none(0), 'no errors on the less common words or on your easiest words (fewer than 0.5% errors on them grows the vocabulary)');
-  assert.match(none(15), /^errors on the less common words, none on your easiest words \(/);
+  assert.equal(none(0), 'no errors on the less common words or on your 100 most common words (fewer than 0.5% errors on the less common words grows the vocabulary)');
+  assert.match(none(15), /^the less common words had errors, your 100 most common words none \(/);
+});
+
+test('an advance held back says what held it, and that the band would have grown the vocabulary', () => {
+  const r = controller().update(exercise({ effort: 4 }));
+  assert.equal(r.action, 'hold');
+  assert.equal(r.reasons[0], 'the less common words had 0.5\u00d7 the errors of your 100 most common words (2\u00d7 or less would grow the vocabulary)');
+  assert.equal(r.reasons.at(-1), 'held back: perceived effort 4 is high');
+  const few = controller().update(exercise({ vocabulary: lessCommon(1000), easiest: common(1000), effort: 5 }));
+  assert.match(few.reasons[0], /\(fewer than 0\.5% errors on the less common words would grow the vocabulary\)$/);
+});
+
+test('a decision reads as one sentence, its first reason after the only colon before the reasons that follow', () => {
+  for (const r of [controller().update(errorsTimes(1.7)), controller().update(exercise({ effort: 4 })), controller().update(halfPool())]) {
+    const sentence = FT.fmt.vocabSentence(r, 500);
+    assert.equal(sentence.split(';')[0].split(':').length, 2, sentence);
+  }
 });
 
 test('decisions are logged with reasons and survive serialisation', () => {

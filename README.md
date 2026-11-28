@@ -2,7 +2,7 @@
 
 An adaptive typing trainer for experienced touch typists. It aims for **effortless** speed rather than maximum speed.
 
-LessTypos records every keystroke and finds the letter sequences that cost you errors or hesitation, including sequences that cross word boundaries. It then weaves those sequences into ordinary words in later exercises. Vocabulary grows only while less common words cost at most twice the errors of the most common ones and typing feels comfortable. There is no speed requirement.
+LessTypos records every keystroke and finds the letter sequences that cost you errors or hesitation, including sequences that cross word boundaries. It then weaves those sequences into ordinary words in later exercises. Vocabulary grows only while less common words cost at most twice the errors of your 100 most common words, or fewer than 0.5% errors, and typing feels comfortable. There is no speed requirement.
 
 It is a static web app with no server and no account. Open `index.html` directly in a browser. Data stays in the browser's IndexedDB, and you can export it at any time.
 
