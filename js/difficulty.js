@@ -75,24 +75,24 @@
     // maxWords less common words, by weight, or while there are more than
     // maxExercises; and the easiest words of the oldest exercises the pool
     // no longer holds, while the others still hold easiestKept.
-    // Kept as running tallies: the pool's less common words, by weight, and
-    // the easiest words.
-    var less = weighted(st.pool), easy = reference(st.easiest);
     function addExercise(vocabulary, easiest) {
       if (!vocabulary.length && !easiest.length) return;
       if (!st.manual) {
         st.pool.push({ weight: 1, vocabulary: copy(vocabulary) });
-        less = plus(less, weighted(st.pool.slice(-1)));
+        pooled.less = plus(pooled.less, weighted(st.pool.slice(-1)));
       }
       st.easiest.push(easiestTally(easiest));
-      easy = plus(easy, reference(st.easiest.slice(-1)));
-      while (st.pool.length > cfg.maxExercises || (st.pool.length > 1 && less.words - wordsOf(st.pool[0]) >= cfg.maxWords)) {
-        less = minus(less, weighted(st.pool.splice(0, 1)));
+      pooled.easiest = plus(pooled.easiest, reference(st.easiest.slice(-1)));
+      while (st.pool.length > cfg.maxExercises || (st.pool.length > 1 && pooled.less.words - wordsOf(st.pool[0]) >= cfg.maxWords)) {
+        pooled.less = minus(pooled.less, weighted(st.pool.splice(0, 1)));
       }
-      while (st.easiest.length > Math.max(st.pool.length, 1) && easy.words - st.easiest[0][0] >= cfg.easiestKept) {
-        easy = minus(easy, reference(st.easiest.splice(0, 1)));
+      while (st.easiest.length > Math.max(st.pool.length, 1) && pooled.easiest.words - st.easiest[0][0] >= cfg.easiestKept) {
+        pooled.easiest = minus(pooled.easiest, reference(st.easiest.splice(0, 1)));
       }
     }
+    // The running tallies of the pool's less common words, by weight, and of
+    // the easiest words.
+    var pooled = { less: weighted(st.pool), easiest: reference(st.easiest) };
     // After a step, the pooled less common words stay at keptAfterStep of
     // their weight, only those inside the new vocabulary, not its look-ahead.
     function carryOver(after) {
@@ -100,13 +100,14 @@
         x.weight *= cfg.keptAfterStep;
         x.vocabulary = x.vocabulary.filter(function (w) { return w[0] < after; });
       });
-      less = weighted(st.pool);
+      pooled.less = weighted(st.pool);
     }
 
     function update(w) {
       addExercise(st.manual ? [] : w.vocabulary || [], w.easiest || []);
       if (st.manual) return { action: 'manual', frontier: st.frontier, reasons: ['manual vocabulary selection'] };
       st.pending = addConditions(st.pending, w);
+      var less = pooled.less, easy = pooled.easiest;
       if (less.words < cfg.minWords) return waiting(Math.floor(less.words) + ' of the ' + cfg.minWords + ' words needed');
       if (easy.words < cfg.easiestMinWords) {
         return waiting(Math.floor(easy.words) + ' of the ' + cfg.easiestMinWords + ' words needed among ' + EASIEST + ', to compare with');
@@ -201,7 +202,7 @@
     function override(f) {
       if (f == null && !st.manual) return;
       st.pool = [];
-      less = tally();
+      pooled.less = tally();
       st.pending = null;
       st.manual = f != null;
       if (st.manual) st.frontier = clamp(f);
