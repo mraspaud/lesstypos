@@ -43,6 +43,14 @@ test('no decision until the vocabulary words reach the minimum', () => {
   assert.equal(d.state().frontier, 500);
 });
 
+test('the words collected are never rounded up to the words needed', () => {
+  const d = controller();
+  assert.equal(d.update(exercise({ vocabulary: lessCommon(2 * T.minWords - 1, 0.995, 300) })).action, 'advance');
+  const r = d.update(exercise({ vocabulary: lessCommon(0) }));
+  assert.equal(r.action, 'wait');
+  assert.match(r.reasons[0], new RegExp('^' + (T.minWords - 1) + ' of the ' + T.minWords + ' words'));
+});
+
 test('evidence pools across exercises until there is enough', () => {
   const d = controller();
   d.update(halfPool());

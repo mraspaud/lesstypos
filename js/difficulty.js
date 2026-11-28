@@ -83,9 +83,9 @@
       if (st.manual) return { action: 'manual', frontier: st.frontier, reasons: ['manual vocabulary selection'] };
       st.pending = addConditions(st.pending, w);
       var less = weighted(st.pool, 'vocabulary'), easy = weighted(st.pool, 'easiest');
-      if (less.words < cfg.minWords) return waiting(Math.round(less.words) + ' of the ' + cfg.minWords + ' words needed');
+      if (less.words < cfg.minWords) return waiting(Math.floor(less.words) + ' of the ' + cfg.minWords + ' words needed');
       if (easy.words < cfg.easiestMinWords) {
-        return waiting(Math.round(easy.words) + ' of the ' + cfg.easiestMinWords + ' words needed among the ' + EASIEST_RANKS + ' most common, to compare with');
+        return waiting(Math.floor(easy.words) + ' of the ' + cfg.easiestMinWords + ' words needed among the ' + EASIEST_RANKS + ' most common, to compare with');
       }
       return decide(less, easy, w.at);
     }
