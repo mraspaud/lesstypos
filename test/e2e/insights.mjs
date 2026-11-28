@@ -203,6 +203,21 @@ export default async function insights() {
     if (shots) await page.screenshot({ path: shots + '/heatmap.png', fullPage: true });
   });
 
+  await step('Errors gives slip rates per press with the counts beside them, marks confirmed pairs, and folds letters typed early apart', async () => {
+    await seedExercises(page, { count: 2, words: 120, slips: 0.01, early: 0.1, seed: 9 });
+    await nav(page, 'insights/errors');
+    const table = page.locator('#slips');
+    assert.deepEqual(await headings(page, '#slips'), ['Intended', 'Typed', 'Kind', 'Rate per press', 'Times', 'Recent examples']);
+    assert.match(await table.locator('tbody tr td.num').first().getAttribute('title'), /^[\d.]+ of \d+ presses of /);
+    assert.match(await table.locator('tbody tr td').nth(4).textContent(), /^[\d.]+ of \d+$/);
+    assert.ok(await table.locator('.pill.confirmed').count() >= 1);
+    assert.equal(await isOpen(page, 'premature'), false);             // folded away by default
+    await page.locator('#premature > summary').click();
+    assert.ok(await page.locator('#premature tbody tr').count() >= 1);
+    assert.match(await page.locator('#premature').textContent(), /later in the word/);
+    if (shots) await page.screenshot({ path: shots + '/errors.png', fullPage: true });
+  });
+
   await step('with a layout, the summary of an exercise has a heatmap under Details', async () => {
     await practise(page);
     await page.keyboard.press('d');

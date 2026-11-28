@@ -140,7 +140,8 @@
   function renderErrors() {
     var rows = app.trainer.substitutions({ minOpp: 30 }).filter(function (r) { return r.count >= 2; }).slice(0, 40);
     var html = '<section class="stack">' + U.sectionHead('insights') + '<h2>Recurring substitutions</h2>' +
-      '<p class="muted">Which key comes out when another was intended. Rates are per opportunity to type the intended character and include errors you corrected. Rare pairs are shrunk toward the overall substitution rate, so a one-off does not top the list.</p></section>';
+      '<p class="muted">Which key comes out when another was intended. Rates are per press of the intended key (a multi-letter key is a key of its own) and include errors you corrected. ' +
+      'The list is ordered by a rate shrunk toward your overall rate, so a one-off does not top it. Confirmed: credibly above your overall rate, in 2 sessions or more.</p></section>';
     var layout = app.layout;
     if (layout) html += '<section class="stack"><h3>Errors by key</h3><p class="muted">All your exercises, on your layout.</p><div class="heatmap" id="hmall"></div></section>';
     if (layout) {
@@ -155,19 +156,26 @@
       var KIND = FT.layout.KINDS;
       var list = Object.keys(kinds).sort(function (a, b) { return kinds[b].n - kinds[a].n; });
       if (total >= 3) {
-        html += '<section class="stack"><h3>Kinds of slips</h3><p class="muted">How the typed key relates to the intended one on your layout, across ' + fix(total) + ' substitutions. ' +
+        html += '<section class="stack"><h3>Kinds of slips</h3><p class="muted">How the typed key relates to the intended one on your layout, across ' + fix(total) + ' substitutions (letters typed early left out). ' +
           'In studies of skilled typists, neighbouring keys and mirror keys are the most common slips (Grudin 1983).</p><ul class="list">' +
           list.map(function (k) { return '<li><b class="num">' + pct(kinds[k].n / total, 0) + '</b> ' + esc(KIND[k]) + '</li>'; }).join('') + '</ul></section>';
       }
     }
     if (!rows.length) html += '<p class="panel">No recurring substitutions yet.</p>';
     else {
-      html += H.table(['Intended', 'Typed'].concat(layout ? ['Kind'] : [], ['Rate', 'Times', 'Opportunities', 'Recent examples']), rows.map(function (r, i) {
+      html += H.table(['Intended', 'Typed'].concat(layout ? ['Kind'] : [], ['Rate per press', 'Times', 'Recent examples']), rows.map(function (r, i) {
         var rel = layout && FT.layout.relation(layout, r.expected, r.actual);
-        return H.row([H.cell('<button type="button" class="rowbtn" data-row>' + seq(r.expected) + '</button>'), H.cell(seq(r.actual))].concat(
-          layout ? [H.cell(esc(rel ? rel.label : ''))] : [],
-          [H.cell(pct(r.rate, 2), 'num'), H.cell(fix(r.count), 'num'), H.cell(r.opportunities, 'num'), H.cell(esc(recentContexts(r)), 'ex')]), ' class="clickable" data-i="' + i + '"' + U.action(function () { showExamples(r); }));
-      })) + '<section id="subex"></section>';
+        return H.row([H.cell('<button type="button" class="rowbtn" data-row>' + seq(r.expected) + '</button>'),
+          H.cell(seq(r.actual) + (r.confirmed ? ' <span class="pill confirmed" title="Credibly above your overall rate, in ' + r.sessions + ' sessions">confirmed</span>' : ''))].concat(
+          layout ? [H.cell(esc(rel ? rel.label : ''))] : [], slipRate(r), [H.cell(esc(recentContexts(r)), 'ex')]), ' class="clickable" data-i="' + i + '"' + U.action(function () { showExamples(r); }));
+      }), { id: 'slips' }) + '<section id="subex"></section>';
+    }
+    var early = app.trainer.prematureSlips({ minOpp: 30 }).filter(function (r) { return r.count >= 2; }).slice(0, 20);
+    if (early.length) {
+      html += H.disclosure('Letters typed early <span class="muted">· ' + early.length + ' pairs</span>', '<p class="muted">A letter that comes later in the word, typed too soon: a slip in the order of the letters rather than of the fingers, so it is kept out of the list above.</p>' +
+        H.table(['Intended', 'Typed', 'Rate per press', 'Times', 'Recent examples'], early.map(function (r) {
+          return H.row([H.cell(seq(r.expected)), H.cell(seq(r.actual))].concat(slipRate(r), [H.cell(esc(recentContexts(r)), 'ex')]));
+        })), { id: 'premature', className: 'stack' });
     }
     var swaps = app.trainer.swaps({ minOpp: 10 }).filter(function (r) { return r.count >= 2; }).slice(0, 20);
     if (swaps.length) {
@@ -180,14 +188,20 @@
     U.paint(html);
     if (layout) FT.chart.heatmap(document.getElementById('hmall'), FT.layout.grid(layout), FT.progress.sumKeys(app.trainer.history()));
   }
+  // A slip pair's rate per press, the raw counts in its tooltip and beside it.
+  function slipRate(r) {
+    var times = slipCount(r.count) + ' of ' + r.opportunities;
+    return ['<td class="num" title="' + esc(times + ' presses of ' + r.expected) + '">' + pct(r.observedRate, 2) + '</td>', H.cell(times, 'num muted')];
+  }
+  function slipCount(n) { return fix(n, n % 1 ? 1 : 0); }
   // The examples of one substitution, under the table.
   function showExamples(r) {
     var el = document.getElementById('subex');
     el.className = 'panel stack';
     U.fill(el, '<h2>' + seq(r.expected) + ' typed as ' + seq(r.actual) + '</h2>' +
-      H.table(['Word', 'Where', 'Corrected', 'Later letter', 'Exercise'], r.examples.map(function (e) {
-        return H.row([H.cell(esc(e.word)), H.cell(seq(e.context)), H.cell(e.corrected ? 'yes' : 'no'), H.cell(e.premature ? 'yes' : ''), H.cell(esc(e.exercise || ''))]);
-      })) + '<p class="muted">“Later letter” marks a typed letter that occurs later in the same word.</p>');
+      H.table(['Word', 'Where', 'Corrected', 'Exercise'], r.examples.map(function (e) {
+        return H.row([H.cell(esc(e.word)), H.cell(seq(e.context)), H.cell(e.corrected ? 'yes' : 'no'), H.cell(esc(e.exercise || ''))]);
+      })));
     var heading = el.querySelector('h2');
     heading.setAttribute('tabindex', '-1');
     heading.focus();

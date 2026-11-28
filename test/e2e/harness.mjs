@@ -187,10 +187,11 @@ export async function discard(page) { await page.keyboard.press('Escape'); await
 // Exercises typed and saved in the page as the typing screen would, without
 // the keyboard: words typed at an uneven pace with a few corrected slips.
 // opts: { count, type, words, slips (share of letters), slipsAfter (pairs whose
-// second letter slips half the time: weak sequences), effort, run, tags,
+// second letter slips half the time: weak sequences), early (share of letters
+// whose letter after next is typed first, then erased: premature slips), effort, run, tags,
 // set (a benchmark set), seed, ago (how long before the last minutes they were typed, in ms) }.
 export async function seedExercises(page, opts = {}) {
-  const o = Object.assign({ count: 1, type: 'relaxed', words: 60, slips: 0.04, slipsAfter: [], effort: 2, run: null, tags: null, set: null, seed: 1, ago: 0 }, opts);
+  const o = Object.assign({ count: 1, type: 'relaxed', words: 60, slips: 0.04, slipsAfter: [], early: 0, effort: 2, run: null, tags: null, set: null, seed: 1, ago: 0 }, opts);
   await page.evaluate(async (o) => {
     const FT = window.FT, U = FT.ui, app = FT.ui.app, rng = FT.rng(o.seed);
     const before = (await app.store.listSessions()).length;
@@ -202,7 +203,9 @@ export async function seedExercises(page, opts = {}) {
       for (const w of session.state().words.slice()) {
         Array.from(w.target).forEach((ch, i) => {
           const weak = i > 0 && o.slipsAfter.includes(w.target[i - 1] + ch);
-          if (rng() < (weak ? 0.5 : o.slips)) { press(ch === 'z' ? 'x' : 'z'); session.input({ kind: 'back', t: (t += 150) }); }
+          const later = w.target[i + 2];
+          if (o.early && later && later !== ch && later !== w.target[i + 1] && rng() < o.early) { press(later); session.input({ kind: 'back', t: (t += 150) }); }
+          else if (rng() < (weak ? 0.5 : o.slips)) { press(ch === 'z' ? 'x' : 'z'); session.input({ kind: 'back', t: (t += 150) }); }
           press(ch);
         });
         press(' ');
