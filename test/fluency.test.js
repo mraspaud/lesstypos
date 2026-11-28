@@ -267,9 +267,9 @@ function inSample(seed, typeText, days = 5) {
   const predicted = FT.fluency.index(tr.model.evaluate({ day: last.raw.day }), tr.history(), text, { minN: tr.model.config.minN }).wpm;
   return { predicted, typed: tr.history().at(-1) };
 }
-// The in-sample error, in percent, of `seeds` simulated practices: trainer
-// seeds 40, 53, ... and typist(s) for s = 0, 3, 6, ...; check(run) checks
-// each run is the case it is meant to be.
+// The in-sample error, in percent, of 6 simulated practices: trainer seeds
+// 40, 53, ... and typist(s) for s = 0, 3, 6, ...; check(run) checks each run
+// is the case it is meant to be.
 const SEEDS = 6;
 function errorsInSample(typist, check, days) {
   return Array.from({ length: SEEDS }, (_, s) => {
@@ -278,30 +278,37 @@ function errorsInSample(typist, check, days) {
     return 100 * (run.predicted / run.typed.wpm - 1);
   });
 }
-// The mean is within `tolerance` points of `expected`. Each tolerance is
-// three standard errors of a 6-seed mean, from the spread measured over 20
-// seeds (standard deviations: 1.8, 1.0 and 1.4 points).
-function meanNear(errors, expected, tolerance) {
-  const mean = FT.stats.mean(errors);
-  assert.ok(Math.abs(mean - expected) < tolerance, 'mean ' + mean.toFixed(2) + '% (' + errors.map((x) => x.toFixed(2)).join(', ') + ')');
+// The errors are near `expected`: their mean within three standard errors
+// of a 6-seed mean, each within three standard deviations. Each standard
+// deviation was measured over 20 other seeds (s = 6 to 25), disjoint from
+// the 6 tested.
+function nearExpected(errors, expected, sd) {
+  const mean = FT.stats.mean(errors), shown = errors.map((x) => x.toFixed(2)).join(', ');
+  assert.ok(Math.abs(mean - expected) < 3 * sd / Math.sqrt(SEEDS), 'mean ' + mean.toFixed(2) + '% (' + shown + ')');
+  assert.ok(errors.every((x) => Math.abs(x - expected) < 3 * sd), 'a seed beyond 3 SD of ' + expected + '%: ' + shown);
 }
 
-test('in sample, the index predicts the speed of the very text it was built from to within 2.3% on average', () => {
+test('in sample, the index predicts the speed of the very text it was built from to within 2% on average', () => {
   const withRealCosts = (typed) => assert.ok(typed.firstAttemptAccuracy < 0.99 && typed.correctionMs / typed.errors > 500, JSON.stringify(typed));
-  meanNear(errorsInSample((s) => simulatedTypist(7 + s), withRealCosts), 0, 2.3);
+  nearExpected(errorsInSample((s) => simulatedTypist(7 + s), withRealCosts), 0, 1.62);
 });
 
 // The spread between contexts is in the model's ratios only, not in the
 // scale as well. Each session's pace is measured against the model before
 // it, so the model needs some sessions to learn the spread first. Known
-// bias: such a typist is predicted 1.3% too slow on average over 20 seeds
-// (a follow-up in the plan); the test holds it there until it is explained.
-test('in sample, a typist whose letter pairs range from 60 to 460 ms, without errors, is predicted 1.3% too slow on average', () => {
+// bias (a follow-up in the plan): such a typist is predicted too slow. The
+// earlier -1.3% came from 20 seeds that included the 6 tested (s = 0 to
+// 19); over the 20 disjoint seeds it is -0.93% (SD 0.92), and the test holds
+// it there until it is explained. The farthest tested seed (s = 0, -3.7%)
+// lies just inside 3 SD.
+test('in sample, a typist whose letter pairs range from 60 to 460 ms, without errors, is predicted about 0.9% too slow on average', () => {
   const errorFree = (typed) => assert.equal(typed.errors, 0);
-  meanNear(errorsInSample((s) => simulatedTypist(8 + s, { slip: 0, fastestMs: 60, spreadMs: 400 }), errorFree, 10), -1.3, 1.2);
+  nearExpected(errorsInSample((s) => simulatedTypist(8 + s, { slip: 0, fastestMs: 60, spreadMs: 400 }), errorFree, 10), -0.93, 0.92);
 });
 
-test('in sample, a typist who pauses for 8 s now and then is predicted to within 1.8% on average', () => {
+// Over the 20 disjoint seeds this case's mean is -0.82%, 2.3 standard
+// errors below 0: possibly the same bias, part of the same follow-up.
+test('in sample, a typist who pauses for 8 s now and then is predicted to within 2% on average', () => {
   const pausing = (typed) => assert.ok(typed.pauseMs > 10000, JSON.stringify(typed));
-  meanNear(errorsInSample((s) => simulatedTypist(9 + s, { slip: 0, pauseEvery: 150 }), pausing), 0, 1.8);
+  nearExpected(errorsInSample((s) => simulatedTypist(9 + s, { slip: 0, pauseEvery: 150 }), pausing), 0, 1.61);
 });
