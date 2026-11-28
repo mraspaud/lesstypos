@@ -104,6 +104,24 @@ test('substitutions are recorded with context', () => {
   assert.equal(top.actual, 'n');
 });
 
+test('the trainer confirms a slip pair once it recurs in a second session', () => {
+  const tr = FT.trainer.create({ seed: 4 });
+  const confirmed = () => plain(tr.confirmedPairs().map((r) => r.expected + r.actual));
+  simulate(tr, 150, Date.UTC(2026, 0, 1), { err: true });
+  assert.deepEqual(confirmed(), []);
+  simulate(tr, 150, Date.UTC(2026, 0, 2), { err: true });
+  assert.deepEqual(confirmed(), ['hn']);
+});
+
+test('the trainer reports premature slips apart', () => {
+  const tr = FT.trainer.create({ seed: 4 });
+  const s = FT.session.create(['sun', 'sun']);
+  const t = typist(s, { at: 120, dt: 120 }).type('n<sun sun ').t;
+  tr.finish({ type: 'relaxed', startedAt: 0, durationMs: t, words: s.state().words.filter((w) => w.committed), keys: [] });
+  assert.deepEqual(plain(tr.prematureSlips({ minOpp: 1 }).map((r) => [r.expected, r.actual, r.count])), [['s', 'n', 1]]);
+  assert.equal(tr.substitutions({ minOpp: 1 }).length, 0);
+});
+
 test('replaying raw sessions rebuilds the same profile', () => {
   const tr = FT.trainer.create({ seed: 5 });
   const raws = [];

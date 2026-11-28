@@ -237,6 +237,8 @@
       explain: function (key) { return model.explain(key, { day: FT.days.number(now()) }); },
       evaluate: function () { return model.evaluate({ day: FT.days.number(now()) }); },
       substitutions: function (o) { return subs.matrix(o); },
+      prematureSlips: function (o) { return subs.premature(o); },
+      confirmedPairs: function () { return subs.confirmedPairs(); },
       swaps: function (o) { return subs.swaps(o); },
       difficulty: difficulty, model: model, corpus: corpus,
       bursts: { target: function () { return bursts.peek(history); },
