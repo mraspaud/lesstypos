@@ -346,3 +346,9 @@ test('the unbiased words below rank 100 are the easiest words; the others are th
   assert.deepEqual(e.easiest, [[0, 3, 1], [1, 3, 0]]);
   assert.deepEqual(e.vocabulary, [[150, 5, 2], [900, 6, 0]]);
 });
+
+test('a word the word list does not hold has no rank, so it is no evidence', () => {
+  const e = evidenceOf([typed('zzzq', 'random', 1), typed('house', 'frontier')]);
+  assert.deepEqual(e.vocabulary, [[150, 5, 0]]);
+  assert.deepEqual(e.easiest, []);
+});

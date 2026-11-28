@@ -214,6 +214,7 @@
   // The evidence an exercise gives: first-try errors on its unbiased words
   // (FT.generator.UNBIASED), one [rank, chars, errors] per word, the easiest
   // (rank below EASIEST_RANKS) apart from the less common ones (vocabulary).
+  // A word the word list does not hold (rank -1) belongs to neither.
   // words: the typed words with their meta; analyses: FT.align's, in the
   // same order; rankOf(word) -> rank.
   function evidence(words, analyses, rankOf) {
@@ -221,8 +222,9 @@
     words.forEach(function (w, i) {
       if (!w.meta || FT.generator.UNBIASED.indexOf(w.meta.source) < 0) return;
       var rank = rankOf(w.target), targets = analyses[i].targets;
+      if (rank < 0) return;
       var errors = targets.reduce(function (n, x) { return n + x.err; }, 0);
-      (rank >= 0 && rank < EASIEST_RANKS ? out.easiest : out.vocabulary).push([rank, targets.length, errors]);
+      (rank < EASIEST_RANKS ? out.easiest : out.vocabulary).push([rank, targets.length, errors]);
     });
     return out;
   }
