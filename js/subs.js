@@ -1,7 +1,14 @@
-// Recurring substitution analysis (expected x typed as y).
+// Recurring substitution analysis (expected key x typed as y).
+// Opportunities are presses of the intended key: a declared multi-letter key
+// (FT.presses.ofTarget) is a key of its own, so a th press is not a t
+// opportunity, and the substitutions on one press share one slip (user
+// decision: one key action is one mistake).
 // Rate P(y | x) = count(x->y) / opportunities(x), shrunk toward a global base
 // rate per pair: (count + a*m) / (opp + a), m = total subs / (total opps * K),
 // with a = SHRINKAGE and K = BASE_SPREAD (design choices). Independent of FT.model.
+// Premature slips (a letter of later in the word typed early, FT.align) are
+// sequencing errors, kept apart from the finger confusions, with their own
+// base rate.
 // Confirmed pairs: like a sequence (FT.judgement), a pair is confirmed when
 // its rate is credibly above the base rate, P > CONFIRM_P under the beta
 // posterior of the shrunk rate (Efron & Morris 1975), and it was seen in
@@ -24,26 +31,25 @@
       var equivalence = meta.equivalence || FT.text.equivalence(), canon = equivalence.canon;
       for (var i = 0; i < words.length; i++) {
         var an = words[i];
-        var target = Array.from(an.P).map(canon), keys = targetPresses(target, an.presses.target);
+        var target = Array.from(an.P).map(canon), keys = intendedKeys(target, an.presses.target);
         countOpportunities(target, keys, equivalence);
-        for (var j = 0; j < an.events.length; j++) {
-          var e = an.events[j];
-          if (e.type === 'transpose' && e.swapStart) recordSwap(an, target, e, meta);
-        }
+        recordSwaps(an, target, meta);
         recordSubstitutions(an, target, keys, meta, canon);
       }
     }
 
     // The intended keys of a word: each target press with the positions it
-    // covers; a multi-letter key goes by its lowercase name.
-    function targetPresses(target, pressOf) {
-      var keys = [];
+    // covers (list), and the press at each position (at); a multi-letter key
+    // goes by its lowercase name.
+    function intendedKeys(target, pressOf) {
+      var list = [], at = [];
       target.forEach(function (ch, pos) {
-        var last = keys[keys.length - 1];
-        if (last && pressOf[pos] === pressOf[pos - 1]) { last.chars += ch; last.length++; } else keys.push({ chars: ch, start: pos, length: 1 });
+        var last = list[list.length - 1];
+        if (last && pressOf[pos] === pressOf[pos - 1]) { last.chars += ch; last.length++; } else list.push(last = { chars: ch, start: pos, length: 1 });
+        at.push(last);
       });
-      keys.forEach(function (k) { k.name = k.length > 1 ? k.chars.toLowerCase() : k.chars; });
-      return { list: keys, at: function (pos) { return keys.filter(function (k) { return pos >= k.start && pos < k.start + k.length; })[0]; } };
+      list.forEach(function (k) { k.name = k.length > 1 ? k.chars.toLowerCase() : k.chars; });
+      return { list: list, at: at };
     }
 
     // Each press of an intended key is an opportunity for a slip; so is each
@@ -54,7 +60,8 @@
         st.totalOpp++;
       });
       for (var p = 0; p + 1 < target.length; p++) {
-        if (!equivalence.same(target[p], target[p + 1])) st.pairOpp[target[p] + target[p + 1]] = (st.pairOpp[target[p] + target[p + 1]] || 0) + 1;
+        var letters = target[p] + target[p + 1];
+        if (!equivalence.same(target[p], target[p + 1])) st.pairOpp[letters] = (st.pairOpp[letters] || 0) + 1;
       }
     }
     // The letters around position pos, with `marked` in brackets in its place.
@@ -71,9 +78,9 @@
       var byKey = {};
       an.events.forEach(function (e) {
         if (e.type !== 'sub') return;
-        var key = keys.at(e.pos);
-        (byKey[key.start] = byKey[key.start] || { key: key, events: [], w: 0 }).events.push(e);
-        byKey[key.start].w += e.w;
+        var key = keys.at[e.pos], slip = byKey[key.start] || (byKey[key.start] = { key: key, events: [], w: 0 });
+        slip.events.push(e);
+        slip.w += e.w;
       });
       Object.keys(byKey).forEach(function (start) {
         var slip = byKey[start], share = Math.min(1, slip.w) / slip.w;
@@ -81,18 +88,20 @@
       });
     }
     function recordSubstitution(an, target, key, e, w, meta, canon) {
-      var expected = key.name, actual = canon(e.actual);
+      var expected = key.name, actual = canon(e.actual), session = FT.valueOr(meta.session, null);
       var id = expected + '\u0000' + actual, records = e.premature ? st.premature : st.pairs;
       var r = records[id] || (records[id] = { expected: expected, actual: actual, count: 0, sessions: {}, examples: [] });
       r.count += w;
-      var session = FT.valueOr(meta.session, null);
       r.sessions[session] = (r.sessions[session] || 0) + w;
       if (e.premature) st.totalPremature += w; else st.totalSubs += w;
       keepExample(r, {
         word: an.P.trim(), context: contextAround(target, key.start, key.chars, key.length),
         corrected: !!e.corrected, premature: !!e.premature, case: !!e.case, t: FT.valueOr(meta.t, e.t),
-        session: FT.valueOr(meta.session, null), exercise: meta.exercise || null,
+        session: session, exercise: meta.exercise || null,
       });
+    }
+    function recordSwaps(an, target, meta) {
+      an.events.forEach(function (e) { if (e.type === 'transpose' && e.swapStart) recordSwap(an, target, e, meta); });
     }
     function recordSwap(an, target, e, meta) {
       var expected = target[e.pos] + target[e.pos + 1];
@@ -116,20 +125,23 @@
     }
 
     // Finger confusions: a key typed for another.
-    function matrix(opts) { return rows(st.pairs, st.totalSubs, opts); }
+    function matrix(opts) { return slipRows(st.pairs, st.totalSubs, opts); }
     // Confirmed finger confusions, whatever their opportunities.
     function confirmedPairs() { return matrix({ minOpp: 0 }).filter(function (r) { return r.confirmed; }); }
     // Premature slips: a letter of later in the word typed early.
-    function premature(opts) { return rows(st.premature, st.totalPremature, opts); }
+    function premature(opts) { return slipRows(st.premature, st.totalPremature, opts); }
 
-    function rows(records, total, opts) {
+    // Rows of slip pairs, the most likely first: observed and shrunk rates,
+    // the base rate, the posterior probability of being above it, and the
+    // sessions that saw the pair.
+    function slipRows(records, total, opts) {
       var minOpp = FT.valueOr(opts && opts.minOpp, MIN_OPPORTUNITIES);
       var m = st.totalOpp ? total / (st.totalOpp * BASE_SPREAD) : 0;
       return Object.keys(records).map(function (k) {
         var r = records[k], opp = st.opp[r.expected] || 0;
         var alpha = SHRINKAGE * m + r.count, beta = SHRINKAGE * (1 - m) + Math.max(0, opp - r.count);
         var pAbove = m > 0 ? 1 - FT.stats.betaCdf(m, alpha, beta) : 0;
-        var sessions = Object.keys(r.sessions).filter(function (s) { return r.sessions[s] >= SESSION_MIN_SLIPS; }).length;
+        var sessions = sessionsSeen(r);
         return {
           expected: r.expected, actual: r.actual, count: r.count, opportunities: opp,
           observedRate: opp ? r.count / opp : 0,
@@ -140,6 +152,9 @@
         };
       }).filter(function (r) { return r.opportunities >= minOpp; })
         .sort(function (a, b) { return b.rate - a.rate; });
+    }
+    function sessionsSeen(record) {
+      return Object.keys(record.sessions).filter(function (s) { return record.sessions[s] >= SESSION_MIN_SLIPS; }).length;
     }
 
     return { ingest: ingest, matrix: matrix, premature: premature, confirmedPairs: confirmedPairs, swaps: swaps, toJSON: function () { return st; } };

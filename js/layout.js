@@ -201,31 +201,32 @@
   // the letters before it, so a movement into a multi-letter key stays with
   // its first letter's key.
   function transitions(evaluation, layout) {
-    var owners = {};
+    var movements = {};
     Object.keys(evaluation.all).forEach(function (k) {
       var c = evaluation.all[k], keys = c.order >= 2 && c.n && !/\s/.test(k) ? presses(layout, k) : null;
       if (keys && keys.length === 2 && Array.from(keys[1]).length === 1) {
-        owners[k] = { key: k, latRel: c.latRel, n: c.n, errors: c.errors, latN: c.latN || 0, logSum: c.rawMu != null ? c.latN * c.rawMu : 0 };
+        movements[k] = { key: k, latRel: c.latRel, n: c.n, errors: c.errors, latN: c.latN || 0, logSum: c.rawMu != null ? c.latN * c.rawMu : 0 };
       }
     });
-    Object.keys(owners).forEach(function (k) {
-      var within = nearestOwner(owners, k);
-      if (!within) return;
+    Object.keys(movements).forEach(function (k) {
+      var mixed = shorterMovement(movements, k);
+      if (!mixed) return;
       var d = evaluation.all[k];
-      within.n -= d.n; within.errors -= d.errors;
-      if (d.rawMu != null) { within.latN -= d.latN; within.logSum -= d.latN * d.rawMu; }
+      mixed.n -= d.n; mixed.errors -= d.errors;
+      if (d.rawMu != null) { mixed.latN -= d.latN; mixed.logSum -= d.latN * d.rawMu; }
     });
-    return Object.keys(owners).map(function (k) {
-      var o = owners[k];
+    return Object.keys(movements).map(function (k) {
+      var o = movements[k];
       return { key: k, latRel: o.latRel, n: o.n, errors: Math.max(0, o.errors), latN: o.latN, rawMu: o.latN > 0 ? o.logSum / o.latN : null };
     }).filter(function (o) { return o.n > 0; });
   }
-  // The longest shorter context ending like k that is a movement of its own.
-  function nearestOwner(owners, k) {
+  // The longest shorter context ending like k that is a movement of its own,
+  // whose evidence holds k's.
+  function shorterMovement(movements, k) {
     var chars = Array.from(k);
     for (var i = 1; i < chars.length - 1; i++) {
       var suffix = chars.slice(i).join('');
-      if (owners[suffix]) return owners[suffix];
+      if (movements[suffix]) return movements[suffix];
     }
     return null;
   }

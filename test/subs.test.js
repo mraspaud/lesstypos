@@ -9,8 +9,9 @@ const { stream } = require('./helpers/typing');
 // examples. Independent of the sequence-weakness model.
 
 const FT = load();
-function feed(subs, pairs, meta = { exercise: 'relaxed', session: 1, t: 0 }, macros = []) {
-  subs.ingest(pairs.map(([p, s]) => FT.align.analyzeWord(p + ' ', stream(s + ' '), { macros })), meta);
+// pairs: [target, typed]; macros: the multi-letter keys declared.
+function feed(subs, pairs, { session = 1, macros = [] } = {}) {
+  subs.ingest(pairs.map(([p, s]) => FT.align.analyzeWord(p + ' ', stream(s + ' '), { macros })), { exercise: 'relaxed', session, t: 0 });
 }
 const pair = (subs, expected, actual) => subs.matrix({ minOpp: 1 }).find((r) => r.expected === expected && r.actual === actual);
 
@@ -74,7 +75,7 @@ test('swapped letters are counted per letter pair, not as substitutions', () => 
 // opportunity to type t, and a slip on it is a slip of the th key.
 test('a press of a multi-letter key is not an opportunity for its letters', () => {
   const s = FT.subs.create();
-  feed(s, [['tea', 'dea'], ['the', 'the'], ['then', 'then'], ['top', 'top']], undefined, ['th']);
+  feed(s, [['tea', 'dea'], ['the', 'the'], ['then', 'then'], ['top', 'top']], { macros: ['th'] });
   const row = pair(s, 't', 'd');
   assert.equal(row.opportunities, 2);
   assert.equal(row.observedRate, 0.5);
@@ -82,7 +83,7 @@ test('a press of a multi-letter key is not an opportunity for its letters', () =
 
 test('a slip on a multi-letter key is counted once, for that key', () => {
   const s = FT.subs.create();
-  feed(s, [['the', 'dhe'], ['this', 'this']], undefined, ['th']);
+  feed(s, [['the', 'dhe'], ['this', 'this']], { macros: ['th'] });
   const row = pair(s, 'th', 'd');
   assert.equal(row.count, 1);
   assert.equal(row.opportunities, 2);
@@ -119,7 +120,7 @@ test('a pair slipped only prematurely is not a finger confusion', () => {
 // separate sessions (user decision: replication).
 const typedTimes = (n, target, typed) => Array.from({ length: n }, () => [target, typed]);
 function feedSessions(subs, perSession) {
-  perSession.forEach((pairs, i) => feed(subs, pairs, { exercise: 'relaxed', session: i + 1, t: i }));
+  perSession.forEach((pairs, i) => feed(subs, pairs, { session: i + 1 }));
 }
 const oneSessionOfEat = () => typedTimes(5, 'eat', 'iat').concat(typedTimes(45, 'eat', 'eat'));
 
