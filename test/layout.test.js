@@ -197,6 +197,24 @@ test('the breakdown leaves out word-boundary pairs and uses measured, not shrunk
   assert.ok(Math.abs(b.find((r) => r.type === 'sfb').time - 1.5) < 1e-9);
 });
 
+// Functionality: the breakdown is press-aware. With a th key, the e of "the"
+// follows a press of the th key, so it is a th→e movement, not h→e.
+test('a letter after a multi-letter key is a movement from that key', () => {
+  const T = FT.layout.parse(THORNIUM);
+  const ctx = (key, n, errors, rawMu) => ({ key, order: Array.from(key).length, n, errors, latN: n, mu: rawMu, rawMu, latRel: 1 });
+  // 'he' holds every e after h, the 60 of "the" included
+  const he = ctx('he', 100, 6, (40 * Math.log(1.2) + 60 * Math.log(1.5)) / 100);
+  const the = ctx('the', 60, 3, Math.log(1.5));
+  const b = plain(FT.layout.breakdown({ all: { he, the, ta: ctx('ta', 50, 0, 0) } }, T));
+  const type = (t) => b.find((r) => r.type === t);
+  assert.equal(type('alternate').n, 40 + 50);                        // h→e, t→a
+  assert.equal(type('alternate').errorRate, 3 / 90);
+  assert.equal(type('roll-in').n, 60);                               // th→e: right pinky to right middle
+  assert.equal(type('roll-in').errorRate, 0.05);
+  assert.deepEqual(type('roll-in').worst, ['the']);
+  assert.ok(Math.abs(type('roll-in').time - 1.5 * 90 / (40 * 1.2 + 50)) < 1e-9);
+});
+
 test('without alternation data there is no reference, so no relative time', () => {
   const ctx = (key) => ({ key, order: 2, n: 50, errors: 0, latN: 50, mu: 0, rawMu: 0, latRel: 1 });
   const b = plain(FT.layout.breakdown({ all: { ed: ctx('ed') } }, L));

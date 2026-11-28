@@ -170,11 +170,8 @@
   var SLOWEST_SHOWN = 3;
   function breakdown(evaluation, layout) {
     var groups = {};
-    Object.keys(evaluation.all).forEach(function (k) {
-      var c = evaluation.all[k];
-      if (c.order !== 2 || !c.n || /\s/.test(k)) return;
-      var cls = classify(layout, k);
-      if (!cls || cls.type === 'macro') return;
+    transitions(evaluation, layout).forEach(function (c) {
+      var cls = classify(layout, c.key);
       // each pair counts in its movement type, and also in any tag it carries
       // (scissors, lateral stretches), which therefore overlap the main rows
       [cls.type].concat(cls.tags.filter(function (t) { return t !== 'sfb'; })).forEach(function (type, i) {
@@ -193,6 +190,44 @@
       return { type: g.type, overlapping: g.overlapping, share: total ? g.n / total : null, pairs: g.pairs, n: g.n, errorRate: g.n ? g.errors / g.n : null,
         time: g.latN && reference ? (g.latSum / g.latN) / reference : null, worst: slowest };
     }).sort(function (a, b) { return (a.overlapping - b.overlapping) || b.n - a.n; });
+  }
+
+  // The movements between two presses that the contexts hold: a context of
+  // two presses ending on a single-letter press ("he", or "the" with a th
+  // key). A context's evidence includes its longer contexts', so the e of
+  // "the" is taken out of "he" (design choice: the counts and the sums of log
+  // ratios are subtracted; the recency weighting of each context makes this
+  // approximate). The model times a press on its first letter and keys it by
+  // the letters before it, so a movement into a multi-letter key stays with
+  // its first letter's key.
+  function transitions(evaluation, layout) {
+    var owners = {};
+    Object.keys(evaluation.all).forEach(function (k) {
+      var c = evaluation.all[k], keys = c.order >= 2 && c.n && !/\s/.test(k) ? presses(layout, k) : null;
+      if (keys && keys.length === 2 && Array.from(keys[1]).length === 1) {
+        owners[k] = { key: k, latRel: c.latRel, n: c.n, errors: c.errors, latN: c.latN || 0, logSum: c.rawMu != null ? c.latN * c.rawMu : 0 };
+      }
+    });
+    Object.keys(owners).forEach(function (k) {
+      var within = nearestOwner(owners, k);
+      if (!within) return;
+      var d = evaluation.all[k];
+      within.n -= d.n; within.errors -= d.errors;
+      if (d.rawMu != null) { within.latN -= d.latN; within.logSum -= d.latN * d.rawMu; }
+    });
+    return Object.keys(owners).map(function (k) {
+      var o = owners[k];
+      return { key: k, latRel: o.latRel, n: o.n, errors: Math.max(0, o.errors), latN: o.latN, rawMu: o.latN > 0 ? o.logSum / o.latN : null };
+    }).filter(function (o) { return o.n > 0; });
+  }
+  // The longest shorter context ending like k that is a movement of its own.
+  function nearestOwner(owners, k) {
+    var chars = Array.from(k);
+    for (var i = 1; i < chars.length - 1; i++) {
+      var suffix = chars.slice(i).join('');
+      if (owners[suffix]) return owners[suffix];
+    }
+    return null;
   }
 
   FT.layout = { breakdown: breakdown, grid: grid, parse: parse, classify: classify, presses: presses, relation: relation, FINGER: FINGER, KINDS: KINDS };
