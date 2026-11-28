@@ -330,6 +330,29 @@ test('a benchmark on a one-word corpus does not loop forever', () => {
   assert.ok(tr.newExercise({ type: 'benchmark' }).words.length > 0);
 });
 
+// Functionality: fixing or releasing the vocabulary is raw data too, an
+// event with its time, so a rebuild applies each in order, also when no
+// exercise came between them.
+test('rebuilding applies fixing and releasing the vocabulary in order, also with no exercise between them', () => {
+  const tr = FT.trainer.create({ seed: 32 });
+  const raws = [simulate(tr, 400, Date.UTC(2026, 0, 1)).raw];
+  assert.ok(tr.difficulty.state().pool.length);
+  const events = [tr.setVocabulary(800, Date.UTC(2026, 0, 1, 12)), tr.setVocabulary(null, Date.UTC(2026, 0, 1, 13))];
+  assert.deepEqual(plain(events), [{ at: Date.UTC(2026, 0, 1, 12), frontier: 800 }, { at: Date.UTC(2026, 0, 1, 13), frontier: null }]);
+  raws.push(simulate(tr, 400, Date.UTC(2026, 0, 2)).raw);
+  const rebuilt = FT.trainer.rebuild(JSON.parse(JSON.stringify(raws)), { seed: 32, vocabularyEvents: JSON.parse(JSON.stringify(events)) });
+  assert.deepEqual(plain(rebuilt.profile().difficulty), plain(tr.profile().difficulty));
+});
+
+test('a vocabulary fixed after the last exercise is fixed after a rebuild', () => {
+  const tr = FT.trainer.create({ seed: 33 });
+  const { raw } = simulate(tr, 60, Date.UTC(2026, 0, 1));
+  const event = tr.setVocabulary(1500, Date.UTC(2026, 0, 2));
+  const rebuilt = FT.trainer.rebuild([raw], { vocabularyEvents: [event] });
+  assert.equal(rebuilt.difficulty.state().manual, true);
+  assert.equal(rebuilt.difficulty.state().frontier, 1500);
+});
+
 test('rebuilding keeps the profile language', () => {
   const tr = FT.trainer.create({ seed: 1, lang: 'en' });
   const { raw } = simulate(tr, 30, Date.UTC(2026, 0, 1));

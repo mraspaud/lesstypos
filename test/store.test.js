@@ -376,3 +376,43 @@ test('merging a session stored on both sides keeps the tags of both', async () =
   await s.importAll(backup, { mode: 'merge' });
   assert.deepEqual(plain((await s.getSession('a')).tags), ['home', 'tired', 'wrist-rest']);
 });
+
+// Functionality: fixing or releasing the vocabulary is raw data like the
+// exercises ({ at, frontier }, frontier null when released): stored, listed
+// in time order, exported, imported and reset with them.
+const fixedAt = (at, frontier) => ({ at, frontier });
+test('vocabulary events are stored and listed in time order', async () => {
+  const s = mk();
+  await s.saveVocabularyEvent(fixedAt(20, null));
+  await s.saveVocabularyEvent(fixedAt(10, 800));
+  assert.deepEqual(plain(await s.listVocabularyEvents()), [fixedAt(10, 800), fixedAt(20, null)]);
+});
+
+test('vocabulary events are exported and imported, by replacing or merging, without duplicates', async () => {
+  const a = mk();
+  await a.saveVocabularyEvent(fixedAt(10, 800));
+  const dump = JSON.parse(JSON.stringify(await a.exportAll()));
+  assert.deepEqual(dump.vocabulary, [fixedAt(10, 800)]);
+  const b = mk();
+  await b.importAll(dump);
+  await b.saveVocabularyEvent(fixedAt(20, null));
+  await b.importAll(dump, { mode: 'merge' });
+  assert.deepEqual(plain(await b.listVocabularyEvents()), [fixedAt(10, 800), fixedAt(20, null)]);
+});
+
+test('an import with a damaged vocabulary event is rejected without changing data', async () => {
+  const s = mk();
+  await s.saveVocabularyEvent(fixedAt(10, 800));
+  const damaged = { format: 'lesstypos-export', schema: FT.SCHEMA, settings: {}, profile: null, sessions: [], vocabulary: [{ at: 'soon', frontier: 800 }] };
+  await assert.rejects(s.importAll(damaged), /damaged/);
+  assert.deepEqual(plain(await s.listVocabularyEvents()), [fixedAt(10, 800)]);
+});
+
+test('resetting the raw exercises removes the vocabulary events too; resetting the statistics keeps them', async () => {
+  const s = mk();
+  await s.saveVocabularyEvent(fixedAt(10, 800));
+  await s.reset('profile');
+  assert.equal((await s.listVocabularyEvents()).length, 1);
+  await s.reset('sessions');
+  assert.equal((await s.listVocabularyEvents()).length, 0);
+});

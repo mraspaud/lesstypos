@@ -69,6 +69,19 @@ export default async function data() {
     assert.match(await page.locator('.lead').textContent(), /relaxed practice 5$/);
   });
 
+  await step('fixing and releasing the vocabulary in Settings are kept with the exercises, in backups too', async () => {
+    await nav(page, 'settings/typing');
+    const before = Number(await page.locator('#frontier').inputValue());
+    await page.locator('#vocabMode').selectOption('manual');
+    await page.fill('#frontier', '800');
+    await page.locator('#frontier').dispatchEvent('change');
+    await page.locator('#vocabMode').selectOption('auto');
+    await page.waitForFunction(() => window.FT.ui.app.store.listVocabularyEvents().then((e) => e.length === 3));
+    const backup = await exportBackup(page);
+    assert.deepEqual(backup.vocabulary.map((e) => e.frontier), [before, 800, null]);
+    assert.equal(await page.evaluate(() => window.FT.ui.app.trainer.difficulty.state().manual), false);
+  });
+
   await step('a rebuild finishing after you left does not touch the new screen', async () => {
     await nav(page, 'settings/data');
     await page.evaluate(() => { window.trainerBefore = window.FT.ui.app.trainer; });

@@ -1,6 +1,7 @@
 // Local-first persistence.
-// Raw sessions are the source of truth (derived statistics can be rebuilt from
-// them); every record carries the schema version. Export/import is validated
+// Raw sessions, with the moments the vocabulary was fixed or released, are
+// the source of truth (derived statistics can be rebuilt from them); every
+// session carries the schema version. Export/import is validated
 // and migrated step by step (migrations[n] upgrades schema n to n+1).
 // Sessions are stored and exported compactly (FT.codec, schema 2) and read
 // back exactly; plain records and schema-1 exports still load.
@@ -105,6 +106,15 @@
         return list.map(FT.codec.decodeSession).sort(function (a, b) { return a.startedAt - b.startedAt; });
       });
     }
+    // Fixing or releasing the vocabulary, raw data like the sessions:
+    // { at, frontier }, frontier null when released. One per moment.
+    function saveVocabularyEvent(e) { return db.set('vocab:' + e.at, { at: e.at, frontier: e.frontier }); }
+    function listVocabularyEvents() {
+      return listPrefix('vocab:').then(function (list) { return list.sort(function (a, b) { return a.at - b.at; }); });
+    }
+    function validVocabularyEvent(e) {
+      return e && typeof e.at === 'number' && isFinite(e.at) && (e.frontier === null || (typeof e.frontier === 'number' && e.frontier > 0));
+    }
     // Stored sizes (JSON length) of the raw sessions and the derived profile.
     function sizes() {
       return Promise.all([listPrefix('session:'), db.get('profile')]).then(function (r) {
@@ -174,9 +184,9 @@
       return listPrefix('text:').then(function (l) { return l.map(unpackText).filter(Boolean).sort(function (a, b) { return a.addedAt - b.addedAt; }); });
     }
     function exportAll() {
-      return Promise.all([load(), listSessions(), listTexts(), db.get('draft')]).then(function (r) {
+      return Promise.all([load(), listSessions(), listTexts(), db.get('draft'), listVocabularyEvents()]).then(function (r) {
         var out = { format: FORMAT, schema: FT.SCHEMA, app: FT.version, exportedAt: new Date().toISOString(),
-          settings: r[0].settings, profile: r[0].profile, sessions: r[1].map(FT.codec.encodeSession), texts: r[2].map(packText) };
+          settings: r[0].settings, profile: r[0].profile, sessions: r[1].map(FT.codec.encodeSession), texts: r[2].map(packText), vocabulary: r[4] };
         if (r[3]) out.draft = r[3];
         return out;
       });
@@ -204,6 +214,9 @@
         if (!d.sessions.every(FT.codec.validSession) || (d.draft && !validDraft(d.draft))) {
           throw new Error('This export contains a damaged exercise; nothing was changed');
         }
+        if (!Array.isArray(d.vocabulary || []) || !(d.vocabulary || []).every(validVocabularyEvent)) {
+          throw new Error('This export contains a damaged vocabulary setting; nothing was changed');
+        }
         var written = mode === 'replace' ? replaceWith(d) : mergeWith(d);
         return written.then(function () { return restoreDraft(d.draft); }).then(repairAfterImport);
       }).then(function () { return data; });
@@ -211,14 +224,15 @@
     // Everything saved anew is saved compactly.
     function replaceWith(d) {
       return reset('all').then(function () {
-        return Promise.all(d.sessions.map(saveSession).concat((d.texts || []).map(saveText),
+        return Promise.all(d.sessions.map(saveSession).concat((d.texts || []).map(saveText), (d.vocabulary || []).map(saveVocabularyEvent),
           [saveSettings(d.settings || {}), d.profile ? saveProfile(d.profile) : db.del('profile'), db.set('compacted', true)]));
       });
     }
-    // Adds sessions and texts; keeps local settings, the tags of both sides
-    // and the furthest reading position of texts present on both sides.
+    // Adds sessions, texts and vocabulary events; keeps local settings, the
+    // tags of both sides and the furthest reading position of texts present
+    // on both sides.
     function mergeWith(d) {
-      return Promise.all(d.sessions.map(function (s) {
+      return Promise.all((d.vocabulary || []).map(saveVocabularyEvent).concat(d.sessions.map(function (s) {
         return getSession(s.id).then(function (mine) {
           var tags = FT.conditions.cleanTags(((mine && mine.tags) || []).concat(s.tags || []));
           if (tags.length) s.tags = tags;
@@ -229,7 +243,7 @@
           if (mine) t.pos = Math.max(mine.pos || 0, t.pos || 0);
           return saveText(t);
         });
-      })));
+      }))));
     }
     function validDraft(draft) { return FT.codec.validSession(draft.raw) && draft.ui && typeof draft.ui === 'object'; }
     // The backup's exercise awaiting its rating, unless one is waiting here.
@@ -247,7 +261,7 @@
           k = String(k);
           if (what === 'all') return true;
           if (what === 'profile') return k === 'profile';
-          if (what === 'sessions') return k.indexOf('session:') === 0;
+          if (what === 'sessions') return k.indexOf('session:') === 0 || k.indexOf('vocab:') === 0;
           if (what === 'texts') return k.indexOf('text:') === 0;
           if (what === 'settings') return k === 'settings';
           return false;
@@ -257,7 +271,7 @@
     }
 
     return { load: load, saveSettings: saveSettings, saveProfile: saveProfile, saveSession: saveSession,
-      listSessions: listSessions, exportAll: exportAll, saveDraft: saveDraft, getDraft: getDraft, clearDraft: clearDraft, getSession: getSession, compactSessions: compactSessions, sizes: sizes,
+      listSessions: listSessions, saveVocabularyEvent: saveVocabularyEvent, listVocabularyEvents: listVocabularyEvents, exportAll: exportAll, saveDraft: saveDraft, getDraft: getDraft, clearDraft: clearDraft, getSession: getSession, compactSessions: compactSessions, sizes: sizes,
       saveText: saveText, getText: getText, repairReadingPlaces: repairReadingPlaces, tagSessions: tagSessions, deleteText: deleteText, listTexts: listTexts, importAll: importAll, reset: reset, kind: db.kind };
   }
 

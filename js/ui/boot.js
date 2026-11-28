@@ -29,9 +29,9 @@
     app.settings = FT.settings.clean(stored.settings);
     U.applySettings();
     var rebuild = !stored.profile || FT.trainer.needsRebuild(stored.profile);
-    return (rebuild ? app.store.listSessions() : Promise.resolve([])).then(function (sessions) {
-      app.trainer = U.makeTrainer(rebuild ? null : stored.profile, sessions, stored.profile);
-      if (rebuild && sessions.length) return U.saveProfile();
+    return (rebuild ? U.listRaw() : Promise.resolve(null)).then(function (raw) {
+      app.trainer = U.makeTrainer(rebuild ? null : stored.profile, raw, stored.profile);
+      if (raw && raw.sessions.length) return U.saveProfile();
     });
   }
   // An exercise that was waiting for its effort rating when the page closed;

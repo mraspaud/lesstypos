@@ -46,14 +46,23 @@
     FT.ui.renderNotice();
   }
 
-  // previous: the stored profile, whose user choices (fixed vocabulary)
-  // survive a rebuild from raw sessions.
-  function makeTrainer(profile, sessions, previous) {
+  // raw: { sessions, vocabulary } as stored, rebuilt from without a profile;
+  // previous: the stored profile, whose fixed vocabulary survives a rebuild
+  // of exercises stored before vocabulary events.
+  function makeTrainer(profile, raw, previous) {
     app.trainerSettings = { macros: macros(), accents: app.settings.accents !== false };
     var opts = { settings: app.trainerSettings, seed: (Date.now() % 1e6) + 1 };
     if (profile) return FT.trainer.create(Object.assign({ profile: profile }, opts));
-    if (sessions && sessions.length) return FT.trainer.rebuild(sessions, Object.assign({ previous: previous }, opts));
+    if (raw && raw.sessions.length) return FT.trainer.rebuild(raw.sessions, Object.assign({ previous: previous, vocabularyEvents: raw.vocabulary }, opts));
     return FT.trainer.create(opts);
+  }
+  // The raw data the statistics are rebuilt from.
+  function listRaw() {
+    return Promise.all([app.store.listSessions(), app.store.listVocabularyEvents()]).then(function (r) { return { sessions: r[0], vocabulary: r[1] }; });
+  }
+  // Fixes the vocabulary (frontier) or releases it (null), and stores it as raw data.
+  function setVocabulary(frontier) {
+    return app.store.saveVocabularyEvent(app.trainer.setVocabulary(frontier, Date.now())).then(saveProfile).catch(storageError);
   }
   // Settings and statistics as stored now (after an import, a reset or a
   // rebuild); rebuild: from the raw exercises even if the stored statistics are current.
@@ -61,9 +70,9 @@
     return app.store.load().then(function (d) {
       app.settings = FT.settings.clean(d.settings);
       applySettings();
-      return app.store.listSessions().then(function (sessions) {
+      return listRaw().then(function (raw) {
         var stale = !d.profile || FT.trainer.needsRebuild(d.profile); // e.g. a backup from an older version
-        app.trainer = makeTrainer(rebuild || stale ? null : d.profile, sessions, d.profile);
+        app.trainer = makeTrainer(rebuild || stale ? null : d.profile, raw, d.profile);
         return saveProfile();
       });
     });
@@ -71,5 +80,5 @@
 
   FT.ui = { app: app, EFFORT: EFFORT, testing: testing, macros: macros, equivalence: equivalence, analysisOptions: analysisOptions, applySettings: applySettings,
     programmeDef: programmeDef, today: today, saveSettings: saveSettings, saveRun: saveRun, saveProfile: saveProfile, storageError: storageError,
-    makeTrainer: makeTrainer, reloadFromStore: reloadFromStore };
+    makeTrainer: makeTrainer, listRaw: listRaw, setVocabulary: setVocabulary, reloadFromStore: reloadFromStore };
 })(globalThis.FT);

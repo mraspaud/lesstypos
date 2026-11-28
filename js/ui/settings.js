@@ -67,8 +67,7 @@
   function changeVocabulary() {
     var manual = document.getElementById('vocabMode').value === 'manual';
     document.getElementById('frontier').disabled = !manual;
-    app.trainer.difficulty.override(manual ? +document.getElementById('frontier').value : null);
-    U.saveProfile();
+    U.setVocabulary(manual ? +document.getElementById('frontier').value : null);
     return false;
   }
   var CHANGES = {

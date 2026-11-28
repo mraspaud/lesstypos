@@ -116,8 +116,15 @@
       return FT.fluency.index(model.evaluate({ day: raw.day }), history, FT.fluency.reference(corpus, raw.macros), { minN: model.config.minN });
     }
 
+    // Fixes the vocabulary at `frontier`, or releases it (null), at time
+    // `at`; returns the event, raw data for the store, which a rebuild
+    // replays in order.
+    function setVocabulary(frontier, at) {
+      difficulty.override(frontier);
+      return { at: at, frontier: frontier };
+    }
     // A fixed vocabulary is part of what happened; replaying it keeps a
-    // rebuild faithful.
+    // rebuild faithful (also for exercises stored before vocabulary events).
     function applyVocabulary(v) {
       if (v.manual) difficulty.override(v.frontier);
       else if (difficulty.state().manual) difficulty.override(null);
@@ -226,7 +233,7 @@
     }
 
     return {
-      newExercise: newExercise, record: record, finish: finish, process: process, summarize: summarize, targets: targets,
+      newExercise: newExercise, record: record, finish: finish, process: process, summarize: summarize, targets: targets, setVocabulary: setVocabulary,
       explain: function (key) { return model.explain(key, { day: FT.days.number(now()) }); },
       evaluate: function () { return model.evaluate({ day: FT.days.number(now()) }); },
       substitutions: function (o) { return subs.matrix(o); },
@@ -248,19 +255,24 @@
     };
   }
 
-  // Replays raw sessions into a fresh profile. The user's own choices that
-  // are not derived from typing (a fixed vocabulary level) carry over from
-  // opts.previous.
+  // Replays raw sessions into a fresh profile, with the vocabulary events
+  // (opts.vocabularyEvents, setVocabulary's) in order: each before the
+  // exercises that ended after it. A vocabulary fixed before such events were
+  // stored carries over from opts.previous.
   function rebuild(raws, opts) {
     var sorted = raws.slice().sort(function (a, b) { return a.startedAt - b.startedAt; });
+    var events = ((opts && opts.vocabularyEvents) || []).slice().sort(function (a, b) { return a.at - b.at; });
     var lang = (sorted[0] && sorted[0].lang) || (opts && opts.previous && opts.previous.lang) || (opts && opts.lang);
     var t = create(Object.assign({}, opts, { profile: null, previous: null }, lang ? { lang: lang } : {}));
-    sorted.forEach(function (r) { t.process(r); });
+    var applyUntil = function (time) { while (events.length && events[0].at < time) t.difficulty.override(events.shift().frontier); };
+    sorted.forEach(function (r) { applyUntil(endOf(r)); t.process(r); });
+    applyUntil(Infinity);
     var prev = opts && opts.previous && opts.previous.difficulty;
     if (prev) t.difficulty.override(prev.manual ? prev.frontier : null);
     return t;
   }
 
+  function endOf(raw) { return raw.endedAt || raw.startedAt + (raw.durationMs || 0); }
   function needsRebuild(profile) { return !!profile && profile.modelVersion !== FT.MODEL_VERSION; }
 
   FT.trainer = { create: create, rebuild: rebuild, needsRebuild: needsRebuild };
