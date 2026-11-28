@@ -11,8 +11,11 @@
 // base rate.
 // Confirmed pairs: like a sequence (FT.judgement), a pair is confirmed when
 // its rate is credibly above the base rate, P > CONFIRM_P under the beta
-// posterior of the shrunk rate (Efron & Morris 1975), and it was seen in
-// MIN_SESSIONS separate sessions (user decision: replication). Design choice:
+// posterior of the shrunk rate (Efron & Morris 1975), by enough to matter
+// (the shrunk rate at least MIN_EXCESS above the base rate and MIN_RATIO times
+// it: the design choices that flag a sequence, FT.model's minErrAbs and
+// minErrRel), and it was seen in MIN_SESSIONS separate sessions (user
+// decision: replication). Design choice:
 // a session counts once it holds at least SESSION_MIN_SLIPS of the pair's
 // slips (half of an ambiguous alignment or a shared press).
 // Swapped letters (transpositions, Salthouse 1986) are their own kind of slip:
@@ -20,7 +23,7 @@
 (function (FT) {
   'use strict';
   var MAX_EXAMPLES = 20, SHRINKAGE = 50, BASE_SPREAD = 30, MIN_OPPORTUNITIES = 20;
-  var CONFIRM_P = 0.95, MIN_SESSIONS = 2, SESSION_MIN_SLIPS = 0.5;
+  var CONFIRM_P = 0.95, MIN_EXCESS = 0.005, MIN_RATIO = 1.25, MIN_SESSIONS = 2, SESSION_MIN_SLIPS = 0.5;
 
   // meta.equivalence: FT.text.equivalence, as for the analyses.
   function create(state) {
@@ -141,13 +144,14 @@
         var r = records[k], opp = st.opp[r.expected] || 0;
         var alpha = SHRINKAGE * m + r.count, beta = SHRINKAGE * (1 - m) + Math.max(0, opp - r.count);
         var pAbove = m > 0 ? 1 - FT.stats.betaCdf(m, alpha, beta) : 0;
-        var sessions = sessionsSeen(r);
+        var sessions = sessionsSeen(r), rate = alpha / (alpha + beta);
+        var credible = pAbove > CONFIRM_P && rate - m >= MIN_EXCESS && rate >= MIN_RATIO * m;
         return {
           expected: r.expected, actual: r.actual, count: r.count, opportunities: opp,
           observedRate: opp ? r.count / opp : 0,
-          rate: alpha / (alpha + beta),
+          rate: rate,
           baseRate: m, pAbove: pAbove, sessions: sessions,
-          confirmed: pAbove > CONFIRM_P && sessions >= MIN_SESSIONS,
+          confirmed: credible && sessions >= MIN_SESSIONS,
           examples: r.examples.slice().reverse(),
         };
       }).filter(function (r) { return r.opportunities >= minOpp; })
@@ -160,5 +164,5 @@
     return { ingest: ingest, matrix: matrix, premature: premature, confirmedPairs: confirmedPairs, swaps: swaps, toJSON: function () { return st; } };
   }
 
-  FT.subs = { create: create, MIN_SESSIONS: MIN_SESSIONS };
+  FT.subs = { create: create, MIN_EXCESS: MIN_EXCESS, MIN_SESSIONS: MIN_SESSIONS };
 })(globalThis.FT);

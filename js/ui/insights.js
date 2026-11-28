@@ -141,7 +141,7 @@
     var rows = app.trainer.substitutions({ minOpp: 30 }).filter(function (r) { return r.count >= 2; }).slice(0, 40);
     var html = '<section class="stack">' + U.sectionHead('insights') + '<h2>Recurring substitutions</h2>' +
       '<p class="muted">Which key comes out when another was intended. Rates are per press of the intended key (a multi-letter key is a key of its own) and include errors you corrected. ' +
-      'The list is ordered by a rate shrunk toward your overall rate, so a one-off does not top it. Confirmed: credibly above your overall rate, in ' + FT.subs.MIN_SESSIONS + ' sessions or more.</p></section>';
+      'The list is ordered by a rate shrunk toward your overall rate, so a one-off does not top it. Confirmed: credibly above your overall rate, by ' + pct(FT.subs.MIN_EXCESS) + ' of presses or more, in ' + FT.subs.MIN_SESSIONS + ' sessions or more.</p></section>';
     var layout = app.layout;
     if (layout) html += '<section class="stack"><h3>Errors by key</h3><p class="muted">All your exercises, on your layout.</p><div class="heatmap" id="hmall"></div></section>';
     if (layout) {
@@ -166,7 +166,7 @@
       html += H.table(['Intended', 'Typed'].concat(layout ? ['Kind'] : [], ['Rate per press', 'Times', 'Recent examples']), rows.map(function (r, i) {
         var rel = layout && FT.layout.relation(layout, r.expected, r.actual);
         return H.row([H.cell('<button type="button" class="rowbtn" data-row>' + seq(r.expected) + '</button>'),
-          H.cell(seq(r.actual) + (r.confirmed ? ' <span class="pill confirmed" title="Credibly above your overall rate, in ' + r.sessions + ' sessions">confirmed</span>' : ''))].concat(
+          H.cell(seq(r.actual) + (r.confirmed ? ' <span class="pill confirmed" title="Credibly above your overall rate, seen in ' + r.sessions + ' sessions">confirmed</span>' : ''))].concat(
           layout ? [H.cell(esc(rel ? rel.label : ''))] : [], slipRate(r), [H.cell(esc(recentContexts(r)), 'ex')]), ' class="clickable" data-i="' + i + '"' + U.action(function () { showExamples(r); }));
       }), { id: 'slips' }) + '<section id="subex"></section>';
     }

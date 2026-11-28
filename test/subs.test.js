@@ -146,6 +146,15 @@ test('a slip pair seen in 2 sessions but not credibly above the base rate is not
   assert.equal(pair(s, 'a', 'b').confirmed, true);
 });
 
+test('a slip pair credibly above the base rate by less than it takes to matter is not confirmed', () => {
+  const s = FT.subs.create();
+  const session = () => typedTimes(15, 'e', 'i').concat(typedTimes(4985, 'e', 'e'));   // 0.3%, against a base of 0.005%
+  feedSessions(s, [session(), session()]);
+  const row = pair(s, 'e', 'i');
+  assert.ok(row.pAbove > 0.95);
+  assert.equal(row.confirmed, false);
+});
+
 test('loading stored statistics leaves the stored object untouched', () => {
   const stored = { opp: {}, pairs: {}, totalSubs: 0, totalOpp: 0 };
   FT.subs.create(stored);
